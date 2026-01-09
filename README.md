@@ -107,7 +107,7 @@ npm run dev
 - **状态管理**: Redux Toolkit
 - **图表**: ECharts + echarts-for-react
 - **构建工具**: Vite 5
-- **桌面应用**: Electron 31+
+- **桌面应用**: Electron 35.7.5+
 
 ### 开发工具
 - **代码规范**: ESLint + Prettier
