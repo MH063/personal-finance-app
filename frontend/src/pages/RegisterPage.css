@@ -366,13 +366,28 @@
   
   .register-form-panel {
     width: 100%;
-    height: 100%;
-    max-height: 100vh;
-    border-radius: 0;
-    padding: 40px 20px;
+    height: auto;
+    max-height: 90vh;
+    border-radius: 20px;
+    padding: 30px 20px;
+    margin: 10px;
+  }
+
+  .register-logo {
+    font-size: 32px;
+    margin-bottom: 12px;
+  }
+  
+  .register-header {
+    margin-bottom: 24px;
   }
 
   .register-button {
     height: 48px !important;
+  }
+  
+  .login-link {
+    margin-top: 20px;
+    margin-bottom: 10px;
   }
 }
