@@ -1,0 +1,294 @@
+.transaction-manager {
+  animation: fadeIn var(--duration-base) var(--ease-standard);
+}
+
+.manager-card {
+  border-radius: 24px !important;
+  background: rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05) !important;
+  overflow: hidden;
+}
+
+.dark-mode .manager-card {
+  background: rgba(30, 41, 59, 0.7) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* Card Header */
+.card-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.dark-mode .card-header-title {
+  color: #f1f5f9;
+}
+
+.title-dot {
+  width: 6px;
+  height: 20px;
+  border-radius: 3px;
+}
+
+.add-button {
+  border-radius: 12px !important;
+  height: 40px !important;
+  padding: 0 20px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.add-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Filter Section */
+.filter-section {
+  background: rgba(255, 255, 255, 0.4) !important;
+  backdrop-filter: blur(4px);
+  padding: 24px;
+  border-radius: 20px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+}
+
+.dark-mode .filter-section {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dark-mode .filter-label {
+  color: #94a3b8;
+}
+
+.filter-icon {
+  color: #94a3b8;
+}
+
+.filter-section .ant-input-affix-wrapper,
+.filter-section .ant-select-selector,
+.filter-section .ant-picker {
+  border-radius: 12px !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  transition: all 0.2s ease !important;
+}
+
+.filter-section .ant-input-affix-wrapper:hover,
+.filter-section .ant-select-selector:hover,
+.filter-section .ant-picker:hover {
+  border-color: var(--primary-color) !important;
+  background: white !important;
+}
+
+.dark-mode .filter-section .ant-input-affix-wrapper,
+.dark-mode .filter-section .ant-select-selector,
+.dark-mode .filter-section .ant-picker {
+  background: rgba(15, 23, 42, 0.6) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #f1f5f9 !important;
+}
+
+.filter-submit-btn {
+  border-radius: 12px !important;
+  height: 40px !important;
+  font-weight: 600 !important;
+}
+
+/* Table Section */
+.table-container {
+  margin: 0 -24px;
+}
+
+.transaction-table .ant-table {
+  background: transparent !important;
+}
+
+.transaction-table .ant-table-thead > tr > th {
+  background: transparent !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #64748b !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  padding: 16px 24px !important;
+}
+
+.dark-mode .transaction-table .ant-table-thead > tr > th {
+  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+  color: #94a3b8 !important;
+}
+
+.transaction-table .ant-table-tbody > tr > td {
+  padding: 16px 24px !important;
+  border-bottom: 1px solid #f8fafc !important;
+}
+
+.dark-mode .transaction-table .ant-table-tbody > tr > td {
+  border-bottom-color: rgba(255, 255, 255, 0.02) !important;
+}
+
+.transaction-table .ant-table-row:hover > td {
+  background: #f8fafc !important;
+}
+
+.dark-mode .transaction-table .ant-table-row:hover > td {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Column Styles */
+.date-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.date-main {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.date-sub {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.dark-mode .date-main { color: #f1f5f9; }
+
+.category-tag {
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 4px 12px !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+}
+
+.amount-column {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.amount-column .currency {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.amount-column .value {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.amount-column.income .value { color: #10b981; }
+.amount-column.expense .value { color: #ef4444; }
+
+.description-text {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.dark-mode .description-text { color: #94a3b8; }
+
+.action-btn {
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 8px !important;
+  transition: all 0.2s !important;
+}
+
+.action-btn.edit:hover {
+  background: #eff6ff !important;
+  color: #3b82f6 !important;
+}
+
+.action-btn.delete:hover {
+  background: #fef2f2 !important;
+  color: #ef4444 !important;
+}
+
+/* Pagination */
+.custom-pagination {
+  margin: 24px !important;
+}
+
+.custom-pagination .ant-pagination-item-active {
+  border-radius: 8px !important;
+  border-color: var(--primary-color) !important;
+}
+
+.custom-pagination .ant-pagination-item {
+  border-radius: 8px !important;
+}
+
+/* Modal Styling */
+.transaction-modal .ant-modal-content {
+  border-radius: 24px !important;
+  padding: 32px !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.dark-mode .transaction-modal .ant-modal-content {
+  background: rgba(30, 41, 59, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.modern-form .ant-form-item-label label {
+  font-weight: 600 !important;
+  color: #64748b !important;
+}
+
+.dark-mode .modern-form .ant-form-item-label label {
+  color: #94a3b8 !important;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive */
+@media (max-width: 992px) {
+  .filter-section {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 768px) {
+  .table-container {
+    margin: 0 -16px;
+  }
+  
+  .transaction-table .ant-table-thead > tr > th,
+  .transaction-table .ant-table-tbody > tr > td {
+    padding: 12px 16px !important;
+  }
+}

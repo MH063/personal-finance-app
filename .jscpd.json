@@ -1,0 +1,6 @@
+{
+  "threshold": 5,
+  "reporters": ["console", "html"],
+  "ignore": ["node_modules", "dist", "build", "coverage", "**/*.spec.ts", "**/*.test.ts"],
+  "absolute": true
+}

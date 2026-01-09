@@ -1,0 +1,285 @@
+.register-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: 
+    linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(33, 150, 243, 0.1) 100%),
+    url('https://picsum.photos/1920/1080?blur=10&random=1') center/cover no-repeat;
+  padding: var(--space-4);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 动态背景装饰圆 */
+.register-container::before,
+.register-container::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  z-index: 0;
+}
+
+.register-container::before {
+  width: 400px;
+  height: 400px;
+  background: #4caf50;
+  top: -100px;
+  right: -100px;
+  opacity: 0.15;
+}
+
+.register-container::after {
+  width: 300px;
+  height: 300px;
+  background: #2196f3;
+  bottom: -50px;
+  left: -50px;
+  opacity: 0.15;
+}
+
+.register-content {
+  display: flex;
+  width: 100%;
+  max-width: 1000px;
+  min-height: 650px;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 左侧品牌面板 */
+.register-side-panel {
+  flex: 1;
+  padding: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(76, 175, 80, 0.85) 0%, rgba(33, 150, 243, 0.85) 100%);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.register-side-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('https://picsum.photos/800/800?random=2') center/cover no-repeat;
+  opacity: 0.2;
+  mix-blend-mode: overlay;
+}
+
+.panel-content {
+  position: relative;
+  z-index: 2;
+}
+
+.panel-title {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1.3;
+  margin-bottom: 32px;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.panel-features {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.panel-features li {
+  font-size: 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  opacity: 0.9;
+}
+
+.panel-features li::before {
+  content: '✓';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  margin-right: 12px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+/* 右侧表单面板 */
+.register-form-panel {
+  width: 480px;
+  padding: 40px 50px;
+  background: rgba(255, 255, 255, 0.6);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.register-header {
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.register-logo {
+  font-size: 40px;
+  margin-bottom: 12px;
+  display: inline-block;
+}
+
+.register-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 8px;
+}
+
+.register-subtitle {
+  font-size: 14px;
+  color: #666;
+}
+
+.register-form .ant-form-item {
+  margin-bottom: 16px;
+}
+
+.register-form .ant-input-affix-wrapper {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  padding: 10px 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.register-form .ant-input-affix-wrapper:hover,
+.register-form .ant-input-affix-wrapper-focused {
+  background: #ffffff;
+  border-color: #4caf50;
+  box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.15);
+}
+
+.register-form .ant-input {
+  background: transparent !important;
+  color: #1e293b !important;
+  font-size: 16px !important;
+  font-weight: 500;
+}
+
+.register-form .ant-input::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
+
+.register-form .form-icon {
+  color: #64748b;
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+/* 验证状态样式优化 */
+.register-form .ant-form-item-explain-error {
+  color: #ef4444 !important;
+  font-size: 13px;
+  margin-top: 4px;
+  font-weight: 500;
+  padding-left: 4px;
+}
+
+.register-form .ant-form-item-explain-success {
+  color: #10b981 !important;
+  font-size: 13px;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+.register-form .ant-form-item-has-error .ant-input-affix-wrapper {
+  border-color: #ef4444 !important;
+  background: rgba(254, 242, 242, 0.9);
+}
+
+.register-form .ant-form-item-has-error .ant-input-affix-wrapper:hover,
+.register-form .ant-form-item-has-error .ant-input-affix-wrapper-focused {
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+}
+
+/* 密码切换按钮样式 */
+.register-form .ant-input-password-icon {
+  color: #64748b !important;
+  transition: color 0.3s;
+}
+
+.register-form .ant-input-password-icon:hover {
+  color: #1e293b !important;
+}
+
+.register-button {
+  width: 100%;
+  height: 44px !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  margin-top: 8px;
+  background: #4caf50 !important;
+  border-color: #4caf50 !important;
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.25);
+}
+
+.register-button:hover {
+  background: #43a047 !important;
+  border-color: #43a047 !important;
+}
+
+.register-footer {
+  margin-top: 24px;
+  text-align: center;
+  color: #666;
+  font-size: 14px;
+}
+
+.register-footer a {
+  color: #4caf50;
+  font-weight: 600;
+}
+
+/* 响应式适配 */
+@media (max-width: 992px) {
+  .register-side-panel {
+    display: none;
+  }
+  .register-content {
+    max-width: 480px;
+  }
+  .register-form-panel {
+    width: 100%;
+    padding: 40px;
+  }
+}
+
+@media (max-width: 576px) {
+  .register-container {
+    padding: 0;
+  }
+  .register-content {
+    border-radius: 0;
+    min-height: 100vh;
+  }
+}

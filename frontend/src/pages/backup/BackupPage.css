@@ -1,0 +1,99 @@
+.backup-page {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.backup-page .page-header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+}
+
+.backup-page .page-title {
+  margin-bottom: 4px !important;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.backup-page .stats-row {
+  margin-bottom: 32px;
+}
+
+.backup-page .stat-card.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
+  transition: transform 0.3s ease;
+}
+
+.dark-mode .backup-page .stat-card.glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.backup-page .stat-card:hover {
+  transform: translateY(-5px);
+}
+
+.backup-page .history-card.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
+  overflow: hidden;
+}
+
+.dark-mode .backup-page .history-card.glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.backup-page .restore-warning {
+  padding: 16px;
+  background: rgba(255, 251, 230, 0.8);
+  border: 1px solid #ffe58f;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  backdrop-filter: blur(10px);
+}
+
+.dark-mode .backup-page .restore-warning {
+  background: rgba(255, 251, 230, 0.1);
+  border: 1px solid rgba(255, 229, 143, 0.3);
+}
+
+.backup-page .header-actions .ant-btn {
+  height: 44px !important;
+  border-radius: 12px !important;
+  padding: 0 24px !important;
+  font-weight: 600 !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .backup-page .page-header-section {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .backup-page .header-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+  
+  .backup-page .header-actions .ant-btn {
+    flex: 1;
+    padding: 0 12px !important;
+  }
+}

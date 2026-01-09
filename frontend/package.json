@@ -1,0 +1,131 @@
+{
+  "name": "personal-finance-frontend",
+  "version": "1.0.0",
+  "description": "个人财务管理前端应用",
+  "main": "electron/main.js",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "set NODE_ENV=development&&electron .",
+    "build": "npm run build:vite && npm run build:electron",
+    "build:vite": "vite build",
+    "build:electron": "electron-builder",
+    "lint": "eslint src --ext .ts,.tsx",
+    "format": "prettier --write src",
+    "cpd": "jscpd src",
+    "test": "vitest",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.6.1",
+    "@reduxjs/toolkit": "^2.11.2",
+    "antd": "^5.29.3",
+    "axios": "^1.13.2",
+    "dayjs": "^1.11.19",
+    "echarts": "^5.6.0",
+    "echarts-for-react": "^3.0.5",
+    "electron-store": "^8.2.0",
+    "file-saver": "^2.0.5",
+    "lodash": "^4.17.21",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.70.0",
+    "react-redux": "^9.2.0",
+    "react-router-dom": "^6.30.3"
+  },
+  "devDependencies": {
+    "@types/file-saver": "^2.0.7",
+    "@types/lodash": "^4.17.7",
+    "@types/node": "^20.14.9",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
+    "@typescript-eslint/eslint-plugin": "^7.13.1",
+    "@typescript-eslint/parser": "^7.13.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "concurrently": "^8.2.2",
+    "electron": "^29.4.6",
+    "electron-builder": "^24.13.3",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.2",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "jscpd": "^4.0.5",
+    "prettier": "^3.3.2",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21",
+    "vitest": "^1.6.0"
+  },
+  "build": {
+    "appId": "com.personalfinance.app",
+    "productName": "个人财务管理",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.ico",
+      "publish": [
+        {
+          "provider": "github",
+          "owner": "your-username",
+          "repo": "personal-finance-app"
+        }
+      ]
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.icns",
+      "category": "public.app-category.finance"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/assets/icon.png",
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "个人财务管理"
+    }
+  }
+}

@@ -1,0 +1,149 @@
+.settings-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  animation: fadeIn 0.5s ease-out;
+}
+
+.settings-header {
+  margin-bottom: 32px;
+  padding: 0 4px;
+}
+
+.settings-header .page-title {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 8px !important;
+}
+
+.settings-main-card.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 24px;
+  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
+  overflow: hidden;
+}
+
+.dark-mode .settings-main-card.glass-card {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.settings-content-inner {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 32px 0;
+}
+
+.notification-content-inner {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 32px 0;
+}
+
+/* 强化表单文字清晰度 */
+.settings-section .ant-form-item-label > label {
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+  font-size: 14px;
+}
+
+.dark-mode .settings-section .ant-form-item-label > label {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 40px;
+}
+
+.avatar-wrapper {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 4px;
+  background: linear-gradient(135deg, var(--primary-500) 0%, #40a9ff 100%);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.avatar-wrapper:hover {
+  transform: scale(1.05);
+}
+
+.avatar-overlay {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.3s;
+  backdrop-filter: blur(4px);
+}
+
+.avatar-wrapper:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 0;
+  transition: background 0.3s;
+}
+
+.setting-item-group .ant-divider {
+  margin: 0;
+  opacity: 0.6;
+}
+
+.save-btn-container {
+  margin-top: 48px;
+}
+
+.save-btn {
+  height: 50px !important;
+  border-radius: 12px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .settings-section {
+    padding: 0 16px;
+  }
+  
+  .settings-content-inner,
+  .notification-content-inner {
+    padding: 20px 0;
+  }
+  
+  .setting-item {
+    padding: 16px 0;
+  }
+  
+  .setting-item .ant-typography {
+    font-size: 14px;
+  }
+}
