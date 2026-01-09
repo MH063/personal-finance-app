@@ -161,7 +161,7 @@ const RegisterPage: React.FC = () => {
             </Form.Item>
           </Form>
 
-          <div className="register-footer">
+          <div className="login-link">
             已有账户？<Link to="/login">立即登录</Link>
           </div>
         </div>
