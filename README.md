@@ -107,7 +107,7 @@ npm run dev
 - **状态管理**: Redux Toolkit
 - **图表**: ECharts + echarts-for-react
 - **构建工具**: Vite 5
-- **桌面应用**: Electron 29
+- **桌面应用**: Electron 31+
 
 ### 开发工具
 - **代码规范**: ESLint + Prettier
@@ -217,6 +217,6 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ---
 
 **版本**: v1.0.0  
-**更新时间**: 2025-01-08  
+**更新时间**: 2026-01-09  
 **Node.js**: >= 20.0.0  
 **PostgreSQL**: >= 18
