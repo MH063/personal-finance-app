@@ -1,0 +1,74 @@
+/**
+ * Design Theme Switch Styles
+ */
+
+.theme-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.theme-switch.with-label {
+  background: var(--color-bg-secondary);
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
+}
+
+.theme-switch-toggle {
+  border-radius: var(--radius-full) !important;
+  background: var(--color-border-default) !important;
+  transition: all var(--duration-base) var(--ease-out) !important;
+}
+
+.theme-switch-toggle .anticon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.theme-switch-toggle.ant-switch-checked {
+  background: var(--color-primary-500) !important;
+}
+
+.theme-switch-toggle:not(.ant-switch-checked) {
+  background: var(--color-border-default) !important;
+}
+
+.theme-switch-toggle:hover:not(.ant-switch-checked) {
+  background: var(--color-border-strong) !important;
+}
+
+.theme-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  transition: all var(--duration-fast) var(--ease-out);
+  padding: 0 var(--space-2);
+}
+
+.theme-label.active {
+  color: var(--color-primary-500);
+  font-weight: var(--font-weight-medium);
+}
+
+.theme-label .anticon {
+  font-size: 16px;
+}
+
+/* 尺寸变体 */
+.theme-switch-toggle.ant-switch-switched .anticon {
+  font-size: 12px;
+}
+
+/* 动画 */
+.theme-switch-toggle .anticon {
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.theme-switch-toggle.ant-switch-checked .anticon-moon {
+  transform: rotate(-90deg);
+}
+
+.theme-switch-toggle:not(.ant-switch-checked) .anticon-sun {
+  transform: rotate(0deg);
+}

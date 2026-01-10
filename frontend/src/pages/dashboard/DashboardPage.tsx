@@ -23,7 +23,6 @@ const DashboardPage: React.FC = () => {
   const { overview, chartData, health } = useSelector((state: RootState) => state.statistics);
   const { transactions } = useSelector((state: RootState) => state.transactions);
   const { statistics: debtStats } = useSelector((state: RootState) => state.debts);
-  const { loading: globalLoading, darkMode } = useSelector((state: RootState) => state.app);
 
   useEffect(() => {
     dispatch(fetchOverview({ timeRange: 'month' }) as any);
@@ -35,13 +34,17 @@ const DashboardPage: React.FC = () => {
     dispatch(fetchDebtStatistics() as any);
   }, [dispatch]);
 
-  const chartTheme = darkMode ? 'dark' : 'light';
-  const textColor = darkMode ? 'rgba(255, 255, 255, 0.45)' : 'rgba(0, 0, 0, 0.45)';
-  const splitLineColor = darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)';
+  const textColor = 'rgba(255, 255, 255, 0.85)';
+  const splitLineColor = 'rgba(255, 255, 255, 0.15)';
 
   const lineChartOption = {
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis' },
+    tooltip: { 
+      trigger: 'axis',
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      borderColor: 'rgba(255, 255, 255, 0.2)',
+      textStyle: { color: '#fff' }
+    },
     legend: { 
       data: ['收入', '支出'], 
       bottom: 0, 
@@ -73,7 +76,7 @@ const DashboardPage: React.FC = () => {
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [{ offset: 0, color: 'rgba(16, 185, 129, 0.2)' }, { offset: 1, color: 'rgba(16, 185, 129, 0)' }]
+            colorStops: [{ offset: 0, color: 'rgba(16, 185, 129, 0.3)' }, { offset: 1, color: 'rgba(16, 185, 129, 0)' }]
           }
         },
       },
@@ -89,7 +92,7 @@ const DashboardPage: React.FC = () => {
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [{ offset: 0, color: 'rgba(239, 68, 68, 0.2)' }, { offset: 1, color: 'rgba(239, 68, 68, 0)' }]
+            colorStops: [{ offset: 0, color: 'rgba(239, 68, 68, 0.3)' }, { offset: 1, color: 'rgba(239, 68, 68, 0)' }]
           }
         },
       },
@@ -98,7 +101,13 @@ const DashboardPage: React.FC = () => {
 
   const pieChartOption = {
     backgroundColor: 'transparent',
-    tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
+    tooltip: { 
+      trigger: 'item', 
+      formatter: '{b}: {c} ({d}%)',
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      borderColor: 'rgba(255, 255, 255, 0.2)',
+      textStyle: { color: '#fff' }
+    },
     legend: { 
       orient: 'vertical', 
       right: 10, 
@@ -116,64 +125,6 @@ const DashboardPage: React.FC = () => {
           name: item.name,
           itemStyle: { color: item.color || '#6366f1' },
         })),
-      },
-    ],
-  };
-
-  const healthScoreOption = {
-    backgroundColor: 'transparent',
-    series: [
-      {
-        type: 'gauge',
-        startAngle: 180,
-        endAngle: 0,
-        min: 0,
-        max: 100,
-        splitNumber: 5,
-        radius: '100%',
-        center: ['50%', '75%'],
-        axisLine: {
-          roundCap: true,
-          lineStyle: {
-            width: 12,
-            color: [
-              [0.4, '#ef4444'],
-              [0.6, '#f59e0b'],
-              [0.8, '#6366f1'],
-              [1, '#10b981'],
-            ],
-          },
-        },
-        pointer: { 
-          icon: 'path://M12.8,0.7l12,40.1H0.7L12.8,0.7z',
-          width: 6, 
-          length: '60%',
-          offsetCenter: [0, '8%'],
-          itemStyle: { color: 'auto' }
-        },
-        anchor: {
-          show: true,
-          showAbove: true,
-          size: 10,
-          itemStyle: {
-            color: '#fff',
-            borderWidth: 2,
-            borderColor: '#6366f1'
-          }
-        },
-        axisTick: { show: false },
-        splitLine: { show: false },
-        axisLabel: { show: false },
-        title: { show: true, fontSize: 12, offsetCenter: [0, '45%'], color: textColor },
-        detail: {
-          fontSize: 28,
-          fontWeight: 'bold',
-          valueAnimation: true,
-          formatter: '{value}',
-          offsetCenter: [0, '15%'],
-          color: darkMode ? '#fff' : '#333',
-        },
-        data: [{ value: health?.healthScore || 0, name: '健康评分' }],
       },
     ],
   };
@@ -211,7 +162,7 @@ const DashboardPage: React.FC = () => {
       <Row gutter={[24, 24]} className="stat-overview-row">
         {/* 顶部统计卡片 */}
         <Col xs={24} sm={12} lg={6}>
-          <Card className="overview-card income" bordered={false}>
+          <Card className="overview-card income" variant="borderless">
             <div className="card-icon-wrapper">
               <ArrowUpOutlined />
             </div>
@@ -227,7 +178,7 @@ const DashboardPage: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card className="overview-card expense" bordered={false}>
+          <Card className="overview-card expense" variant="borderless">
             <div className="card-icon-wrapper">
               <ArrowDownOutlined />
             </div>
@@ -243,7 +194,7 @@ const DashboardPage: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card className="overview-card balance" bordered={false}>
+          <Card className="overview-card balance" variant="borderless">
             <div className="card-icon-wrapper">
               <ClockCircleOutlined />
             </div>
@@ -265,7 +216,7 @@ const DashboardPage: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card className="overview-card debt" bordered={false}>
+          <Card className="overview-card debt" variant="borderless">
             <div className="card-icon-wrapper">
               <WarningOutlined />
             </div>
@@ -285,12 +236,12 @@ const DashboardPage: React.FC = () => {
       <Row gutter={[24, 24]} className="chart-grid">
         {/* 图表区域 */}
         <Col xs={24} lg={16}>
-          <Card title="收支趋势" className="glass-card chart-card" bordered={false}>
-            <ReactECharts option={lineChartOption} style={{ height: 350 }} theme={chartTheme} />
+          <Card title="收支趋势" className="chart-card" variant="borderless">
+            <ReactECharts option={lineChartOption} style={{ height: 350 }} />
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card title="财务健康度" className="glass-card health-card" bordered={false}>
+          <Card title="财务健康度" className="health-card" variant="borderless">
             <div className="health-content">
               <Progress
                 type="dashboard"
@@ -301,7 +252,7 @@ const DashboardPage: React.FC = () => {
                   '100%': '#10b981',
                 }}
                 strokeWidth={10}
-                width={180}
+                size={180}
               />
               <div className="health-info">
                 <Title level={4}>{health?.healthLevel || '未知'}</Title>
@@ -314,12 +265,12 @@ const DashboardPage: React.FC = () => {
         <Col xs={24} lg={12}>
           <Card 
             title="支出分类" 
-            className="glass-card category-card" 
-            bordered={false}
+            className="category-pie-card" 
+            variant="borderless"
             extra={<Button type="link" onClick={() => navigate('/statistics')}>查看详情</Button>}
           >
             {chartData.pieChart.length > 0 ? (
-              <ReactECharts option={pieChartOption} style={{ height: 300 }} theme={chartTheme} />
+              <ReactECharts option={pieChartOption} style={{ height: 300 }} />
             ) : (
               <Empty description="暂无分类数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
             )}
@@ -329,8 +280,8 @@ const DashboardPage: React.FC = () => {
         <Col xs={24} lg={12}>
           <Card 
             title="最近交易" 
-            className="glass-card transaction-card" 
-            bordered={false}
+            className="recent-transactions-card" 
+            variant="borderless"
             extra={<Button type="link" onClick={() => navigate('/expense')}>查看全部</Button>}
           >
             <List

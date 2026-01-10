@@ -9,7 +9,7 @@ interface AppState {
 const initialState: AppState = {
   loading: false,
   loadingCount: 0,
-  darkMode: localStorage.getItem('darkMode') === 'true',
+  darkMode: false, // 始终保持浅色模式
 };
 
 const appSlice = createSlice({
@@ -17,18 +17,18 @@ const appSlice = createSlice({
   initialState,
   reducers: {
     /**
-     * 切换暗色模式
+     * 切换暗色模式 (已禁用)
      */
     toggleDarkMode: (state) => {
-      state.darkMode = !state.darkMode;
-      localStorage.setItem('darkMode', state.darkMode.toString());
+      state.darkMode = false;
+      localStorage.removeItem('darkMode');
     },
     /**
-     * 设置暗色模式
+     * 设置暗色模式 (已禁用)
      */
-    setDarkMode: (state, action) => {
-      state.darkMode = action.payload;
-      localStorage.setItem('darkMode', state.darkMode.toString());
+    setDarkMode: (state) => {
+      state.darkMode = false;
+      localStorage.removeItem('darkMode');
     },
     /**
      * 开始加载

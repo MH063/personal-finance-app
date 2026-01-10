@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Card, Form, Select, Button, Typography, App, Spin } from 'antd';
-import { GlobalOutlined, MoonOutlined, SaveOutlined } from '@ant-design/icons';
+import { MoonOutlined, SaveOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '@store/index';
 import { fetchSettings, updateSettings } from '@store/slices/settingsSlice';
@@ -50,7 +50,7 @@ const PreferencePage: React.FC = () => {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '300px', gap: '16px' }}>
         <Spin size="large" />
-        <Text type="secondary">正在加载设置...</Text>
+        <Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>正在加载设置...</Text>
       </div>
     );
   }
@@ -59,10 +59,10 @@ const PreferencePage: React.FC = () => {
     <div className="settings-section">
       <div className="settings-header">
         <Title level={2} className="page-title">偏好设置</Title>
-        <Text type="secondary">定制您的应用体验，包括语言、货币和主题显示</Text>
+        <Text style={{ color: 'rgba(255, 255, 255, 0.7)' }}>定制您的应用体验，包括语言、货币和系统配置</Text>
       </div>
 
-      <Card className="settings-main-card glass-card" bordered={false}>
+      <Card className="settings-main-card glass-card" variant="borderless">
         <div className="settings-content-inner">
           <Form form={form} layout="vertical" onFinish={handleSave}>
             <Form.Item label="首选货币" name="currency">
@@ -86,14 +86,6 @@ const PreferencePage: React.FC = () => {
               <Select size="large">
                 <Option value={0}>星期日</Option>
                 <Option value={1}>星期一</Option>
-              </Select>
-            </Form.Item>
-
-            <Form.Item label="界面主题模式" name="theme">
-              <Select size="large" prefix={<MoonOutlined />}>
-                <Option value="light">明亮模式</Option>
-                <Option value="dark">暗黑模式</Option>
-                <Option value="system">跟随系统</Option>
               </Select>
             </Form.Item>
 

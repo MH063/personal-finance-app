@@ -1,24 +1,38 @@
 .register-container {
+  position: relative;
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: 
+    radial-gradient(at 0% 0%, rgba(76, 175, 80, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(33, 150, 243, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+    #0f172a;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(76, 175, 80, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(33, 150, 243, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
     linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(33, 150, 243, 0.1) 100%),
-    url('https://picsum.photos/1920/1080?blur=10&random=1') center/cover no-repeat;
-  padding: var(--space-4);
-  position: relative;
+    var(--page-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  padding: clamp(16px, 3vw, 48px);
   overflow: hidden;
 }
 
-/* 动态背景装饰圆 */
+/* 动态背景装饰圆 - 背景层 */
 .register-container::before,
 .register-container::after {
   content: '';
   position: absolute;
   border-radius: 50%;
   filter: blur(80px);
-  z-index: 0;
+  z-index: var(--z-bg-app);
+  pointer-events: none;
 }
 
 .register-container::before {
@@ -41,18 +55,21 @@
 
 .register-content {
   display: flex;
-  width: 100%;
-  max-width: 1000px;
-  min-height: 600px;
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  width: 65vw;
+  max-width: 1200px;
+  min-width: 800px;
+  height: 65vh;
+  max-height: 800px;
+  min-height: 500px;
+  background: var(--color-bg-glass) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--color-glass-border) !important;
+  box-shadow: var(--shadow-glass) !important;
   overflow: hidden;
   position: relative;
-  z-index: 1;
+  z-index: var(--z-content);
   animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -61,61 +78,65 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* 左侧品牌面板 */
+/* 左侧品牌面板 - 内容层 */
 .register-side-panel {
   flex: 1;
-  padding: 60px;
+  padding: clamp(20px, 4vw, 60px);
   display: flex;
   flex-direction: column;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.9) 0%, rgba(129, 140, 248, 0.9) 100%);
+  background: var(--gradient-primary);
   color: white;
   position: relative;
   overflow: hidden;
+  z-index: var(--z-content);
 }
 
 .register-side-panel::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: url('https://picsum.photos/800/800?grayscale') center/cover no-repeat;
+  background: var(--panel-bg-image) center/cover no-repeat;
   opacity: 0.15;
   mix-blend-mode: overlay;
+  z-index: var(--z-bg-surface);
+  pointer-events: none;
 }
 
 .panel-content {
   position: relative;
-  z-index: 2;
+  z-index: var(--z-interactive);
 }
 
 .panel-title {
-  font-size: 36px;
+  font-size: clamp(24px, 2.5vw, 42px);
   font-weight: 800;
   line-height: 1.3;
-  margin-bottom: 32px;
+  margin-bottom: clamp(12px, 2vh, 24px);
   color: white;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .panel-features {
   list-style: none;
   padding: 0;
   margin: 0;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .panel-features li {
-  font-size: 16px;
-  margin-bottom: 20px;
+  font-size: clamp(14px, 1.2vw, 18px);
+  margin-bottom: clamp(10px, 1.5vh, 20px);
   display: flex;
   align-items: center;
   opacity: 1;
   color: rgba(255, 255, 255, 0.95);
   font-weight: 500;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .panel-features li::before {
@@ -130,215 +151,266 @@
   margin-right: 12px;
   font-size: 14px;
   font-weight: bold;
+  position: relative;
+  z-index: var(--z-interactive);
+  transition: transform var(--duration-fast) var(--ease-out);
 }
 
-/* 右侧表单面板 */
+.panel-features li:hover::before {
+  transform: scale(1.1);
+}
+
+/* 右侧表单面板 - 内容层 */
 .register-form-panel {
   flex: 1;
-  padding: 40px 50px;
-  background: rgba(255, 255, 255, 0.6);
+  padding: clamp(20px, 4vh, 60px) clamp(20px, 4vw, 60px);
+  background: rgba(255, 255, 255, 0.03);
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(99, 102, 241, 0.3) transparent;
-  display: flex;
-  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+  z-index: var(--z-content);
 }
 
-/* 隐藏 Webkit 浏览器的滚动条或美化 */
+/* 移除滚动条样式 */
 .register-form-panel::-webkit-scrollbar {
-  width: 6px;
-}
-
-.register-form-panel::-webkit-scrollbar-thumb {
-  background-color: rgba(99, 102, 241, 0.2);
-  border-radius: 10px;
-}
-
-.register-form-panel::-webkit-scrollbar-track {
-  background: transparent;
+  display: none;
 }
 
 .register-header {
-  margin-bottom: 35px;
+  margin-bottom: clamp(12px, 2vh, 24px);
   flex-shrink: 0;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .register-logo {
-  font-size: 40px;
-  margin-bottom: 12px;
+  font-size: clamp(24px, 3vw, 42px);
+  margin-bottom: 4px;
   display: inline-block;
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
+  filter: drop-shadow(0 4px 8px rgba(99, 102, 241, 0.3));
+  position: relative;
+  z-index: var(--z-interactive);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.register-logo:hover {
+  transform: scale(1.05);
 }
 
 .register-title {
-  font-size: 26px;
+  font-size: clamp(18px, 1.8vw, 32px);
   font-weight: 800;
-  color: #0f172a;
-  margin-bottom: 8px;
+  color: white;
+  margin-bottom: 2px;
   letter-spacing: -0.02em;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .register-subtitle {
-  font-size: 15px;
-  color: #475569;
+  font-size: clamp(12px, 1vw, 16px);
+  color: rgba(255, 255, 255, 0.7);
   font-weight: 500;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .register-form .ant-form-item {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .form-label {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: rgba(255, 255, 255, 0.9);
   margin-bottom: 4px;
   display: inline-block;
 }
 
+.register-form .ant-form-item-label {
+  padding-bottom: 4px !important;
+}
+
 .register-form .ant-input-affix-wrapper {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(203, 213, 225, 0.8);
-  border-radius: 12px;
-  padding: 12px 16px;
+  background: #ffffff !important;
+  border: 1px solid #d9d9d9 !important;
+  border-radius: 10px;
+  padding: 0 !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: var(--z-interactive);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.register-form .ant-input-prefix {
+  position: absolute;
+  left: 16px;
+  margin: 0 !important;
+  z-index: var(--z-interactive-hover);
+  display: flex;
+  align-items: center;
+}
+
+.register-form .ant-input-suffix {
+  position: absolute;
+  right: 16px;
+  margin: 0 !important;
+  z-index: var(--z-interactive-hover);
+  display: flex;
+  align-items: center;
 }
 
 .register-form .ant-input-affix-wrapper:hover,
 .register-form .ant-input-affix-wrapper-focused {
-  background: #ffffff;
-  border-color: #6366f1;
+  background: #ffffff !important;
+  border-color: var(--color-primary-400) !important;
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+  z-index: var(--z-interactive-hover);
 }
 
-.register-form .ant-input {
+.register-form .ant-input,
+.register-form input[type="text"],
+.register-form input[type="password"],
+.register-form input[type="email"] {
   background: transparent !important;
-  color: #0f172a !important;
-  font-size: 16px !important;
-  font-weight: 500;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: #1a1a1a !important;
+  font-family: var(--font-family-sans) !important;
+  font-size: clamp(14px, 1.2vw, 18px) !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+  letter-spacing: 0.02em !important;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 40px !important;
+  text-align: center !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.register-form .ant-input:focus,
+.register-form .ant-input-focused,
+.register-form input[type="text"]:focus,
+.register-form input[type="password"]:focus,
+.register-form input[type="email"]:focus {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .register-form .ant-input::placeholder {
-  color: #94a3b8 !important;
-  opacity: 1;
+  color: #757575 !important;
+  font-family: inherit !important;
+  font-size: clamp(12px, 1vw, 15px) !important;
+  letter-spacing: 0.02em !important;
+  opacity: 1 !important;
+  text-align: center !important;
 }
 
 .register-form .form-icon {
-  color: #6366f1;
+  color: #666666;
   font-size: 18px;
   margin-right: 8px;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 /* 验证状态样式优化 */
 .register-form .ant-form-item-explain-error {
-  color: #ef4444 !important;
+  color: var(--color-error) !important;
   font-size: 13px;
   margin-top: 6px;
   font-weight: 600;
   padding-left: 4px;
-}
-
-.register-form .ant-form-item-explain-success {
-  color: #10b981 !important;
-  font-size: 13px;
-  margin-top: 4px;
-  font-weight: 500;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .register-form .ant-form-item-has-error .ant-input-affix-wrapper {
-  border-color: #ef4444 !important;
-  background: rgba(254, 242, 242, 0.9);
-}
-
-.register-form .ant-form-item-has-error .ant-input-affix-wrapper:hover,
-.register-form .ant-form-item-has-error .ant-input-affix-wrapper-focused {
-  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+  border-color: var(--color-error) !important;
+  background: rgba(239, 68, 68, 0.05);
 }
 
 /* 密码切换按钮样式 */
 .register-form .ant-input-password-icon {
-  color: #64748b !important;
+  color: #666666 !important;
   transition: color 0.3s;
+  position: relative;
+  z-index: var(--z-interactive);
 }
 
 .register-form .ant-input-password-icon:hover {
-  color: #1e293b !important;
+  color: var(--color-primary-400) !important;
 }
 
 /* 注册按钮样式优化 */
 .register-form .ant-form-item:last-child {
-  position: sticky;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.95);
-  padding-top: 15px;
+  position: relative;
+  background: transparent !important;
+  padding-top: 10px;
   padding-bottom: 5px;
   margin-bottom: 0;
-  z-index: 10;
-  backdrop-filter: blur(8px);
+  z-index: var(--z-sticky);
+  backdrop-filter: none !important;
 }
 
 .register-button {
   width: 100%;
-  height: 50px !important;
-  border-radius: 12px !important;
-  font-size: 16px !important;
+  height: clamp(40px, 5vh, 54px) !important;
+  border-radius: 10px !important;
+  font-size: clamp(14px, 1.2vw, 18px) !important;
   font-weight: 600 !important;
-  background: #6366f1 !important;
+  background: var(--gradient-primary) !important;
   border: none !important;
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  position: relative;
+  z-index: var(--z-interactive);
 }
 
 .register-button:hover {
-  background: #4f46e5 !important;
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4) !important;
+  z-index: var(--z-interactive-hover);
 }
 
 .register-button:active {
   transform: translateY(0);
-}
-
-/* 输入框交互反馈 */
-.register-form .ant-input-affix-wrapper:hover {
-  border-color: #6366f1;
-}
-
-.register-form .ant-input-affix-wrapper-focused {
-  background: #ffffff !important;
-  border-color: #6366f1 !important;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15) !important;
-}
-
-.register-form .ant-input-prefix {
-  margin-right: 12px;
-  color: #94a3b8;
-  transition: color 0.3s;
-}
-
-.register-form .ant-input-affix-wrapper-focused .ant-input-prefix {
-  color: #6366f1;
+  z-index: var(--z-interactive-active);
 }
 
 .login-link {
   text-align: center;
-  margin-top: 24px;
-  color: #64748b;
-  font-size: 15px;
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: clamp(12px, 1vw, 15px);
   flex-shrink: 0;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .login-link a {
-  color: #6366f1;
+  color: var(--color-primary-400);
   font-weight: 600;
   margin-left: 6px;
   transition: color 0.2s;
+  position: relative;
+  z-index: var(--z-interactive);
 }
 
 .login-link a:hover {
-  color: #4f46e5;
+  color: var(--color-primary-300);
   text-decoration: underline;
 }
 

@@ -10,7 +10,7 @@ interface CategoryState {
 
 export const fetchCategories = createAsyncThunk(
   'categories/fetchAll',
-  async (type?: 'income' | 'expense', { rejectWithValue }) => {
+  async (type: 'income' | 'expense' | undefined = undefined, { rejectWithValue }) => {
     try {
       const data = await categoryService.getCategories(type);
       return data;

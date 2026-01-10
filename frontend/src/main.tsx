@@ -1,65 +1,97 @@
 import ReactDOM from 'react-dom/client';
+import type { ReactNode, FC } from 'react';
 import { HashRouter } from 'react-router-dom';
-import { Provider, useSelector } from 'react-redux';
+import { Provider } from 'react-redux';
 import { ConfigProvider, App as AntdApp, theme as antdTheme } from 'antd';
 import zhCN from 'antd/locale/zh_CN';
 import App from './App';
-import { store, RootState } from './store';
+import { store } from './store';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import './assets/styles/index.css';
+import './assets/styles/variable-fonts.css';
+import { DesignSystemProvider } from './components/design-system';
 
-const ConnectedConfigProvider = () => {
-  const { darkMode } = useSelector((state: RootState) => state.app);
-  
+/**
+ * 主题提供组件
+ * 集成 DesignSystemProvider 和 Antd ConfigProvider
+ */
+const ThemeProvider: FC<{ children: ReactNode }> = ({ children }) => {
+  return (
+    <DesignSystemProvider>
+      <AntdConfigProvider>
+        {children}
+      </AntdConfigProvider>
+    </DesignSystemProvider>
+  );
+};
+
+/**
+ * Antd 配置提供者
+ * 使用设计系统颜色同步 Antd 主题
+ */
+const AntdConfigProvider: FC<{ children: ReactNode }> = ({ children }) => {
   return (
     <ConfigProvider
       locale={zhCN}
       theme={{
-        algorithm: darkMode ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+        algorithm: antdTheme.defaultAlgorithm,
         token: {
-          colorPrimary: '#1677ff',
-          colorInfo: '#1677ff',
-          colorSuccess: '#52c41a',
-          colorWarning: '#faad14',
-          colorError: '#ff4d4f',
-          borderRadius: 8,
-          fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif',
-          fontSize: 14,
-          controlHeight: 36,
-          colorBgLayout: darkMode ? '#121212' : '#f8f9fa',
-          colorBgContainer: darkMode ? '#1e1e1e' : '#ffffff',
+          colorPrimary: '#6366f1',
+          colorInfo: '#6366f1',
+          colorSuccess: '#22c55e',
+          colorWarning: '#f59e0b',
+          colorError: '#ef4444',
+          borderRadius: 12,
+          fontFamily: '"Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          fontSize: 16,
+          controlHeight: 40,
+          colorBgLayout: 'transparent',
+          colorBgContainer: 'transparent',
         },
         components: {
           Button: {
-            borderRadius: 6,
-            controlHeight: 38,
+            borderRadiusLG: 12,
+            borderRadiusSM: 8,
+            controlHeight: 40,
             paddingContentHorizontal: 20,
           },
           Card: {
-            borderRadiusLG: 12,
-            boxShadowTertiary: darkMode ? '0 2px 8px rgba(0,0,0,0.4)' : '0 2px 8px rgba(0,0,0,0.04)',
+            borderRadiusLG: 16,
+            boxShadowTertiary: 'var(--shadow-sm)',
           },
           Layout: {
-            bodyBg: darkMode ? '#121212' : '#f8f9fa',
-            headerBg: darkMode ? '#1e1e1e' : '#ffffff',
+            bodyBg: 'transparent',
+            headerBg: 'var(--color-bg-elevated)',
             headerHeight: 72,
           },
           Menu: {
-            itemBorderRadius: 8,
+            itemBorderRadius: 12,
             itemMarginInline: 8,
-          }
+          },
+          Input: {
+            borderRadiusLG: 12,
+            controlHeight: 44,
+          },
+          Select: {
+            borderRadiusLG: 12,
+            controlHeight: 44,
+          },
+          Table: {
+            borderRadius: 12,
+          },
+          Modal: {
+            borderRadiusLG: 24,
+          },
+          Tabs: {
+            inkBarColor: '#6366f1',
+            itemSelectedColor: '#6366f1',
+            itemActiveColor: '#6366f1',
+          },
         }
       }}
     >
       <AntdApp>
-        <HashRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <App />
-        </HashRouter>
+        {children}
       </AntdApp>
     </ConfigProvider>
   );
@@ -68,8 +100,16 @@ const ConnectedConfigProvider = () => {
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
     <Provider store={store}>
-      <ConnectedConfigProvider />
+      <HashRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <ThemeProvider>
+          <App />
+        </ThemeProvider>
+      </HashRouter>
     </Provider>
   </ErrorBoundary>
 );
-

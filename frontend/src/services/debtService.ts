@@ -5,11 +5,14 @@ export interface Debt {
   name: string;
   type: 'lent' | 'borrowed';
   amount: number;
+  originalAmount?: number;
   remainingAmount: number;
+  paidPercentage?: number;
   interestRate?: number;
   creditorDebtor: string;
+  debtorName?: string;
   dueDate?: string;
-  status: 'active' | 'cleared' | 'overdue';
+  status: 'active' | 'cleared' | 'overdue' | 'paid';
   description?: string;
   startDate: string;
 }

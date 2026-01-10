@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Badge, Button, Space, Typography, theme, Spin } from 'antd';
+import React, { useEffect } from 'react';
+import { Layout, Menu, Avatar, Dropdown, Badge, Button, Space, Typography, Spin, Input } from 'antd';
 import {
   DashboardOutlined,
   RiseOutlined,
@@ -13,16 +13,16 @@ import {
   SecurityScanOutlined,
   GlobalOutlined,
   LogoutOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
-  MoonOutlined,
-  SunOutlined,
+  SearchOutlined,
+  SettingFilled,
+  WalletOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import type { UnknownAction } from '@reduxjs/toolkit';
 import { RootState } from '../../store';
 import { logout } from '../../store/slices/authSlice';
-import { toggleDarkMode } from '../../store/slices/appSlice';
+import { useSafeBackground } from '../../hooks/useSafeBackground';
 import './MainLayout.css';
 
 const { Header, Sider, Content } = Layout;
@@ -30,27 +30,37 @@ const { Text } = Typography;
 
 /**
  * 应用主布局组件
- * 包含侧边栏导航、顶部工具栏（消息通知、主题切换、用户登出）和内容区域
+ * 包含侧边栏导航、顶部工具栏（搜索、消息通知、主题切换、用户登出）和内容区域
  */
 const MainLayout: React.FC = () => {
-  const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch();
+
   const { overdueDebts } = useSelector((state: RootState) => state.debts.statistics);
-  const { loading: globalLoading, darkMode } = useSelector((state: RootState) => state.app);
-  const {
-    token: { colorBgContainer },
-  } = theme.useToken();
+  const { loading: globalLoading } = useSelector((state: RootState) => state.app);
+  const { user } = useSelector((state: RootState) => state.auth);
 
+  // 安全加载全局背景图片
+  const pageBg = useSafeBackground('https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?auto=format&fit=crop&w=1920&q=80');
 
-  const menuItems = [
+  // 使用稳定的种子生成头像，并通过 SafeBackground 处理
+  const avatarSeed = user?.id || user?.username || 'default';
+  const avatarUrl = useSafeBackground(`https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`);
+
+  const coreItems = [
     { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
     { key: '/income', icon: <RiseOutlined />, label: '收入管理' },
     { key: '/expense', icon: <FallOutlined />, label: '支出管理' },
     { key: '/debt', icon: <AccountBookOutlined />, label: '债务管理' },
+  ];
+
+  const toolItems = [
     { key: '/statistics', icon: <BarChartOutlined />, label: '数据统计' },
     { key: '/backup', icon: <DatabaseOutlined />, label: '备份恢复' },
+  ];
+
+  const settingItems = [
     { 
       key: 'settings', 
       icon: <SettingOutlined />, 
@@ -65,14 +75,10 @@ const MainLayout: React.FC = () => {
   ];
 
   const handleLogout = () => {
-    dispatch(logout());
+    dispatch(logout() as unknown as UnknownAction);
     navigate('/login');
   };
 
-  /**
-   * 用户下拉菜单项
-   * 仅保留退出登录功能，个人资料和安全设置已移至侧边栏系统设置
-   */
   const userMenuItems = [
     { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
   ];
@@ -95,109 +101,101 @@ const MainLayout: React.FC = () => {
   ];
 
   return (
-    <Layout className={`main-layout ${darkMode ? 'dark-mode' : ''}`}>
+    <Layout 
+      className="main-layout"
+      style={{ '--page-bg-image': pageBg ? `url(${pageBg})` : 'none' } as React.CSSProperties}
+    >
       <Sider
         trigger={null}
-        collapsible
-        collapsed={collapsed}
+        collapsible={false}
+        collapsed={false}
         className="app-sider"
         width={260}
-        theme={darkMode ? 'dark' : 'light'}
+        theme="dark"
       >
         <div className="logo">
-          <div className="logo-content">
-            <span className="logo-icon" role="img" aria-label="logo">💰</span>
-            {!collapsed && <span className="logo-text">智慧财务</span>}
-          </div>
+          <WalletOutlined className="logo-icon" />
+          <span className="logo-text">财富管家</span>
         </div>
         
-        <div className="menu-wrapper">
+        <div className="menu-wrapper" style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1 }}>
+          <div className="menu-group-title">核心功能</div>
           <Menu
-            theme={darkMode ? 'dark' : 'light'}
+            theme="dark"
             mode="inline"
             selectedKeys={[location.pathname]}
-            defaultOpenKeys={['settings']}
-            items={menuItems}
+            items={coreItems}
+            onClick={({ key }) => navigate(key)}
+            className="side-menu"
+          />
+
+          <div className="menu-group-title">数据与工具</div>
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={toolItems}
+            onClick={({ key }) => navigate(key)}
+            className="side-menu"
+          />
+
+          <div className="menu-group-title">系统配置</div>
+          <Menu
+            theme="dark"
+            mode="inline"
+            selectedKeys={[location.pathname]}
+            items={settingItems}
             onClick={({ key }) => navigate(key)}
             className="side-menu"
           />
         </div>
-
-        {!collapsed && (
-          <div className="sider-footer">
-            <div className="user-profile-card">
-              <Avatar size={40} icon={<UserOutlined />} className="user-avatar" />
-              <div className="user-info">
-                <Text strong className="user-name">管理员</Text>
-                <Text type="secondary" className="user-role">个人账户</Text>
-              </div>
-            </div>
-          </div>
-        )}
       </Sider>
 
       <Layout className="site-layout">
         <Header className="app-header">
-          <div className="header-left">
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              className="collapse-button"
+          <div className="header-search-container">
+            <Input.Search
+              placeholder="搜索交易记录、账单..."
+              allowClear
+              enterButton
+              size="large"
+              className="header-search"
             />
-            <div className="page-breadcrumb">
-              <Text type="secondary">首页</Text>
-              <Text className="breadcrumb-separator">/</Text>
-              <Text strong>
-                {menuItems.find(item => item.key === location.pathname)?.label || 
-                 menuItems.find(item => item.children?.some(child => child.key === location.pathname))?.label || 
-                 '仪表盘'}
-              </Text>
-            </div>
           </div>
-
-          <div className="header-right">
-            <Space size="middle">
-              <Button
-                type="text"
-                icon={darkMode ? <SunOutlined /> : <MoonOutlined />}
-                onClick={() => dispatch(toggleDarkMode())}
-                className="action-btn"
-              />
-
-              <Dropdown
-                menu={{ items: notificationItems }}
-                placement="bottomRight"
-                trigger={['click']}
-              >
-                <Badge count={overdueDebts || 0} size="small" offset={[-2, 4]}>
-                  <Button type="text" icon={<BellOutlined />} className="action-btn" />
-                </Badge>
-              </Dropdown>
-
-              <Dropdown
-                menu={{
-                  items: userMenuItems,
-                  onClick: ({ key }) => {
-                    if (key === 'logout') handleLogout();
-                    else navigate(key);
-                  },
-                }}
-                placement="bottomRight"
-                trigger={['click']}
-              >
-                <Space className="user-dropdown-trigger">
-                  <Avatar icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />
-                  {!collapsed && <Text strong className="user-display-name">管理员</Text>}
-                </Space>
-              </Dropdown>
-            </Space>
+          <div className="header-right-actions">
+            <Badge count={overdueDebts || 0} size="small" offset={[-2, 4]}>
+              <BellOutlined className="header-action-icon" onClick={() => navigate('/notifications')} />
+            </Badge>
+            <SettingFilled className="header-action-icon" onClick={() => navigate('/preferences')} />
+            
+            <Dropdown
+              menu={{
+                items: userMenuItems,
+                onClick: ({ key }) => {
+                  if (key === 'logout') handleLogout();
+                },
+              }}
+              placement="bottomRight"
+              trigger={['click']}
+            >
+              <div className="user-avatar-wrapper">
+                <Avatar 
+                  src={avatarUrl} 
+                  size={40}
+                  icon={<UserOutlined />}
+                />
+              </div>
+            </Dropdown>
           </div>
         </Header>
 
         <Content className="app-content">
           <Spin spinning={globalLoading} size="large" wrapperClassName="content-spin-wrapper" tip="加载中...">
-            <div className="page-content-wrapper">
+            <div 
+              className="page-content-wrapper" 
+              key={location.pathname}
+              style={{ willChange: 'transform, opacity' }}
+            >
               <Outlet />
             </div>
           </Spin>

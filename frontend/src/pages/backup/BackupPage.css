@@ -1,99 +1,117 @@
+/**
+ * 数据备份页面特定样式
+ * 通用样式已迁移至 common-pages.css
+ */
+
 .backup-page {
-  animation: fadeIn 0.5s ease-out;
+  /* 页面特定容器样式 */
+  position: relative;
+  z-index: var(--z-content);
 }
 
-.backup-page .page-header-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 32px;
+/* 确保所有备份页面卡片背景透明，防止 Ant Design 默认样式覆盖 */
+.backup-page .ant-card {
+  background: transparent !important;
 }
 
-.backup-page .page-title {
-  margin-bottom: 4px !important;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+.backup-page .ant-card-head,
+.backup-page .ant-card-body {
+  background: transparent !important;
 }
 
-.backup-page .stats-row {
-  margin-bottom: 32px;
-}
-
+/* 统计卡片样式优化 */
 .backup-page .stat-card.glass-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 20px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
-  transition: transform 0.3s ease;
+  background: var(--color-bg-glass) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-glass-border) !important;
+  border-radius: 24px !important;
+  box-shadow: var(--shadow-glass) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.dark-mode .backup-page .stat-card.glass-card {
-  background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.backup-page .stat-card:hover {
+.backup-page .stat-card.glass-card:hover {
   transform: translateY(-5px);
+  background: var(--color-bg-glass-heavy) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
+/* 历史记录卡片样式优化 */
 .backup-page .history-card.glass-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
+  background: var(--color-bg-glass) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-glass-border) !important;
+  border-radius: 24px !important;
+  box-shadow: var(--shadow-glass) !important;
   overflow: hidden;
+  margin-top: 24px;
+  transition: all 0.3s ease;
 }
 
-.dark-mode .backup-page .history-card.glass-card {
-  background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.backup-page .history-card.glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  box-shadow: var(--shadow-glass-hover) !important;
 }
 
+/* 表格内部样式优化 */
+.backup-page .glass-table .ant-table-thead > tr > th {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  border-bottom: 1px solid var(--color-glass-border) !important;
+}
+
+.backup-page .glass-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 警告框样式 */
 .backup-page .restore-warning {
   padding: 16px;
-  background: rgba(255, 251, 230, 0.8);
-  border: 1px solid #ffe58f;
-  border-radius: 12px;
+  background: rgba(250, 173, 20, 0.1);
+  border: 1px solid rgba(250, 173, 20, 0.3);
+  border-radius: 16px;
   margin-bottom: 24px;
   backdrop-filter: blur(10px);
 }
 
-.dark-mode .backup-page .restore-warning {
-  background: rgba(255, 251, 230, 0.1);
-  border: 1px solid rgba(255, 229, 143, 0.3);
+/* 统计数值样式覆盖 */
+.backup-page .ant-statistic-title {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 14px !important;
+  margin-bottom: 8px !important;
 }
 
+.backup-page .ant-statistic-content {
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+/* 按钮样式优化 */
 .backup-page .header-actions .ant-btn {
-  height: 44px !important;
+  height: 40px !important;
   border-radius: 12px !important;
-  padding: 0 24px !important;
   font-weight: 600 !important;
+  transition: all 0.3s ease;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.backup-page .header-actions .ant-btn:not(.ant-btn-primary) {
+  background: var(--color-bg-glass) !important;
+  border: 1px solid var(--color-glass-border) !important;
+  color: white !important;
+  backdrop-filter: blur(10px);
 }
 
-/* 响应式适配 */
-@media (max-width: 768px) {
-  .backup-page .page-header-section {
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .backup-page .header-actions {
-    width: 100%;
-    display: flex;
-    gap: 8px;
-  }
-  
-  .backup-page .header-actions .ant-btn {
-    flex: 1;
-    padding: 0 12px !important;
-  }
+.backup-page .header-actions .ant-btn:not(.ant-btn-primary):hover {
+  background: var(--color-bg-glass-heavy) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* 表格容器样式覆盖 */
+.backup-page .glass-table {
+  background: transparent !important;
+}
+
+.backup-page .glass-table .ant-table {
+  background: transparent !important;
 }

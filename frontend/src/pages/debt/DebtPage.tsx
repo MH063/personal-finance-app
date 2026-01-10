@@ -134,9 +134,9 @@ const DebtPage: React.FC = () => {
       width: 180,
       render: (_: any, record: Debt) => (
         <div className="debtor-column">
-          <div className="debtor-name">{record.debtorName}</div>
-          <Tag color={record.debtType === 'borrow' ? 'orange' : 'cyan'} className="type-tag">
-            {record.debtType === 'borrow' ? '借入' : '借出'}
+          <div className="debtor-name">{record.debtorName || record.creditorDebtor}</div>
+          <Tag color={record.type === 'borrowed' ? 'orange' : 'cyan'} className="type-tag">
+            {record.type === 'borrowed' ? '借入' : '借出'}
           </Tag>
         </div>
       )
@@ -147,8 +147,8 @@ const DebtPage: React.FC = () => {
       width: 160,
       render: (_: any, record: Debt) => (
         <div className="amount-column">
-          <div className={`original-amount ${record.debtType === 'borrow' ? 'borrow' : 'lend'}`}>
-            {record.debtType === 'borrow' ? '-' : '+'}¥{Number(record.originalAmount).toFixed(2)}
+          <div className={`original-amount ${record.type === 'borrowed' ? 'borrow' : 'lend'}`}>
+            {record.type === 'borrowed' ? '-' : '+'}¥{Number(record.originalAmount || record.amount).toFixed(2)}
           </div>
           <div className="remaining-amount">待还: ¥{Number(record.remainingAmount).toFixed(2)}</div>
         </div>
@@ -158,21 +158,24 @@ const DebtPage: React.FC = () => {
       title: '还款进度', 
       key: 'progress',
       width: 200,
-      render: (_: any, record: Debt) => (
-        <div className="progress-column">
-          <Progress 
-            percent={record.paidPercentage} 
-            size="small" 
-            status={record.status === 'overdue' ? 'exception' : 'normal'} 
-            strokeColor={record.status === 'paid' ? '#10b981' : undefined}
-          />
-          <div className="status-row">
-            <Tag color={getStatusConfig(record.status).color} size="small">
-              {getStatusConfig(record.status).text}
-            </Tag>
+      render: (_: any, record: Debt) => {
+        const paidPercent = record.paidPercentage ?? Math.round((1 - record.remainingAmount / record.amount) * 100);
+        return (
+          <div className="progress-column">
+            <Progress 
+              percent={paidPercent} 
+              size="small" 
+              status={record.status === 'overdue' ? 'exception' : record.status === 'cleared' ? 'success' : 'normal'} 
+              strokeColor={record.status === 'cleared' ? '#10b981' : undefined}
+            />
+            <div className="status-row">
+              <Tag color={getStatusConfig(record.status).color}>
+                {getStatusConfig(record.status).text}
+              </Tag>
+            </div>
           </div>
-        </div>
-      )
+        );
+      }
     },
     { 
       title: '到期日', 
@@ -193,7 +196,7 @@ const DebtPage: React.FC = () => {
       fixed: 'right' as const,
       render: (_: any, record: Debt) => (
         <Space size="small">
-          {record.status !== 'paid' && (
+          {record.status !== 'cleared' && (
             <Button 
               type="text" 
               icon={<DollarOutlined />} 
@@ -247,54 +250,54 @@ const DebtPage: React.FC = () => {
         </div>
       </div>
 
-      <Row gutter={[24, 24]} className="stat-overview-row">
+      <Row gutter={[24, 24]} className="stats-row">
         <Col xs={24} sm={12} lg={6}>
-          <Card className="overview-card borrow" bordered={false}>
-            <div className="card-icon-wrapper">
+          <Card className="stats-card income" variant="borderless">
+            <div className="stats-card-icon">
               <ArrowDownOutlined />
             </div>
             <Statistic title="总借入" value={statistics.totalBorrowed} precision={2} prefix="¥" />
-            <div className="card-footer">
+            <div className="stats-card-footer">
               <Tag color="error">待还金额: ¥{statistics.totalPendingAmount?.toFixed(2)}</Tag>
             </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card className="overview-card lend" bordered={false}>
-            <div className="card-icon-wrapper">
+          <Card className="stats-card lend" variant="borderless">
+            <div className="stats-card-icon">
               <ArrowUpOutlined />
             </div>
             <Statistic title="总借出" value={statistics.totalLent} precision={2} prefix="¥" />
-            <div className="card-footer">
+            <div className="stats-card-footer">
               <Tag color="success">待收金额: ¥{statistics.totalLent?.toFixed(2)}</Tag>
             </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card className="overview-card pending" bordered={false}>
-            <div className="card-icon-wrapper">
+          <Card className="stats-card pending" variant="borderless">
+            <div className="stats-card-icon">
               <ClockCircleOutlined />
             </div>
             <Statistic title="待处理笔数" value={statistics.pendingDebts} suffix="笔" />
-            <div className="card-footer">
+            <div className="stats-card-footer">
               <Text type="secondary">含 {statistics.dueSoonDebts || 0} 笔近期到期</Text>
             </div>
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card className="overview-card overdue" bordered={false}>
-            <div className="card-icon-wrapper">
+          <Card className="stats-card overdue" variant="borderless">
+            <div className="stats-card-icon">
               <DeleteOutlined />
             </div>
             <Statistic title="逾期笔数" value={statistics.overdueDebts} suffix="笔" valueStyle={{ color: '#ef4444' }} />
-            <div className="card-footer">
+            <div className="stats-card-footer">
               <Tag color="error">需尽快处理</Tag>
             </div>
           </Card>
         </Col>
       </Row>
 
-      <Card className="glass-card table-card" bordered={false}>
+      <Card className="glass-card custom-table-card" variant="borderless">
         <Table 
           columns={columns} 
           dataSource={debts} 
@@ -306,7 +309,7 @@ const DebtPage: React.FC = () => {
             showTotal: (total) => `共 ${total} 条记录`
           }} 
           scroll={{ x: 800 }}
-          className="debt-table"
+          className="glass-table transaction-table"
         />
       </Card>
 
@@ -316,8 +319,8 @@ const DebtPage: React.FC = () => {
         onCancel={() => setModalVisible(false)} 
         footer={null} 
         width={600} 
-        destroyOnClose
-        className="transaction-modal"
+        destroyOnHidden
+        className="custom-modal"
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit} className="modern-form">
           <Row gutter={16}>
@@ -367,12 +370,12 @@ const DebtPage: React.FC = () => {
         onCancel={() => setPaymentModalVisible(false)} 
         footer={null} 
         width={500} 
-        destroyOnClose
-        className="transaction-modal"
+        destroyOnHidden
+        className="custom-modal"
       >
         <Form form={paymentForm} layout="vertical" onFinish={handlePaymentSubmit} className="modern-form">
           <div className="payment-info-card">
-            <div className="info-label">还款对象: {selectedDebt?.debtorName}</div>
+            <div className="info-label">还款对象: {selectedDebt?.debtorName || selectedDebt?.creditorDebtor}</div>
             <div className="info-amount">待还金额: <span>¥{Number(selectedDebt?.remainingAmount || 0).toFixed(2)}</span></div>
           </div>
           <Form.Item name="amount" label="本次还款金额" rules={[{ required: true }]}><InputNumber min={0.01} max={Number(selectedDebt?.remainingAmount) || 999999} precision={2} style={{ width: '100%' }} prefix="¥" /></Form.Item>

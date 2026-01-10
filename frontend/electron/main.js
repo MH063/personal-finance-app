@@ -4,6 +4,10 @@ const path = require('path');
 // 开发环境下关闭安全警告
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
+// 禁用某些可能导致控制台报错的特性 (如 Autofill.enable 错误)
+// 这些错误通常是因为 DevTools 尝试使用 Electron/Chromium 中未启用或不存在的协议域
+app.commandLine.appendSwitch('disable-features', 'Autofill,PasswordManager,AutoFillServerCommunication');
+
 const isDev = process.env.NODE_ENV && process.env.NODE_ENV.trim() === 'development' || !process.env.NODE_ENV;
 
 let mainWindow;
@@ -11,8 +15,8 @@ let splashWindow;
 
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
-    width: 400,
-    height: 300,
+    width: 540,
+    height: 360,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -27,10 +31,10 @@ function createSplashWindow() {
 
 function createMainWindow() {
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
-    minWidth: 1200,
-    minHeight: 700,
+    width: 1920,
+    height: 1080,
+    minWidth: 1080,
+    minHeight: 720,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

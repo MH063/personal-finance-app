@@ -1,64 +1,214 @@
 .settings-section {
   max-width: 1200px;
   margin: 0 auto;
-  animation: fadeIn 0.5s ease-out;
+  padding: var(--content-padding);
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .settings-header {
   margin-bottom: 32px;
   padding: 0 4px;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .settings-header .page-title {
   font-weight: 800;
   letter-spacing: -0.02em;
   margin-bottom: 8px !important;
+  color: white !important;
+  position: relative;
+  z-index: var(--z-content);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3); /* 增强大标题可读性 */
 }
 
 .settings-main-card.glass-card {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 24px;
-  box-shadow: 0 8px 32px rgba(31, 38, 135, 0.07);
+  background: var(--color-bg-glass) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-glass-border) !important;
+  border-radius: 24px !important;
+  box-shadow: var(--shadow-glass) !important;
   overflow: hidden;
-}
-
-.dark-mode .settings-main-card.glass-card {
-  background: rgba(30, 41, 59, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: var(--z-bg-surface);
 }
 
 .settings-content-inner {
   max-width: 600px;
   margin: 0 auto;
   padding: 32px 0;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .notification-content-inner {
   max-width: 800px;
   margin: 0 auto;
   padding: 32px 0;
+  position: relative;
+  z-index: var(--z-content);
 }
 
-/* 强化表单文字清晰度 */
+/* 强化表单文字清晰度 - 内容层 */
 .settings-section .ant-form-item-label > label {
   font-weight: 600 !important;
-  color: var(--text-primary) !important;
+  color: #ffffff !important;
   font-size: 14px;
+  position: relative;
+  z-index: var(--z-content);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); /* 添加阴影增强可读性 */
 }
 
-.dark-mode .settings-section .ant-form-item-label > label {
-  color: rgba(255, 255, 255, 0.85) !important;
+.settings-section .ant-typography {
+  color: #ffffff !important;
+  position: relative;
+  z-index: var(--z-content);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
+/* 统一输入框样式 - 100% 采用 Profile 页面姓名框样式 */
+.settings-section .ant-input,
+.settings-section .ant-select-selector {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 12px !important;
+  color: white !important;
+  height: 44px !important;
+  transition: all 0.3s ease !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 聚焦状态统一 */
+.settings-section .ant-input:focus,
+.settings-section .ant-input-focused,
+.settings-section .ant-select-focused .ant-select-selector {
+  background: transparent !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+}
+
+/* 移除所有嵌套相关的复杂样式 */
+.settings-section .ant-input-affix-wrapper,
+.settings-section .ant-input-password {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+/* 针对 Select 的文字颜色 */
+.settings-section .ant-select-selection-item {
+  color: white !important;
+  line-height: 42px !important;
+}
+
+/* 特殊处理 Select 组件，确保它也是完全透明的 */
+.settings-section .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* 分隔线样式优化 */
+.settings-section .ant-divider {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  margin: 24px 0 !important;
+}
+
+/* 确保 Focus 状态也只在最外层显示 */
+.settings-section .ant-input:focus,
+.settings-section .ant-input-focused,
+.settings-section .ant-input-affix-wrapper-focused,
+.settings-section .ant-select-focused .ant-select-selector {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+}
+
+/* 移除 Select 组件的重复背景 */
+.settings-section .ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background-color: transparent !important;
+  background: transparent !important;
+}
+
+.settings-section .ant-select-selection-item {
+  color: white !important;
+}
+
+.settings-section .ant-input:focus,
+.settings-section .ant-input-focused,
+.settings-section .ant-input-affix-wrapper-focused,
+.settings-section .ant-select-focused .ant-select-selector {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: var(--color-primary) !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2) !important;
+  z-index: var(--z-interactive-hover);
+}
+
+.settings-section .ant-input-affix-wrapper .ant-input {
+  background: transparent !important;
+  border: none !important;
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.settings-section .ant-input-prefix,
+.settings-section .ant-input-password-icon {
+  color: rgba(255, 255, 255, 0.7) !important; /* 增加图标可见度 */
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.settings-section .ant-select-arrow {
+  color: rgba(255, 255, 255, 0.7) !important;
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.settings-section .ant-input[disabled] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  position: relative;
+  z-index: var(--z-content);
+  cursor: not-allowed;
+}
+
+/* 开关样式 - 交互层 */
+.settings-section .ant-switch {
+  background: rgba(255, 255, 255, 0.1) !important;
+  position: relative;
+  z-index: var(--z-interactive);
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.settings-section .ant-switch:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  z-index: var(--z-interactive-hover);
+}
+
+.settings-section .ant-switch-checked {
+  background: var(--gradient-primary) !important;
+}
+
+.settings-section .ant-switch-checked:hover {
+  background: var(--gradient-primary-dark) !important;
+  z-index: var(--z-interactive-hover);
+}
+
+/* Avatar Section - 内容层 */
 .avatar-section {
   display: flex;
   flex-direction: column;
   align-items: center;
   margin-bottom: 40px;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .avatar-wrapper {
@@ -66,23 +216,26 @@
   display: inline-block;
   cursor: pointer;
   border-radius: 50%;
-  padding: 4px;
-  background: linear-gradient(135deg, var(--primary-500) 0%, #40a9ff 100%);
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  padding: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--color-glass-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+  overflow: hidden;
+  z-index: var(--z-interactive);
 }
 
 .avatar-wrapper:hover {
-  transform: scale(1.05);
+  transform: scale(1.02);
+  border-color: var(--color-primary-400);
+  box-shadow: 0 12px 40px rgba(99, 102, 241, 0.25);
+  z-index: var(--z-interactive-hover);
 }
 
 .avatar-overlay {
   position: absolute;
-  top: 4px;
-  left: 4px;
-  right: 4px;
-  bottom: 4px;
-  background: rgba(0, 0, 0, 0.4);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
   color: #fff;
   display: flex;
   flex-direction: column;
@@ -90,12 +243,42 @@
   justify-content: center;
   border-radius: 50%;
   opacity: 0;
-  transition: opacity 0.3s;
-  backdrop-filter: blur(4px);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
+  z-index: var(--z-overlay);
 }
 
 .avatar-wrapper:hover .avatar-overlay {
   opacity: 1;
+}
+
+.avatar-overlay .anticon {
+  font-size: 32px !important;
+  color: rgba(255, 255, 255, 0.95);
+  transform: translateY(0);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.avatar-wrapper:hover .avatar-overlay .anticon {
+  transform: scale(1.15);
+}
+
+.avatar-wrapper.loading {
+  cursor: wait;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.avatar-wrapper.loading:hover {
+  transform: none;
+}
+
+.avatar-wrapper .ant-spin-nested-loading,
+.avatar-wrapper .ant-spin-container {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .setting-item {
@@ -104,23 +287,51 @@
   align-items: center;
   padding: 20px 0;
   transition: background 0.3s;
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.setting-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+  z-index: var(--z-interactive-hover);
 }
 
 .setting-item-group .ant-divider {
   margin: 0;
-  opacity: 0.6;
+  border-top-color: var(--color-glass-border) !important;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .save-btn-container {
   margin-top: 48px;
+  position: relative;
+  z-index: var(--z-content);
 }
 
 .save-btn {
   height: 50px !important;
-  border-radius: 12px !important;
+  border-radius: 14px !important;
   font-size: 16px !important;
   font-weight: 600 !important;
-  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+  background: var(--gradient-primary) !important;
+  color: white !important;
+  border: none !important;
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3) !important;
+  transition: all 0.3s ease !important;
+  position: relative;
+  z-index: var(--z-interactive);
+}
+
+.save-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4) !important;
+  z-index: var(--z-interactive-hover);
+}
+
+.save-btn:active {
+  transform: translateY(0);
+  z-index: var(--z-interactive-active);
 }
 
 @keyframes fadeIn {
@@ -128,22 +339,69 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* 移动端适配 */
-@media (max-width: 768px) {
+/* 移动端适配 - 使用统一断点 */
+@media (max-width: 479px) {
   .settings-section {
-    padding: 0 16px;
+    padding: var(--space-3);
   }
   
   .settings-content-inner,
   .notification-content-inner {
-    padding: 20px 0;
+    padding: var(--space-4);
   }
   
   .setting-item {
-    padding: 16px 0;
+    padding: var(--space-3) 0;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
   }
   
   .setting-item .ant-typography {
     font-size: 14px;
+  }
+  
+  .save-btn-container {
+    margin-top: var(--space-6);
+  }
+  
+  .save-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .settings-section {
+    padding: 0 var(--space-4);
+  }
+  
+  .settings-content-inner,
+  .notification-content-inner {
+    padding: var(--space-5);
+  }
+  
+  .setting-item {
+    padding: var(--space-4) 0;
+  }
+  
+  .setting-item .ant-typography {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .settings-section {
+    padding: 0 var(--space-5);
+  }
+  
+  .settings-content-inner,
+  .notification-content-inner {
+    padding: var(--space-6);
+  }
+}
+
+@media (min-width: 1024px) {
+  .settings-section {
+    padding: 0 var(--space-6);
   }
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card, Button, Table, Space, Tag, Modal, Form, Upload, App, Row, Col, Typography, Popconfirm, Statistic, Select, Switch } from 'antd';
 import { DatabaseOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined, PlusOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import backupService from '../../services/backupService';
@@ -18,18 +18,18 @@ const BackupPage: React.FC = () => {
   const [form] = Form.useForm();
 
 
-  useEffect(() => {
-    loadBackupHistory();
-  }, []);
-
-  const loadBackupHistory = async () => {
+  const loadBackupHistory = useCallback(async () => {
     try {
       const data = await backupService.getBackupHistory();
       setBackupHistory(data);
     } catch (error) {
       message.error('获取备份历史失败');
     }
-  };
+  }, [message]);
+
+  useEffect(() => {
+    loadBackupHistory();
+  }, [loadBackupHistory]);
 
   const handleCreateBackup = async (values: any) => {
     setLoading(true);
@@ -158,7 +158,7 @@ const BackupPage: React.FC = () => {
 
       <Row gutter={[24, 24]} className="stats-row">
         <Col xs={24} sm={8}>
-          <Card className="stat-card glass-card" bordered={false}>
+          <Card className="stat-card glass-card" variant="borderless">
             <Statistic 
               title="备份总数" 
               value={backupHistory.length} 
@@ -167,7 +167,7 @@ const BackupPage: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card className="stat-card glass-card" bordered={false}>
+          <Card className="stat-card glass-card" variant="borderless">
             <Statistic 
               title="成功备份" 
               value={successfulBackups} 
@@ -177,7 +177,7 @@ const BackupPage: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card className="stat-card glass-card" bordered={false}>
+          <Card className="stat-card glass-card" variant="borderless">
             <Statistic 
               title="占用空间" 
               value={formatFileSize(totalSize)} 
@@ -189,7 +189,7 @@ const BackupPage: React.FC = () => {
 
       <Card 
         className="history-card glass-card" 
-        bordered={false}
+        variant="borderless"
         title={
           <div className="card-header-title">
             <div className="title-dot" style={{ backgroundColor: 'var(--primary-500)' }}></div>
@@ -212,8 +212,8 @@ const BackupPage: React.FC = () => {
         onCancel={() => setCreateModalVisible(false)} 
         footer={null} 
         width={500} 
-        destroyOnClose
-        className="transaction-modal"
+        destroyOnHidden
+        className="custom-modal"
       >
         <Form form={form} layout="vertical" onFinish={handleCreateBackup} initialValues={{ backupType: 'full', encrypt: true }}>
           <Form.Item name="backupType" label="备份类型" rules={[{ required: true }]}>
@@ -242,8 +242,8 @@ const BackupPage: React.FC = () => {
         onCancel={() => setRestoreModalVisible(false)} 
         footer={null} 
         width={500} 
-        destroyOnClose
-        className="transaction-modal"
+        destroyOnHidden
+        className="custom-modal"
       >
         <div className="restore-warning">
           <Text type="warning" strong>⚠️ 警告：</Text>

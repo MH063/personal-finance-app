@@ -1,70 +1,10 @@
+/**
+ * 收入管理页面特定样式
+ * 通用样式已迁移至 common-pages.css
+ */
+
 .income-page {
-  padding: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
-  animation: fadeIn 0.6s ease-out;
+  /* 页面特定容器样式（如有） */
 }
 
-.page-header-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-}
-
-.page-title {
-  margin-bottom: 4px !important;
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 800 !important;
-}
-
-.dark-mode .page-title {
-  background: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.add-btn.income {
-  height: 48px !important;
-  padding: 0 24px !important;
-  border-radius: 14px !important;
-  font-weight: 600 !important;
-  font-size: 16px !important;
-  background: #10b981 !important;
-  border-color: #10b981 !important;
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-.add-btn.income:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3) !important;
-  background: #059669 !important;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@media (max-width: 768px) {
-  .income-page {
-    padding: 16px;
-  }
-  
-  .page-header-section {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 16px;
-  }
-  
-  .header-actions {
-    width: 100%;
-  }
-  
-  .add-btn.income {
-    width: 100%;
-  }
-}
+/* 可以在这里添加仅属于收入页面的特殊样式覆盖 */

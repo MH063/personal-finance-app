@@ -7,8 +7,8 @@ import MainLayout from '@components/layout/MainLayout';
 import ErrorBoundary from '@components/common/ErrorBoundary';
 
 // 核心页面保持直接导入，或者也可以懒加载
-const LoginPage = lazy(() => import('@pages/LoginPage'));
-const RegisterPage = lazy(() => import('@pages/RegisterPage'));
+import LoginPage from '@pages/LoginPage';
+import RegisterPage from '@pages/RegisterPage';
 const DashboardPage = lazy(() => import('@pages/dashboard/DashboardPage'));
 
 // 优化点：对统计页、备份页等启用懒加载
@@ -35,9 +35,9 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
  * 全局加载指示器
  */
 const PageLoading: React.FC = () => (
-  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: '16px' }}>
+  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: '16px', background: '#0f172a' }}>
     <Spin size="large" />
-    <span style={{ color: '#1890ff' }}>页面加载中...</span>
+    <span style={{ color: 'rgba(255, 255, 255, 0.7)', fontWeight: 500 }}>魔法加载中...</span>
   </div>
 );
 

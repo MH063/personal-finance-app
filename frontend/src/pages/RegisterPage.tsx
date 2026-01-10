@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Form, Input, Button, App, Card } from 'antd';
+import { Form, Input, Button, App } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useDispatch } from 'react-redux';
 import { register, setTokens } from '@store/slices/authSlice';
+import { useSafeBackground } from '../hooks/useSafeBackground';
 import './RegisterPage.css';
 
 const RegisterPage: React.FC = () => {
@@ -11,6 +12,10 @@ const RegisterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  // 安全加载背景图片
+  const pageBg = useSafeBackground('https://images.unsplash.com/photo-1556742044-3c52d6e88c62?auto=format&fit=crop&w=1920&q=80');
+  const panelBg = useSafeBackground('https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=800&q=80');
 
   const onFinish = async (values: { username: string; email: string; password: string; fullName?: string }) => {
     setLoading(true);
@@ -34,7 +39,13 @@ const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="register-container">
+    <div 
+      className="register-container"
+      style={{ 
+        '--page-bg-image': pageBg ? `url(${pageBg})` : 'none',
+        '--panel-bg-image': panelBg ? `url(${panelBg})` : 'none'
+      } as React.CSSProperties}
+    >
       <div className="register-content">
         <div className="register-side-panel">
           <div className="panel-content">
@@ -59,7 +70,6 @@ const RegisterPage: React.FC = () => {
             name="register"
             className="register-form"
             onFinish={onFinish}
-            size="large"
             layout="vertical"
           >
             <Form.Item

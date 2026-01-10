@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Row, Col, Select, DatePicker, Button, Statistic, Progress, List, Tag, Typography, Space, App as AntdApp } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, DownloadOutlined, DollarOutlined, ClockCircleOutlined, AccountBookOutlined } from '@ant-design/icons';
+import { ArrowUpOutlined, ArrowDownOutlined, DownloadOutlined, AccountBookOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -188,7 +188,7 @@ const StatisticsPage: React.FC = () => {
 
       <Row gutter={[24, 24]} className="stat-overview-row">
         <Col xs={24} sm={8}>
-          <Card className="overview-card income" bordered={false}>
+          <Card className="overview-card income glass-card" variant="borderless">
             <div className="card-icon-wrapper">
               <ArrowUpOutlined />
             </div>
@@ -196,7 +196,7 @@ const StatisticsPage: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card className="overview-card expense" bordered={false}>
+          <Card className="overview-card expense glass-card" variant="borderless">
             <div className="card-icon-wrapper">
               <ArrowDownOutlined />
             </div>
@@ -204,7 +204,7 @@ const StatisticsPage: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} sm={8}>
-          <Card className="overview-card balance" bordered={false}>
+          <Card className="overview-card balance glass-card" variant="borderless">
             <div className="card-icon-wrapper">
               <AccountBookOutlined />
             </div>
@@ -213,7 +213,7 @@ const StatisticsPage: React.FC = () => {
         </Col>
       </Row>
 
-      <Card className="filter-card glass-card" bordered={false}>
+      <Card className="filter-card glass-card" variant="borderless">
         <div className="filter-content">
           <span className="filter-label">查询周期：</span>
           <Space size="middle">
@@ -245,17 +245,17 @@ const StatisticsPage: React.FC = () => {
 
       <Row gutter={[24, 24]} className="chart-grid">
         <Col xs={24} lg={16}>
-          <Card title="收支对比分析" className="glass-card chart-card" bordered={false}>
+          <Card title="收支对比分析" className="glass-card chart-card" variant="borderless">
             <ReactECharts option={lineChartOption} style={{ height: '380px' }} />
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card title="支出结构" className="glass-card chart-card" bordered={false}>
+          <Card title="支出结构" className="glass-card chart-card" variant="borderless">
             <ReactECharts option={pieChartOption} style={{ height: '380px' }} />
           </Card>
         </Col>
         <Col span={24}>
-          <Card title="财务趋势演变" className="glass-card chart-card" bordered={false}>
+          <Card title="财务趋势演变" className="glass-card chart-card" variant="borderless">
             <ReactECharts option={trendChartOption} style={{ height: '380px' }} />
           </Card>
         </Col>
@@ -263,13 +263,13 @@ const StatisticsPage: React.FC = () => {
 
       <Row gutter={[24, 24]} className="bottom-section">
         <Col xs={24} lg={14}>
-          <Card title="财务健康评估" className="glass-card health-card" bordered={false}>
+          <Card title="财务健康评估" className="glass-card health-card" variant="borderless">
             <div className="health-container">
               <div className="health-main">
                 <Progress 
                   type="dashboard" 
                   percent={health?.healthScore || 0} 
-                  width={200}
+                  size={200}
                   strokeWidth={12}
                   strokeColor={{
                     '0%': '#ef4444',
@@ -302,8 +302,8 @@ const StatisticsPage: React.FC = () => {
                   </div>
                   <List 
                     size="small" 
-                    dataSource={health?.recommendations || []} 
-                    renderItem={(item) => (
+                    dataSource={(health?.recommendations || []) as string[]} 
+                    renderItem={(item: string) => (
                       <List.Item className="recommendation-item">
                         <Tag color="blue" className="suggestion-tag">建议</Tag>
                         <Text className="suggestion-text">{item}</Text>
@@ -316,7 +316,7 @@ const StatisticsPage: React.FC = () => {
           </Card>
         </Col>
         <Col xs={24} lg={10}>
-          <Card title="分类支出排行" className="glass-card category-card" bordered={false}>
+          <Card title="分类支出排行" className="glass-card category-card" variant="borderless">
             <List 
               dataSource={overview?.categoryBreakdown || []} 
               className="category-rank-list"

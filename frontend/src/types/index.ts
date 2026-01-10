@@ -1,7 +1,7 @@
 export * from '../store/slices/authSlice';
-export * from '../store/slices/transactionSlice';
-export * from '../store/slices/categorySlice';
-export * from '../store/slices/debtSlice';
+export { clearError as clearTransactionError } from '../store/slices/transactionSlice';
+export { clearError as clearCategoryError } from '../store/slices/categorySlice';
+export { clearError as clearDebtError } from '../store/slices/debtSlice';
 export * from '../store/slices/statisticsSlice';
 export * from '../store/slices/settingsSlice';
 export * from '../store/slices/appSlice';

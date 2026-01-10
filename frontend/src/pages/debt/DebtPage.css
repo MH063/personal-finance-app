@@ -1,146 +1,13 @@
+/**
+ * 债务管理页面特定样式
+ * 通用样式已迁移至 common-pages.css
+ */
+
 .debt-page {
-  padding: 24px;
-  min-height: 100%;
-  animation: fadeIn 0.4s ease-out;
+  /* 页面特定容器样式 */
 }
 
-/* Page Header */
-.page-header-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-}
-
-.page-title {
-  margin: 0 !important;
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 800 !important;
-}
-
-.dark-mode .page-title {
-  background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-/* Stat Cards */
-.stat-overview-row {
-  margin-bottom: 32px;
-}
-
-.overview-card {
-  border-radius: 24px !important;
-  background: rgba(255, 255, 255, 0.8) !important;
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-  position: relative;
-}
-
-.overview-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08) !important;
-}
-
-.dark-mode .overview-card {
-  background: rgba(30, 41, 59, 0.7) !important;
-  border-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-.card-icon-wrapper {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 48px;
-  height: 48px;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-}
-
-.overview-card.borrow .card-icon-wrapper { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-.overview-card.lend .card-icon-wrapper { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-.overview-card.pending .card-icon-wrapper { background: rgba(245, 158, 11, 0.1); color: #f59e0b; }
-.overview-card.overdue .card-icon-wrapper { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-
-.overview-card .ant-statistic-title {
-  font-size: 14px;
-  color: #64748b;
-  margin-bottom: 8px;
-}
-
-.overview-card .ant-statistic-content-value {
-  font-weight: 800 !important;
-  font-size: 28px !important;
-}
-
-.card-footer {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-.dark-mode .card-footer {
-  border-top-color: rgba(255, 255, 255, 0.05);
-}
-
-/* Glass Table Card */
-.glass-card {
-  background: rgba(255, 255, 255, 0.7) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  border-radius: 24px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05) !important;
-}
-
-.dark-mode .glass-card {
-  background: rgba(30, 41, 59, 0.7) !important;
-  border-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-/* Table Customization */
-.debt-table .ant-table {
-  background: transparent !important;
-}
-
-.debt-table .ant-table-thead > tr > th {
-  background: rgba(0, 0, 0, 0.02) !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.dark-mode .debt-table .ant-table-thead > tr > th {
-  background: rgba(255, 255, 255, 0.02) !important;
-  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
-  color: #94a3b8;
-}
-
-.debt-table .ant-table-tbody > tr > td {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
-}
-
-.dark-mode .debt-table .ant-table-tbody > tr > td {
-  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
-}
-
-.debt-table .ant-table-tbody > tr:hover > td {
-  background: rgba(0, 0, 0, 0.01) !important;
-}
-
-.dark-mode .debt-table .ant-table-tbody > tr:hover > td {
-  background: rgba(255, 255, 255, 0.02) !important;
-}
-
-/* Column Styles */
+/* 债务管理表格列特定样式 */
 .debtor-column {
   display: flex;
   flex-direction: column;
@@ -149,16 +16,16 @@
 
 .debtor-name {
   font-weight: 600;
-  color: #1e293b;
+  color: white;
   font-size: 15px;
 }
 
-.dark-mode .debtor-name { color: #f8fafc; }
-
 .type-tag {
   width: fit-content;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 11px;
+  font-weight: 600;
+  border: none !important;
 }
 
 .amount-column {
@@ -171,12 +38,12 @@
   font-size: 16px;
 }
 
-.original-amount.borrow { color: #ef4444; }
-.original-amount.lend { color: #10b981; }
+.original-amount.borrow { color: #f87171; }
+.original-amount.lend { color: #34d399; }
 
 .remaining-amount {
   font-size: 12px;
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .progress-column {
@@ -192,115 +59,29 @@
 
 .date-main {
   font-weight: 600;
-  color: #334155;
+  color: rgba(255, 255, 255, 0.9);
 }
-
-.dark-mode .date-main { color: #cbd5e1; }
 
 .date-sub {
   font-size: 11px;
-  color: #94a3b8;
+  color: rgba(255, 255, 255, 0.4);
 }
 
-/* Action Buttons */
+/* 操作按钮 */
 .action-btn {
-  width: 32px !important;
-  height: 32px !important;
+  width: 36px !important;
+  height: 36px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  border-radius: 8px !important;
-  transition: all 0.2s !important;
+  border-radius: 10px !important;
+  transition: all 0.3s !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
 }
 
 .action-btn:hover {
-  background: rgba(0, 0, 0, 0.05) !important;
-}
-
-.dark-mode .action-btn:hover {
   background: rgba(255, 255, 255, 0.1) !important;
-}
-
-.action-btn.pay:hover { color: #10b981 !important; background: rgba(16, 185, 129, 0.1) !important; }
-.action-btn.edit:hover { color: #3b82f6 !important; background: rgba(59, 130, 246, 0.1) !important; }
-.action-btn.delete:hover { color: #ef4444 !important; background: rgba(239, 68, 68, 0.1) !important; }
-
-/* Modal & Form */
-.transaction-modal .ant-modal-content {
-  border-radius: 24px !important;
-  padding: 0 !important;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.9) !important;
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.5);
-}
-
-.dark-mode .transaction-modal .ant-modal-content {
-  background: rgba(30, 41, 59, 0.9) !important;
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-.transaction-modal .ant-modal-header {
-  padding: 24px 24px 0 !important;
-  background: transparent !important;
-  border-bottom: none !important;
-}
-
-.transaction-modal .ant-modal-body {
-  padding: 24px !important;
-}
-
-.payment-info-card {
-  background: rgba(0, 0, 0, 0.02);
-  padding: 16px;
-  border-radius: 16px;
-  margin-bottom: 24px;
-}
-
-.dark-mode .payment-info-card {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.info-label {
-  font-size: 14px;
-  color: #64748b;
-  margin-bottom: 4px;
-}
-
-.info-amount {
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.info-amount span {
-  font-size: 20px;
-  color: #ef4444;
-  margin-left: 8px;
-}
-
-.modal-footer {
-  margin-top: 32px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.submit-btn {
-  height: 44px !important;
-  padding: 0 32px !important;
-  border-radius: 12px !important;
-  font-weight: 600 !important;
-}
-
-/* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .debt-page { padding: 16px; }
-  .page-header-section { flex-direction: column; align-items: flex-start; gap: 16px; }
-  .header-actions { width: 100%; }
-  .add-btn { width: 100%; }
+  color: white !important;
+  transform: translateY(-2px);
 }

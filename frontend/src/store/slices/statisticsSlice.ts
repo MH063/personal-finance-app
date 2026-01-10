@@ -1,6 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import statisticsService from '../../services/statisticsService';
-import api from '../../services/api';
 
 interface StatisticsState {
   overview: any | null;

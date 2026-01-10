@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Switch, Divider, Typography, Button, App, Spin } from 'antd';
-import { BellOutlined, SaveOutlined } from '@ant-design/icons';
+import { SaveOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '@store/index';
 import { fetchSettings, updateSettings } from '@store/slices/settingsSlice';
@@ -50,7 +50,7 @@ const NotificationPage: React.FC = () => {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '300px', gap: '16px' }}>
         <Spin size="large" />
-        <Text type="secondary">正在加载设置...</Text>
+        <Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>正在加载设置...</Text>
       </div>
     );
   }
@@ -59,16 +59,16 @@ const NotificationPage: React.FC = () => {
     <div className="settings-section">
       <div className="settings-header">
         <Title level={2} className="page-title">通知设置</Title>
-        <Text type="secondary">配置您希望接收的消息提醒类型和方式</Text>
+        <Text style={{ color: 'rgba(255, 255, 255, 0.7)' }}>配置您希望接收的消息提醒类型和方式</Text>
       </div>
 
-      <Card className="settings-main-card glass-card" bordered={false}>
+      <Card className="settings-main-card glass-card" variant="borderless">
         <div className="notification-content-inner">
           <div className="setting-item-group">
             <div className="setting-item">
               <div>
-                <Text strong style={{ fontSize: '16px' }}>债务到期提醒</Text><br />
-                <Text type="secondary">在债务到期前收到系统通知和邮件提醒</Text>
+                <Text strong style={{ fontSize: '16px', color: 'white' }}>债务到期提醒</Text><br />
+                <Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>在债务到期前收到系统通知和邮件提醒</Text>
               </div>
               <Switch 
                 checked={localSettings?.debtReminder} 
@@ -78,8 +78,8 @@ const NotificationPage: React.FC = () => {
             <Divider />
             <div className="setting-item">
               <div>
-                <Text strong style={{ fontSize: '16px' }}>预算超支提醒</Text><br />
-                <Text type="secondary">当本月支出超出设定预算时及时通知</Text>
+                <Text strong style={{ fontSize: '16px', color: 'white' }}>预算超支提醒</Text><br />
+                <Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>当本月支出超出设定预算时及时通知</Text>
               </div>
               <Switch 
                 checked={localSettings?.budgetAlert} 
@@ -89,8 +89,8 @@ const NotificationPage: React.FC = () => {
             <Divider />
             <div className="setting-item">
               <div>
-                <Text strong style={{ fontSize: '16px' }}>每周财务报告</Text><br />
-                <Text type="secondary">每周一发送上周的财务收支汇总报告</Text>
+                <Text strong style={{ fontSize: '16px', color: 'white' }}>每周财务报告</Text><br />
+                <Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>每周一发送上周的财务收支汇总报告</Text>
               </div>
               <Switch 
                 checked={localSettings?.weeklyReport} 
@@ -100,8 +100,8 @@ const NotificationPage: React.FC = () => {
             <Divider />
             <div className="setting-item">
               <div>
-                <Text strong style={{ fontSize: '16px' }}>月度详细报表</Text><br />
-                <Text type="secondary">每月初发送上月的详细财务分析报表</Text>
+                <Text strong style={{ fontSize: '16px', color: 'white' }}>月度详细报表</Text><br />
+                <Text style={{ color: 'rgba(255, 255, 255, 0.65)' }}>每月初发送上月的详细财务分析报表</Text>
               </div>
               <Switch 
                 checked={localSettings?.monthlyReport} 

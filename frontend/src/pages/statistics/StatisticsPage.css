@@ -1,156 +1,129 @@
+/**
+ * 统计报表页面特定样式
+ * 通用样式已迁移至 common-pages.css
+ */
+
 .statistics-page {
-  padding: 24px;
-  max-width: 1400px;
-  margin: 0 auto;
-  animation: fadeIn 0.6s ease-out;
+  /* 页面特定容器样式 */
 }
 
-.page-header-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 32px;
-}
-
-.page-title {
-  margin-bottom: 4px !important;
-  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 800 !important;
-}
-
-.dark-mode .page-title {
-  background: linear-gradient(135deg, #f1f5f9 0%, #cbd5e1 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.header-btn {
-  height: 44px !important;
-  padding: 0 20px !important;
-  border-radius: 12px !important;
-  font-weight: 600 !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  transition: all 0.3s !important;
-}
-
-.header-btn.income {
-  background: #10b981 !important;
-  border-color: #10b981 !important;
-  color: white !important;
-}
-
-.header-btn.expense {
-  background: #ef4444 !important;
-  border-color: #ef4444 !important;
-  color: white !important;
-}
-
-.header-btn:hover {
-  transform: translateY(-2px);
-  filter: brightness(1.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-}
-
-.stat-overview-row {
-  margin-bottom: 24px;
-}
-
+/* 统计卡片特定样式 */
 .overview-card {
-  border-radius: 24px !important;
-  background: rgba(255, 255, 255, 0.8) !important;
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05) !important;
   padding: 8px;
+  height: 100%;
+  transition: all var(--duration-fast) var(--ease-out);
   position: relative;
-  overflow: hidden;
+  z-index: var(--z-bg-surface);
 }
 
-.dark-mode .overview-card {
-  background: rgba(30, 41, 59, 0.7) !important;
-  border-color: rgba(255, 255, 255, 0.05) !important;
+.overview-card:hover {
+  background: var(--color-bg-glass-heavy) !important;
+  transform: translateY(-5px);
+  border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
 .card-icon-wrapper {
-  position: absolute;
-  right: -10px;
-  bottom: -10px;
-  font-size: 80px;
-  opacity: 0.05;
-  transform: rotate(-15deg);
-}
-
-.income .card-icon-wrapper { background: rgba(16, 185, 129, 0.1); color: #10b981; }
-.expense .card-icon-wrapper { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
-.balance .card-icon-wrapper { background: rgba(99, 102, 241, 0.1); color: #6366f1; }
-.count .card-icon-wrapper { background: rgba(100, 116, 139, 0.1); color: #64748b; }
-
-.overview-card .ant-statistic-title {
-  font-size: 14px;
-  color: #64748b;
-  margin-bottom: 4px;
-}
-
-.overview-card .ant-statistic-content {
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-}
-
-.card-footer {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid rgba(0, 0, 0, 0.04);
-}
-
-/* Glass Cards */
-.glass-card {
-  background: rgba(255, 255, 255, 0.7) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  border-radius: 24px !important;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05) !important;
-}
-
-.glass-card .ant-card-head {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  padding: 0 24px !important;
-}
-
-.glass-card .ant-card-head-title {
-  font-weight: 600 !important;
-  font-size: 18px !important;
-}
-
-/* Charts */
-.chart-grid {
-  margin-bottom: 32px;
-}
-
-.chart-card {
-  height: 100%;
-}
-
-/* Health Evaluation */
-.health-container {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
-  gap: 40px;
-  padding: 12px 0;
+  justify-content: center;
+  font-size: 24px;
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transition: transform var(--duration-base) var(--ease-out);
 }
 
-.health-main {
-  flex-shrink: 0;
+.overview-card:hover .card-icon-wrapper {
+  transform: scale(1.1);
+}
+
+.overview-card.income .card-icon-wrapper {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+.overview-card.expense .card-icon-wrapper {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.overview-card.balance .card-icon-wrapper {
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+}
+
+/* 统计数值样式 */
+.ant-statistic-title {
+  color: rgba(255, 255, 255, 0.75) !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  margin-bottom: 8px !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.ant-statistic-content {
+  color: white !important;
+  font-weight: 700 !important;
+  font-size: 28px !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.ant-statistic-content-prefix {
+  font-size: 20px !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* 确保所有统计页面卡片背景透明，防止 Ant Design 默认样式覆盖 */
+.statistics-page .ant-card {
+  background: transparent !important;
+}
+
+.statistics-page .ant-card-head,
+.statistics-page .ant-card-body {
+  background: transparent !important;
+}
+
+/* 图表容器样式 */
+.chart-card,
+.health-card,
+.category-card {
+  border-radius: 24px !important;
+  background: var(--color-bg-glass) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-glass-border) !important;
+  margin-bottom: var(--space-6);
+  overflow: hidden;
+}
+
+.chart-card .ant-card-head,
+.health-card .ant-card-head,
+.category-card .ant-card-head {
+  background: transparent !important;
+  border-bottom: 1px solid var(--color-glass-border) !important;
+}
+
+.chart-card .ant-card-body,
+.health-card .ant-card-body,
+.category-card .ant-card-body {
+  background: transparent !important;
+}
+
+.chart-card .ant-card-head-title,
+.health-card .ant-card-head-title,
+.category-card .ant-card-head-title {
+  color: white !important;
+  font-weight: 700 !important;
+}
+
+/* 财务健康评估卡片内部样式 */
+.health-container {
+  display: flex;
+  gap: var(--space-8);
+  align-items: center;
 }
 
 .score-display {
@@ -162,78 +135,67 @@
 .score-num {
   font-size: 48px;
   font-weight: 800;
+  color: white;
   line-height: 1;
-  background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .score-label {
   font-size: 14px;
-  color: #64748b;
-  margin-top: 4px;
-}
-
-.health-details {
-  flex-grow: 1;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: 8px;
 }
 
 .metric-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
 }
 
-.metric-item .metric-value {
+.metric-item .ant-typography-secondary {
+  color: rgba(255, 255, 255, 0.45) !important;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.metric-value {
   font-size: 20px;
   font-weight: 700;
-  margin: 4px 0 8px;
+  color: white;
+  margin-bottom: 8px;
 }
 
-.recommendation-header {
-  margin-bottom: 12px;
+.recommendation-header h5 {
+  color: rgba(255, 255, 255, 0.85) !important;
+  margin-bottom: var(--space-3) !important;
 }
 
 .recommendation-item {
-  border: none !important;
-  padding: 8px 0 !important;
-}
-
-.suggestion-tag {
-  border-radius: 6px !important;
-  font-size: 11px !important;
-  padding: 0 8px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 12px !important;
+  padding: 10px 16px !important;
+  margin-bottom: 8px !important;
 }
 
 .suggestion-text {
-  font-size: 14px;
-  color: #475569;
+  color: rgba(255, 255, 255, 0.8) !important;
 }
 
-/* Category Rank List */
-.category-rank-list {
-  max-height: 400px;
-  overflow-y: auto;
-  padding-right: 8px;
+/* 分类支出排行卡片内部样式 */
+.category-rank-list .rank-item {
+  padding: 16px !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 16px !important;
+  margin-bottom: 12px !important;
+  transition: all 0.3s ease !important;
 }
 
-.category-rank-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.category-rank-list::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 10px;
-}
-
-.rank-item {
-  padding: 16px 0 !important;
-  border-bottom: 1px dashed rgba(0, 0, 0, 0.05) !important;
-}
-
-.rank-item:last-child {
-  border-bottom: none !important;
+.category-rank-list .rank-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  transform: translateX(4px);
 }
 
 .rank-left {
@@ -243,21 +205,21 @@
 }
 
 .category-dot {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 10px currentColor;
 }
 
 .category-info .name {
+  color: white;
   font-weight: 600;
-  color: #1e293b;
-  font-size: 15px;
+  font-size: 16px;
 }
 
 .category-info .count {
+  color: rgba(255, 255, 255, 0.45);
   font-size: 12px;
-  color: #94a3b8;
 }
 
 .rank-right {
@@ -265,75 +227,95 @@
 }
 
 .rank-right .amount {
+  color: white;
   font-weight: 700;
-  color: #1e293b;
-  font-size: 16px;
+  font-size: 18px;
 }
 
 .rank-right .percentage {
-  font-size: 12px;
-  color: #6366f1;
+  color: var(--color-primary-400);
   font-weight: 600;
+  font-size: 12px;
 }
 
-/* Dark Mode Support */
-.dark-mode .overview-card {
-  background: #1e293b !important;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+/* 空状态与列表空文本玻璃化 */
+.category-card .ant-empty-description,
+.category-card .ant-list-empty-text,
+.health-card .ant-empty-description {
+  color: rgba(255, 255, 255, 0.45) !important;
 }
 
-.dark-mode .page-title {
-  background: linear-gradient(135deg, #f8fafc 0%, #cbd5e1 100%);
-  -webkit-background-clip: text;
+.category-card .ant-empty-image svg {
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.1));
+  opacity: 0.6;
 }
 
-.dark-mode .glass-card {
-  background: rgba(30, 41, 59, 0.7) !important;
-  border-color: rgba(255, 255, 255, 0.05) !important;
+/* 确保所有内部容器背景透明 */
+.health-card .ant-list,
+.category-card .ant-list,
+.health-card .ant-spin-nested-loading,
+.category-card .ant-spin-nested-loading,
+.health-card .ant-spin-container,
+.category-card .ant-spin-container {
+  background: transparent !important;
 }
 
-.dark-mode .rank-item {
-  border-bottom-color: rgba(255, 255, 255, 0.05) !important;
+/* 筛选区域卡片样式 */
+.filter-card {
+  margin-bottom: var(--space-6);
+  background: var(--color-bg-glass) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
-.dark-mode .category-info .name,
-.dark-mode .rank-right .amount {
-  color: #f8fafc;
+.filter-content {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 
-.dark-mode .card-footer {
-  border-top-color: rgba(255, 255, 255, 0.05);
+.filter-label {
+  color: rgba(255, 255, 255, 0.65) !important;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-/* Responsive */
-@media (max-width: 992px) {
-  .health-container {
-    flex-direction: column;
-    align-items: center;
-    gap: 24px;
-  }
-  
-  .health-details {
-    width: 100%;
-  }
+/* 筛选区域内部组件玻璃拟态 */
+.filter-card .range-select .ant-select-selector,
+.filter-card .custom-range-picker,
+.filter-card .export-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 12px !important;
+  height: 44px !important;
+  display: flex !important;
+  align-items: center !important;
+  transition: all 0.3s ease !important;
 }
 
-@media (max-width: 768px) {
-  .page-header-section {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .header-actions {
-    width: 100%;
-  }
-  
-  .header-actions .ant-space {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-  
-  .range-select {
-    width: 100%;
-  }
+.filter-card .range-select .ant-select-selector:hover,
+.filter-card .custom-range-picker:hover,
+.filter-card .export-btn:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  transform: translateY(-1px);
+}
+
+.filter-card .ant-select-selection-item,
+.filter-card .ant-picker-input > input,
+.filter-card .export-btn {
+  color: white !important;
+  font-weight: 500 !important;
+}
+
+.filter-card .ant-select-arrow,
+.filter-card .ant-picker-suffix {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* 针对导出按钮的特殊处理 */
+.filter-card .export-btn {
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  padding: 0 20px !important;
 }

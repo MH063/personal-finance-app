@@ -76,9 +76,10 @@ async function bootstrap() {
     });
   }
 
-  await app.listen(port);
-  logger.log(`🚀 应用已启动: http://localhost:${port}/${apiPrefix}`);
-  logger.log(`📚 API文档: http://localhost:${port}/docs`);
+  const host = '192.168.66.41';
+  await app.listen(port, '0.0.0.0');
+  logger.log(`🚀 应用已启动: http://${host}:${port}/${apiPrefix}`);
+  logger.log(`📚 API文档: http://${host}:${port}/docs`);
   logger.log(`🌍 环境: ${nodeEnv}`);
 }
 

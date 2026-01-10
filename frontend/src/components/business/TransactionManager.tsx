@@ -1,11 +1,12 @@
-import React, { useEffect, useState, useImperativeHandle, forwardRef } from 'react';
+import { useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App, Row, Col, Popconfirm } from 'antd';
 import { PlusOutlined, SearchOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
-import { fetchTransactions, createTransaction, updateTransaction, deleteTransaction, Transaction } from '../../store/slices/transactionSlice';
+import { fetchTransactions, createTransaction, updateTransaction, deleteTransaction } from '../../store/slices/transactionSlice';
 import { fetchCategories, Category } from '../../store/slices/categorySlice';
+import type { Transaction } from '../../services/transactionService';
 import './TransactionManager.css';
 
 const { Option } = Select;
@@ -37,54 +38,57 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   }));
 
   useEffect(() => {
+    console.log(`[TransactionManager] 加载数据: type=${type}, filters=`, filters);
     dispatch(fetchTransactions({ type, ...filters }) as any);
     dispatch(fetchCategories(type) as any);
   }, [dispatch, type, filters]);
 
   const handleSearch = () => {
+    console.log(`[TransactionManager] 执行搜索: filters=`, filters);
     dispatch(fetchTransactions({ type, ...filters }) as any);
   };
 
   const handleAdd = () => {
+    console.log(`[TransactionManager] 打开添加弹窗`);
     setEditingTransaction(null);
     setModalVisible(true);
-    // 使用 setTimeout 确保 Modal 已打开且 Form 已挂载
     setTimeout(() => {
       form.resetFields();
-      form.setFieldsValue({ transactionDate: dayjs() });
+      form.setFieldsValue({ transactionDate: dayjs(), type });
     }, 0);
   };
 
   const handleEdit = (record: Transaction) => {
+    console.log(`[TransactionManager] 打开编辑弹窗: id=${record.id}`);
     setEditingTransaction(record);
     setModalVisible(true);
-    // 使用 setTimeout 确保 Modal 已打开且 Form 已挂载
     setTimeout(() => {
       form.setFieldsValue({
         ...record,
-        categoryId: record.categoryId || (record.category as any)?.id,
         transactionDate: dayjs(record.transactionDate),
       });
     }, 0);
   };
 
   const handleDelete = async (id: string) => {
+    console.log(`[TransactionManager] 执行删除: id=${id}`);
     try {
       await dispatch(deleteTransaction(id) as any);
       message.success('删除成功');
       dispatch(fetchTransactions({ type, ...filters }) as any);
     } catch (error) {
+      console.error(`[TransactionManager] 删除失败:`, error);
       message.error('删除失败');
     }
   };
 
   const handleSubmit = async (values: any) => {
+    console.log(`[TransactionManager] 提交表单: values=`, values);
     setLoading(true);
     try {
       const data = {
         ...values,
-        transactionDate: values.transactionDate.format('YYYY-MM-DDTHH:mm:ss.SSSZ'),
-        type,
+        transactionDate: values.transactionDate.format('YYYY-MM-DD'),
       };
 
       if (editingTransaction) {
@@ -98,6 +102,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       setModalVisible(false);
       dispatch(fetchTransactions({ type, ...filters }) as any);
     } catch (error) {
+      console.error(`[TransactionManager] 提交失败:`, error);
       message.error('操作失败');
     } finally {
       setLoading(false);
@@ -106,27 +111,14 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
 
   const columns = [
     { 
-      title: '交易日期', 
-      dataIndex: 'transactionDate', 
-      key: 'date', 
-      width: 120,
-      render: (date: string) => (
-        <div className="date-column">
-          <div className="date-main">{dayjs(date).format('MM-DD')}</div>
-          <div className="date-sub">{dayjs(date).format('YYYY')}</div>
-        </div>
-      ),
-      sorter: (a: Transaction, b: Transaction) => dayjs(a.transactionDate).unix() - dayjs(b.transactionDate).unix()
-    },
-    { 
-      title: '分类', 
-      dataIndex: 'category', 
+      title: '分类/备注', 
       key: 'category', 
-      width: 120,
-      render: (cat: Category) => (
-        <Tag color={cat?.color || themeColor} className="category-tag">
-          {cat?.name || '未分类'}
-        </Tag>
+      width: 220,
+      render: (_: any, record: Transaction) => (
+        <div className="category-column">
+          <div className="category-name">{record.category?.name || '未分类'}</div>
+          <div className="description-sub">{record.description || '无备注'}</div>
+        </div>
       )
     },
     { 
@@ -136,8 +128,9 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       width: 150,
       render: (amount: number) => (
         <div className={`amount-column ${type}`}>
-          <span className="currency">¥</span>
-          <span className="value">{amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}</span>
+          <div className="amount-value">
+            {type === 'expense' ? '-' : '+'}¥{amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+          </div>
         </div>
       )
     },
@@ -154,15 +147,21 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
           cash: { label: '现金', color: 'orange' }
         };
         const config = methods[method] || { label: method || '其他', color: 'default' };
-        return <Tag color={config.color} variant="soft">{config.label}</Tag>;
+        return <Tag color={config.color} className="method-tag">{config.label}</Tag>;
       }
     },
     { 
-      title: '备注说明', 
-      dataIndex: 'description', 
-      key: 'desc', 
-      ellipsis: true,
-      render: (text: string) => <span className="description-text">{text || '-'}</span>
+      title: '交易日期', 
+      dataIndex: 'transactionDate', 
+      key: 'date', 
+      width: 120,
+      render: (date: string) => (
+        <div className="date-column">
+          <div className="date-main">{dayjs(date).format('MM-DD')}</div>
+          <div className="date-sub">{dayjs(date).format('YYYY')}</div>
+        </div>
+      ),
+      sorter: (a: Transaction, b: Transaction) => dayjs(a.transactionDate).unix() - dayjs(b.transactionDate).unix()
     },
     {
       title: '管理操作',
@@ -199,8 +198,8 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   return (
     <div className={`transaction-manager ${type}-manager`}>
       <Card 
-        bordered={false}
-        className="manager-card"
+        variant="borderless"
+        className="glass-card custom-table-card"
         title={showHeader ? (
           <div className="card-header-title">
             <div className="title-dot" style={{ backgroundColor: themeColor }}></div>
@@ -283,15 +282,23 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
             dataSource={transactions} 
             rowKey="id" 
             loading={txLoading}
-            scroll={{ x: 800 }}
             pagination={{ 
               total, 
-              pageSize: 10, 
-              showSizeChanger: false,
-              showTotal: (total) => `共 ${total} 条交易记录`,
-              className: 'custom-pagination'
+              pageSize: 10,
+              showSizeChanger: true,
+              showTotal: (total) => `共 ${total} 条记录`
             }}
-            className="transaction-table"
+            onChange={(pagination) => {
+              const { current, pageSize } = pagination;
+              dispatch(fetchTransactions({ 
+                type, 
+                ...filters, 
+                page: current, 
+                limit: pageSize 
+              }) as any);
+            }}
+            scroll={{ x: 1000 }}
+            className="glass-table transaction-table"
           />
         </div>
       </Card>
@@ -302,8 +309,8 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         onOk={() => form.submit()}
         onCancel={() => setModalVisible(false)}
         confirmLoading={loading}
-        destroyOnClose
-        className="transaction-modal"
+        destroyOnHidden
+        className="custom-modal"
         width={520}
         okButtonProps={{ 
           style: { backgroundColor: themeColor, borderColor: themeColor },
@@ -356,7 +363,9 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       </Modal>
     </div>
   );
-};
+});
+
+TransactionManager.displayName = 'TransactionManager';
 
 // End of TransactionManager component
 export default TransactionManager;

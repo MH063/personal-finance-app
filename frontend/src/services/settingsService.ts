@@ -29,7 +29,7 @@ const settingsService = {
    * 修改密码
    */
   changePassword: async (data: any) => {
-    const response = await api.put<any>('/auth/change-password', data);
+    const response = await api.put<any>('/auth/password', data);
     return response.data;
   },
 

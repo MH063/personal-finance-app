@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Form, Input, Button, App, Card } from 'antd';
+import { Form, Input, Button, App } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useDispatch } from 'react-redux';
-import { login, setTokens } from '@store/slices/authSlice';
+import { login } from '@store/slices/authSlice';
+import { useSafeBackground } from '../hooks/useSafeBackground';
 import './LoginPage.css';
 
 const LoginPage: React.FC = () => {
@@ -11,6 +12,10 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  // 安全加载背景图片
+  const pageBg = useSafeBackground('https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1920&q=80');
+  const panelBg = useSafeBackground('https://images.unsplash.com/photo-1557683311-eac922347aa1?auto=format&fit=crop&w=900&q=80');
 
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
@@ -35,7 +40,13 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="login-container">
+    <div 
+      className="login-container" 
+      style={{ 
+        '--page-bg-image': pageBg ? `url(${pageBg})` : 'none',
+        '--panel-bg-image': panelBg ? `url(${panelBg})` : 'none'
+      } as React.CSSProperties}
+    >
       <div className="login-content">
         <div className="login-side-panel">
           <div className="panel-content">
@@ -58,7 +69,6 @@ const LoginPage: React.FC = () => {
             name="login"
             className="login-form"
             onFinish={onFinish}
-            size="large"
             layout="vertical"
           >
             <Form.Item

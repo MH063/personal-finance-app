@@ -1,0 +1,808 @@
+/**
+ * 通用页面样式优化
+ * 
+ * 收入/支出/债务/备份/设置/注册页面统一样式
+ */
+
+/* ========================================
+ * 通用页面容器
+ * ======================================== */
+
+.expense-page,
+.income-page,
+.debt-page,
+.backup-page,
+.settings-section,
+.register-page {
+  padding: var(--space-6);
+  max-width: 1600px;
+  margin: 0 auto;
+  animation: fadeInUp var(--duration-base) var(--ease-out);
+}
+
+@media (max-width: 767px) {
+  .expense-page,
+  .income-page,
+  .debt-page,
+  .backup-page,
+  .settings-section,
+  .register-page {
+    padding: var(--space-4);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .expense-page,
+  .income-page,
+  .debt-page,
+  .backup-page,
+  .settings-section,
+  .register-page {
+    padding: var(--space-5);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+ * 页面头部与操作区
+ * ======================================== */
+
+.page-header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-8);
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.header-left {
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.page-title {
+  color: white !important;
+  margin: 0 !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.header-left .ant-typography-secondary {
+  color: rgba(255, 255, 255, 0.45) !important;
+  font-size: 14px !important;
+  display: block;
+  margin-top: 4px;
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--space-3);
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.header-btn {
+  height: 48px !important;
+  padding: 0 var(--space-6) !important;
+  border-radius: 16px !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: var(--space-2) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  border: none !important;
+}
+
+.header-btn:hover {
+  transform: translateY(-2px) scale(1.02);
+  filter: brightness(1.1);
+}
+
+.header-btn.income,
+.header-btn.add-income {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3) !important;
+}
+
+.header-btn.expense,
+.header-btn.add-expense {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  box-shadow: 0 8px 20px rgba(239, 68, 68, 0.3) !important;
+}
+
+.header-btn.primary {
+  background: linear-gradient(135deg, var(--color-primary-500), var(--color-primary-600)) !important;
+  box-shadow: 0 8px 20px rgba(139, 92, 246, 0.3) !important;
+}
+
+/* ========================================
+ * 统计卡片组件 (Statistics Cards)
+ * ======================================== */
+
+.stats-row {
+  margin-bottom: var(--space-8);
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.stats-card {
+  background: rgba(255, 255, 255, 0.03) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 24px !important;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  overflow: hidden;
+  height: 100%;
+}
+
+.stats-card:hover {
+  transform: translateY(-5px) scale(1.02);
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3) !important;
+}
+
+.stats-card-icon {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 44px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s ease;
+}
+
+.stats-card:hover .stats-card-icon {
+  transform: rotate(12deg) scale(1.1);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.stats-card.income:hover .stats-card-icon { color: #10b981; background: rgba(16, 185, 129, 0.1); }
+.stats-card.expense:hover .stats-card-icon { color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+
+.stats-card .ant-statistic-title {
+  color: rgba(255, 255, 255, 0.45) !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  margin-bottom: 8px !important;
+}
+
+.stats-card .ant-statistic-content {
+  color: white !important;
+  font-weight: 800 !important;
+  font-size: 28px !important;
+  letter-spacing: -0.5px;
+}
+
+.stats-card-footer {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.stats-card-footer .ant-typography-secondary {
+  font-size: 12px !important;
+  color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* ========================================
+ * 响应式修正
+ * ======================================== */
+
+@media (max-width: 479px) {
+  .page-header-section {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+  
+  .header-actions {
+    width: 100%;
+  }
+  
+  .header-actions .ant-btn {
+    width: 100%;
+  }
+
+  .glass-table .ant-table-thead > tr > th,
+  .glass-table .ant-table-tbody > tr > td {
+    padding: var(--space-3) var(--space-2) !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .glass-table .ant-table-thead > tr > th,
+  .glass-table .ant-table-tbody > tr > td {
+    padding: var(--space-3) var(--space-3) !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .stats-card .ant-statistic-content {
+    font-size: 24px !important;
+  }
+
+  .glass-table .ant-table-thead > tr > th,
+  .glass-table .ant-table-tbody > tr > td {
+    padding: var(--space-3) var(--space-4) !important;
+  }
+}
+
+/* ========================================
+ * 打印样式 (Print Styles)
+ * ======================================== */
+
+@media print {
+  .glass-card {
+    background: white !important;
+    border: 1px solid #ddd !important;
+    box-shadow: none !important;
+    color: black !important;
+  }
+
+  .glass-table {
+    color: black !important;
+  }
+
+  .glass-table .ant-table-thead > tr > th {
+    background: #f5f5f5 !important;
+    color: black !important;
+    border-bottom: 1px solid #ddd !important;
+  }
+
+  .glass-table .ant-table-tbody > tr > td {
+    color: black !important;
+    border-bottom: 1px solid #eee !important;
+  }
+
+  .header-actions,
+  .action-btn,
+  .ant-pagination,
+  .filter-section {
+    display: none !important;
+  }
+
+  .page-title {
+    color: black !important;
+    text-shadow: none !important;
+  }
+}
+
+/* ========================================
+ * 通用玻璃卡片
+ * ======================================== */
+
+.glass-card {
+  border-radius: var(--radius-2xl) !important;
+  background: var(--color-bg-glass) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-glass-border) !important;
+  box-shadow: var(--shadow-glass) !important;
+  overflow: hidden;
+  position: relative;
+  z-index: var(--z-bg-surface);
+}
+
+.glass-card .ant-card-head {
+  border-bottom: 1px solid var(--color-glass-border) !important;
+  padding: 0 var(--space-6) !important;
+  min-height: 64px !important;
+  display: flex;
+  align-items: center;
+}
+
+.glass-card .ant-card-head-title {
+  font-weight: 700 !important;
+  font-size: 18px !important;
+  color: white !important;
+}
+
+.glass-card .ant-card-body {
+  padding: var(--space-6) !important;
+}
+
+/* ========================================
+ * 表格样式 (Unified Glass Table)
+ * ======================================== */
+
+.glass-table,
+.glass-table .ant-table,
+.glass-table .ant-table-container,
+.glass-table .ant-table-content,
+.glass-table .ant-table-thead,
+.glass-table .ant-table-thead > tr > th,
+.glass-table .ant-table-tbody,
+.glass-table .ant-table-tbody > tr > td,
+.glass-table .ant-table-wrapper,
+.glass-table .ant-spin-nested-loading,
+.glass-table .ant-spin-container {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.glass-table .ant-table-thead > tr > th {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-bottom: 1px solid var(--color-glass-border) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+  font-weight: 600 !important;
+  padding: 16px !important;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.glass-table .ant-table-tbody > tr > td {
+  padding: 16px !important;
+  border-bottom: 1px solid var(--color-glass-border) !important;
+  transition: all 0.3s ease;
+}
+
+/* 移除数据行悬停背景色 */
+.glass-table .ant-table-tbody > tr:hover > td {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* 分页样式 */
+.glass-table .ant-pagination {
+  margin-top: 24px !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+}
+
+.glass-table .ant-pagination-item {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--color-glass-border) !important;
+  border-radius: 8px !important;
+  transition: all 0.3s !important;
+}
+
+.glass-table .ant-pagination-item:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.glass-table .ant-pagination-item a {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.glass-table .ant-pagination-item-active {
+  background: var(--color-primary-500) !important;
+  border-color: var(--color-primary-500) !important;
+}
+
+.glass-table .ant-pagination-item-active a {
+  color: white !important;
+}
+
+.glass-table .ant-pagination-prev .ant-pagination-item-link,
+.glass-table .ant-pagination-next .ant-pagination-item-link {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--color-glass-border) !important;
+  border-radius: 8px !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.glass-table .ant-pagination-options-quick-jumper {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+.glass-table .ant-pagination-options-quick-jumper input {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--color-glass-border) !important;
+  border-radius: 6px !important;
+  color: white !important;
+}
+
+.glass-table .ant-pagination-total-text {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* 空状态样式 */
+.glass-table .ant-empty-description {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* ========================================
+ * 模态框样式
+ * ======================================== */
+
+.custom-modal .ant-modal-content {
+  border-radius: var(--radius-2xl) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  background: var(--color-bg-elevated) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--modal-ui-border) !important;
+  box-shadow: var(--shadow-xl) !important;
+  color: var(--modal-text-color) !important;
+  text-shadow: var(--modal-text-shadow) !important;
+}
+
+.custom-modal .ant-modal-header {
+  padding: var(--space-6) var(--space-6) 0 !important;
+  background: transparent !important;
+  border-bottom: none !important;
+  color: var(--modal-text-color) !important;
+}
+
+.custom-modal .ant-modal-title {
+  color: var(--modal-text-color) !important;
+  text-shadow: var(--modal-text-shadow) !important;
+}
+
+.custom-modal .ant-modal-close {
+  color: var(--modal-text-secondary) !important;
+}
+
+.custom-modal .ant-modal-body {
+  padding: var(--space-6) !important;
+}
+
+.custom-modal .ant-modal-footer {
+  padding: var(--space-4) var(--space-6) !important;
+  border-top: 1px solid var(--modal-ui-border) !important;
+}
+
+/* ========================================
+ * 通用表单样式
+ * ======================================== */
+
+.form-section {
+  margin-bottom: var(--space-6);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border-light);
+}
+
+/* ========================================
+ * 列表项样式
+ * ======================================== */
+
+.list-item {
+  padding: var(--space-4) var(--space-5) !important;
+  border-radius: var(--radius-lg) !important;
+  transition: all var(--duration-fast) var(--ease-out) !important;
+  border-bottom: 1px solid var(--color-border-light) !important;
+}
+
+.list-item:last-child {
+  border-bottom: none !important;
+}
+
+.list-item:hover {
+  background: transparent !important;
+}
+
+/* ========================================
+ * 金额显示
+ * ======================================== */
+
+.amount-display {
+  font-family: var(--font-family-sans);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-base);
+  font-variant-numeric: tabular-nums;
+}
+
+.amount-display.income,
+.amount-display.lend {
+  color: var(--color-success);
+}
+
+.amount-display.expense,
+.amount-display.borrow {
+  color: var(--color-error);
+}
+
+/* ========================================
+ * 状态标签
+ * ======================================== */
+
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.status-tag.success {
+  background: var(--color-success-50);
+  color: var(--color-success-700);
+}
+
+.status-tag.warning {
+  background: var(--color-warning-50);
+  color: var(--color-warning-700);
+}
+
+.status-tag.error {
+  background: var(--color-error-50);
+  color: var(--color-error-700);
+}
+
+.status-tag.info {
+  background: var(--color-info-50);
+  color: var(--color-info-700);
+}
+
+/* ========================================
+ * 空状态样式
+ * ======================================== */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-12) var(--space-6);
+  text-align: center;
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--space-4);
+}
+
+.empty-state-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.empty-state-description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  max-width: 300px;
+}
+
+/* ========================================
+ * 响应式适配
+ * ======================================== */
+
+@media (max-width: 639px) {
+  .header-actions {
+    width: 100%;
+  }
+  
+  .header-btn {
+    flex: 1;
+    justify-content: center;
+  }
+  
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .stats-row .ant-col {
+    margin-bottom: var(--space-4);
+  }
+}
+
+/* ========================================
+ * 进度条样式
+ * ======================================== */
+
+.progress-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width var(--duration-slow) var(--ease-out);
+}
+
+.progress-fill.success {
+  background: linear-gradient(90deg, var(--color-success-500), var(--color-success-400));
+}
+
+.progress-fill.warning {
+  background: linear-gradient(90deg, var(--color-warning-500), var(--color-warning-400));
+}
+
+.progress-fill.error {
+  background: linear-gradient(90deg, var(--color-error-500), var(--color-error-400));
+}
+
+/* ========================================
+ * 备份页面特定样式
+ * ======================================== */
+
+.backup-warning {
+  padding: var(--space-4);
+  background: rgba(255, 251, 230, 0.8);
+  border: 1px solid var(--color-warning-200);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-6);
+  backdrop-filter: blur(10px);
+}
+
+/* ========================================
+ * 设置页面特定样式
+ * ======================================== */
+
+.settings-main-card {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.settings-content {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: var(--space-8) 0;
+}
+
+.avatar-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: var(--space-10);
+}
+
+.avatar-wrapper {
+  position: relative;
+  display: inline-block;
+  cursor: pointer;
+  border-radius: 50%;
+  padding: 4px;
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-400) 100%);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.3);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.avatar-wrapper:hover {
+  transform: scale(1.05);
+}
+
+.avatar-overlay {
+  position: absolute;
+  inset: 4px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+  backdrop-filter: blur(4px);
+}
+
+.avatar-wrapper:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.setting-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-5) 0;
+  transition: background var(--duration-base) var(--ease-out);
+}
+
+.setting-item-group .ant-divider {
+  margin: 0;
+  opacity: 0.6;
+}
+
+.save-btn {
+  height: var(--btn-height-lg) !important;
+  border-radius: var(--radius-lg) !important;
+  font-size: var(--font-size-base) !important;
+  font-weight: var(--font-weight-semibold) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3) !important;
+}
+
+/* ========================================
+ * 页面通用样式
+ * ======================================== */
+
+.main-layout {
+  min-height: 100vh;
+  background: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+    #0f172a;
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+    linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(99, 102, 241, 0.03) 100%),
+    var(--page-bg-image);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  position: relative;
+  overflow: hidden;
+}
+
+.main-layout::before,
+.main-layout::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  z-index: 0;
+  opacity: 0.5;
+}
+
+.main-layout::before {
+  width: 500px;
+  height: 500px;
+  background: var(--color-primary-400);
+  top: -150px;
+  right: -150px;
+}
+
+.main-layout::after {
+  width: 400px;
+  height: 400px;
+  background: var(--color-primary-600);
+  bottom: -100px;
+  left: -100px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .main-layout::before,
+  .main-layout::after {
+    display: none;
+  }
+}

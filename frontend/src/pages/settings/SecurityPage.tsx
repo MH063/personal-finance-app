@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { Card, Form, Input, Button, App, Typography, Divider } from 'antd';
-import { SecurityScanOutlined, LockOutlined, SaveOutlined } from '@ant-design/icons';
-import axios from 'axios';
+import { SaveOutlined } from '@ant-design/icons';
+import settingsService from '../../services/settingsService';
 import './SettingsPage.css';
 
 const { Title, Text } = Typography;
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://192.168.66.41:4000/api/v1';
 
 /**
  * 密码安全页面组件
@@ -18,25 +16,15 @@ const SecurityPage: React.FC = () => {
   const [form] = Form.useForm();
 
   /**
-   * 获取认证头
-   */
-  const getAuthHeader = () => {
-    const token = localStorage.getItem('accessToken');
-    return { Authorization: `Bearer ${token}` };
-  };
-
-  /**
    * 处理密码变更提交
    * @param values 包含当前密码、新密码和确认新密码的表单数据
    */
   const handlePasswordChange = async (values: any) => {
     setLoading(true);
     try {
-      await axios.put(`${API_URL}/auth/password`, {
+      await settingsService.changePassword({
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
-      }, {
-        headers: getAuthHeader()
       });
       message.success('密码已成功更改，请妥善保管新密码');
       form.resetFields();
@@ -53,10 +41,10 @@ const SecurityPage: React.FC = () => {
     <div className="settings-section">
       <div className="settings-header">
         <Title level={2} className="page-title">密码安全</Title>
-        <Text type="secondary">定期更换密码可以有效提高账户安全性</Text>
+        <Text style={{ color: 'rgba(255, 255, 255, 0.7)' }}>定期更换密码可以有效提高账户安全性</Text>
       </div>
 
-      <Card className="settings-main-card glass-card" bordered={false}>
+      <Card className="settings-main-card glass-card" variant="borderless">
         <div className="settings-content-inner">
           <Form form={form} layout="vertical" onFinish={handlePasswordChange}>
             <Form.Item 
@@ -64,8 +52,8 @@ const SecurityPage: React.FC = () => {
               label="当前密码" 
               rules={[{ required: true, message: '请输入当前密码' }]}
             >
-              <Input.Password 
-                prefix={<LockOutlined />} 
+              <Input 
+                type="password"
                 placeholder="输入当前密码" 
                 size="large" 
               />
@@ -81,8 +69,8 @@ const SecurityPage: React.FC = () => {
                 { min: 8, message: '密码长度至少8位' }
               ]}
             >
-              <Input.Password 
-                prefix={<LockOutlined />} 
+              <Input 
+                type="password"
                 placeholder="输入新密码" 
                 size="large" 
               />
@@ -104,8 +92,8 @@ const SecurityPage: React.FC = () => {
                 }),
               ]}
             >
-              <Input.Password 
-                prefix={<LockOutlined />} 
+              <Input 
+                type="password"
                 placeholder="再次输入新密码" 
                 size="large" 
               />
