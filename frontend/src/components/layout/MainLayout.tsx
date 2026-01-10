@@ -13,7 +13,6 @@ import {
   SecurityScanOutlined,
   GlobalOutlined,
   LogoutOutlined,
-  SearchOutlined,
   SettingFilled,
   WalletOutlined,
 } from '@ant-design/icons';
@@ -153,15 +152,6 @@ const MainLayout: React.FC = () => {
 
       <Layout className="site-layout">
         <Header className="app-header">
-          <div className="header-search-container">
-            <Input.Search
-              placeholder="搜索交易记录、账单..."
-              allowClear
-              enterButton
-              size="large"
-              className="header-search"
-            />
-          </div>
           <div className="header-right-actions">
             <Badge count={overdueDebts || 0} size="small" offset={[-2, 4]}>
               <BellOutlined className="header-action-icon" onClick={() => navigate('/notifications')} />

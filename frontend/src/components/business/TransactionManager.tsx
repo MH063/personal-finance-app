@@ -1,6 +1,6 @@
 import { useEffect, useState, useImperativeHandle, forwardRef } from 'react';
 import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App, Row, Col, Popconfirm } from 'antd';
-import { PlusOutlined, SearchOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
@@ -24,7 +24,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [filters, setFilters] = useState({ keyword: '', categoryId: '', startDate: '', endDate: '' });
+  const [filters, setFilters] = useState({ categoryId: '', startDate: '', endDate: '' });
   const [form] = Form.useForm();
 
   const dispatch = useDispatch<AppDispatch>();
@@ -43,8 +43,8 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     dispatch(fetchCategories(type) as any);
   }, [dispatch, type, filters]);
 
-  const handleSearch = () => {
-    console.log(`[TransactionManager] 执行搜索: filters=`, filters);
+  const handleFilter = () => {
+    console.log(`[TransactionManager] 执行筛选: filters=`, filters);
     dispatch(fetchTransactions({ type, ...filters }) as any);
   };
 
@@ -221,19 +221,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       >
         <div className="filter-section">
           <Row gutter={[16, 16]} align="middle">
-            <Col xs={24} sm={12} md={6}>
-              <div className="filter-label">搜索</div>
-              <Input 
-                placeholder="搜索备注内容..." 
-                prefix={<SearchOutlined className="filter-icon" />} 
-                value={filters.keyword}
-                onChange={(e) => setFilters({ ...filters, keyword: e.target.value })}
-                onPressEnter={handleSearch}
-                allowClear
-                size="large"
-              />
-            </Col>
-            <Col xs={24} sm={12} md={6}>
+            <Col xs={24} sm={12} md={8}>
               <div className="filter-label">分类筛选</div>
               <Select 
                 placeholder="全部分类" 
@@ -247,7 +235,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
                 {filteredCategories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
               </Select>
             </Col>
-            <Col xs={24} sm={24} md={8}>
+            <Col xs={24} sm={24} md={10}>
               <div className="filter-label">时间范围</div>
               <DatePicker.RangePicker 
                 style={{ width: '100%' }}
@@ -260,13 +248,12 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
                 placeholder={['开始日期', '结束日期']}
               />
             </Col>
-            <Col xs={24} sm={24} md={4}>
+            <Col xs={24} sm={24} md={6}>
               <div className="filter-label">&nbsp;</div>
               <Button 
                 type="primary" 
-                onClick={handleSearch} 
+                onClick={handleFilter} 
                 block 
-                icon={<SearchOutlined />}
                 size="large"
                 className="filter-submit-btn"
               >

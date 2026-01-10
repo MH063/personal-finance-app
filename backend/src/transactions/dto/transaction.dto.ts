@@ -156,11 +156,6 @@ export class TransactionQueryDto {
   @IsOptional()
   paymentMethod?: PaymentMethod;
 
-  @ApiPropertyOptional({ description: '搜索关键词' })
-  @IsString()
-  @IsOptional()
-  keyword?: string;
-
   @ApiPropertyOptional({ description: '排序字段', default: 'transactionDate' })
   @IsString()
   @IsOptional()

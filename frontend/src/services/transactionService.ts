@@ -34,7 +34,6 @@ export interface TransactionQuery {
   categoryId?: string;
   minAmount?: number;
   maxAmount?: number;
-  keyword?: string;
 }
 
 export const transactionService = {

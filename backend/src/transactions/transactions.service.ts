@@ -111,7 +111,6 @@ export class TransactionsService {
       minAmount,
       maxAmount,
       paymentMethod,
-      keyword,
       sortBy = 'transactionDate',
       sortOrder = 'desc',
     } = query;
@@ -156,21 +155,6 @@ export class TransactionsService {
       skip: (page - 1) * limit,
       take: limit,
     });
-
-    if (keyword) {
-      const filteredData = data.filter(
-        (t) =>
-          t.description?.toLowerCase().includes(keyword.toLowerCase()) ||
-          t.merchant?.toLowerCase().includes(keyword.toLowerCase()),
-      );
-      return {
-        data: filteredData,
-        total: filteredData.length,
-        page,
-        limit,
-        totalPages: Math.ceil(filteredData.length / limit),
-      };
-    }
 
     return {
       data,

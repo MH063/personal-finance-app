@@ -290,10 +290,6 @@
   .logo-text {
     font-size: var(--font-size-lg);
   }
-  
-  .header-search-container {
-    max-width: 200px;
-  }
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
