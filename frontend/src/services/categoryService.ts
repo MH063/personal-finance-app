@@ -55,7 +55,7 @@ const categoryService = {
    * 初始化默认分类
    */
   initDefaultCategories: async () => {
-    const response = await api.post<any>('/categories/init');
+    const response = await api.post<any>('/categories/defaults');
     return response.data;
   },
 };

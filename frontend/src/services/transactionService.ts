@@ -54,7 +54,7 @@ export const transactionService = {
   },
 
   updateTransaction: async (id: string, data: Partial<Transaction>) => {
-    const response = await api.patch<any>(`/transactions/${id}`, data);
+    const response = await api.put<any>(`/transactions/${id}`, data);
     return response.data;
   },
 

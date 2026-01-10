@@ -5,6 +5,8 @@ import categoryReducer from './slices/categorySlice';
 import debtReducer from './slices/debtSlice';
 import statisticsReducer from './slices/statisticsSlice';
 import settingsReducer from './slices/settingsSlice';
+import budgetReducer from './slices/budgetSlice';
+import notificationReducer from './slices/notificationSlice';
 import appReducer from './slices/appSlice';
 import { injectStore } from '../services/api';
 
@@ -16,6 +18,8 @@ export const store = configureStore({
     debts: debtReducer,
     statistics: statisticsReducer,
     settings: settingsReducer,
+    budgets: budgetReducer,
+    notifications: notificationReducer,
     app: appReducer,
   },
   middleware: (getDefaultMiddleware) =>

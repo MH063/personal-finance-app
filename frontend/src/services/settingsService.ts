@@ -32,22 +32,6 @@ const settingsService = {
     const response = await api.put<any>('/auth/password', data);
     return response.data;
   },
-
-  /**
-   * 获取通知配置
-   */
-  getNotificationSettings: async () => {
-    const response = await api.get<any>('/settings/notifications');
-    return response.data;
-  },
-
-  /**
-   * 更新通知配置
-   */
-  updateNotificationSettings: async (data: any) => {
-    const response = await api.put<any>('/settings/notifications', data);
-    return response.data;
-  },
 };
 
 export default settingsService;

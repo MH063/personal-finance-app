@@ -3,27 +3,50 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import compression from 'compression';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 
+/**
+ * 启动应用程序
+ */
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug', 'verbose'],
   });
 
+  // 启用安全头
+  app.use(helmet());
+
   // 启用响应压缩
   app.use(compression());
 
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);
+  const host = configService.get<string>('APP_HOST', '0.0.0.0');
   const apiPrefix = configService.get<string>('API_PREFIX', 'api/v1');
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+
+  // 速率限制
+  app.use(
+    rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 分钟
+      max: 1000, // 每个 IP 限制 1000 个请求
+      message: '请求过于频繁，请稍后再试',
+    }),
+  );
 
   app.setGlobalPrefix(apiPrefix);
 
   // 注册统一响应格式拦截器
-  app.useGlobalInterceptors(new TransformInterceptor());
+  app.useGlobalInterceptors(new TransformInterceptor(), new LoggingInterceptor());
+
+  // 注册全局异常过滤器
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -76,10 +99,10 @@ async function bootstrap() {
     });
   }
 
-  const host = '192.168.66.41';
-  await app.listen(port, '0.0.0.0');
-  logger.log(`🚀 应用已启动: http://${host}:${port}/${apiPrefix}`);
-  logger.log(`📚 API文档: http://${host}:${port}/docs`);
+  await app.listen(port, host);
+  const displayHost = host === '0.0.0.0' ? '127.0.0.1' : host;
+  logger.log(`🚀 应用已启动: http://${displayHost}:${port}/${apiPrefix}`);
+  logger.log(`📚 API文档: http://${displayHost}:${port}/docs`);
   logger.log(`🌍 环境: ${nodeEnv}`);
 }
 

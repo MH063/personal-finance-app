@@ -15,6 +15,7 @@ const DashboardPage = lazy(() => import('@pages/dashboard/DashboardPage'));
 const IncomePage = lazy(() => import('@pages/income/IncomePage'));
 const ExpensePage = lazy(() => import('@pages/expense/ExpensePage'));
 const DebtPage = lazy(() => import('@pages/debt/DebtPage'));
+const BudgetPage = lazy(() => import('@pages/budget/BudgetPage'));
 const StatisticsPage = lazy(() => import('@pages/statistics/StatisticsPage'));
 const ProfilePage = lazy(() => import('@pages/settings/ProfilePage'));
 const SecurityPage = lazy(() => import('@pages/settings/SecurityPage'));
@@ -68,6 +69,7 @@ const App: React.FC = () => {
             <Route path="income" element={<IncomePage />} />
             <Route path="expense" element={<ExpensePage />} />
             <Route path="debt" element={<DebtPage />} />
+            <Route path="budget" element={<BudgetPage />} />
             <Route path="statistics" element={<StatisticsPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="security" element={<SecurityPage />} />

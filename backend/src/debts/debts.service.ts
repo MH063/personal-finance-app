@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan, IsNull, Or } from 'typeorm';
+import { Repository, LessThan, MoreThan, IsNull, In } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Debt, DebtType, DebtStatus } from '../entities/debt.entity';
 import { DebtPayment } from '../entities/debt-payment.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType, NotificationPriority } from '../entities/notification.entity';
 import { CreateDebtDto, UpdateDebtDto, CreatePaymentDto, DebtQueryDto } from './dto/debt.dto';
 
 export interface DebtStatistics {
@@ -32,6 +34,7 @@ export class DebtsService {
     private readonly debtRepository: Repository<Debt>,
     @InjectRepository(DebtPayment)
     private readonly paymentRepository: Repository<DebtPayment>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -334,14 +337,48 @@ export class DebtsService {
 
     const today = new Date();
 
-    await this.debtRepository
-      .createQueryBuilder()
-      .update(Debt)
-      .set({ status: DebtStatus.OVERDUE })
-      .where('status != :paidStatus', { paidStatus: DebtStatus.PAID })
-      .andWhere('dueDate < :today', { today })
-      .andWhere('dueDate IS NOT NULL')
-      .execute();
+    // 查找即将逾期或已逾期的债务
+    const pendingDebts = await this.debtRepository.find({
+      where: {
+        status: In([DebtStatus.PENDING, DebtStatus.OVERDUE]),
+      },
+    });
+
+    for (const debt of pendingDebts) {
+      if (debt.dueDate && new Date(debt.dueDate) < today && debt.status !== DebtStatus.OVERDUE) {
+        // 更新状态为逾期
+        debt.status = DebtStatus.OVERDUE;
+        await this.debtRepository.save(debt);
+
+        // 创建通知
+        await this.notificationsService.createNotification(debt.userId, {
+          title: '债务逾期提醒',
+          content: `您与 ${debt.debtorName} 的债务已逾期，请及时处理。`,
+          type: NotificationType.DEBT_REMINDER,
+          priority: NotificationPriority.HIGH,
+          link: '/debt',
+        });
+      } else if (
+        debt.dueDate &&
+        debt.isReminderEnabled &&
+        !debt.isNotified &&
+        debt.reminderDate &&
+        new Date(debt.reminderDate) <= today
+      ) {
+        // 到达提醒时间
+        await this.notificationsService.createNotification(debt.userId, {
+          title: '债务即将到期提醒',
+          content: `与 ${debt.debtorName} 的债务将于 ${new Date(debt.dueDate).toLocaleDateString()} 到期，请注意。`,
+          type: NotificationType.DEBT_REMINDER,
+          priority: NotificationPriority.MEDIUM,
+          link: '/debt',
+        });
+
+        // 标记为已通知，避免重复通知
+        debt.isNotified = true;
+        await this.debtRepository.save(debt);
+      }
+    }
 
     this.logger.log('逾期债务检查完成');
   }

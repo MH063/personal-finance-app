@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
 import { fetchOverview, fetchTrend, fetchFinancialHealth } from '../../store/slices/statisticsSlice';
+import statisticsService from '../../services/statisticsService';
 import './StatisticsPage.css';
 
 const { Title, Text } = Typography;
@@ -16,6 +17,9 @@ const { Option } = Select;
 const StatisticsPage: React.FC = () => {
   const [timeRange, setTimeRange] = useState('month');
   const [customRange, setCustomRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const [quickAddLoading, setQuickAddLoading] = useState<string | null>(null);
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
@@ -39,7 +43,14 @@ const StatisticsPage: React.FC = () => {
   }, [dispatch, timeRange, customRange]);
 
   const handleQuickAdd = (type: 'income' | 'expense') => {
-    navigate(`/${type}`);
+    if (quickAddLoading) return;
+    setQuickAddLoading(type);
+    try {
+      navigate(`/${type}`);
+    } finally {
+      // 实际上跳转是瞬间的，但为了视觉反馈一致性，我们在这里不做 setQuickAddLoading(null)
+      // 或者在跳转前给一点点延迟
+    }
   };
 
   const lineChartOption = {
@@ -156,8 +167,30 @@ const StatisticsPage: React.FC = () => {
     }],
   };
 
-  const handleExport = (format: string) => {
-    message.info(`正在导出${format}格式报表...`);
+  const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
+    if (exportLoading) return;
+    setExportLoading(true);
+    try {
+      const query: any = { timeRange };
+      if (timeRange === 'custom' && customRange) {
+        query.startDate = customRange[0].format('YYYY-MM-DD');
+        query.endDate = customRange[1].format('YYYY-MM-DD');
+      }
+      const response = await statisticsService.exportReport(format, query);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `财务报表_${dayjs().format('YYYYMMDD')}.${format === 'excel' ? 'xlsx' : format}`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      message.success('导出成功');
+    } catch (error) {
+      console.error('[StatisticsPage] 导出失败:', error);
+      message.error('导出失败');
+    } finally {
+      setExportLoading(false);
+    }
   };
 
   return (
@@ -172,6 +205,8 @@ const StatisticsPage: React.FC = () => {
             icon={<ArrowUpOutlined />} 
             onClick={() => handleQuickAdd('income')}
             className="header-btn income"
+            loading={quickAddLoading === 'income'}
+            disabled={!!quickAddLoading && quickAddLoading !== 'income'}
           >
             去记收入
           </Button>
@@ -180,6 +215,8 @@ const StatisticsPage: React.FC = () => {
             icon={<ArrowDownOutlined />} 
             onClick={() => handleQuickAdd('expense')}
             className="header-btn expense"
+            loading={quickAddLoading === 'expense'}
+            disabled={!!quickAddLoading && quickAddLoading !== 'expense'}
           >
             去记支出
           </Button>
@@ -238,7 +275,15 @@ const StatisticsPage: React.FC = () => {
                 className="custom-range-picker"
               />
             )}
-            <Button icon={<DownloadOutlined />} size="large" onClick={() => handleExport('Excel')} className="export-btn">导出Excel</Button>
+            <Button 
+              icon={<DownloadOutlined />} 
+              size="large" 
+              onClick={() => handleExport('excel')} 
+              loading={exportLoading}
+              className="export-btn"
+            >
+              导出Excel
+            </Button>
           </Space>
         </div>
       </Card>

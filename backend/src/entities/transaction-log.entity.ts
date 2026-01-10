@@ -23,6 +23,7 @@ export enum EntityType {
   DEBT_PAYMENT = 'debt_payment',
   USER = 'user',
   SETTINGS = 'settings',
+  BUDGET = 'budget',
 }
 
 @Entity('transaction_logs')

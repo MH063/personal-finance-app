@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Row, Col, Card, Statistic, List, Typography, Progress, Empty, Button, Tag } from 'antd';
 import {
   ArrowUpOutlined,
@@ -20,6 +20,7 @@ const { Title, Text } = Typography;
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [navLoading, setNavLoading] = useState<string | null>(null);
   const { overview, chartData, health } = useSelector((state: RootState) => state.statistics);
   const { transactions } = useSelector((state: RootState) => state.transactions);
   const { statistics: debtStats } = useSelector((state: RootState) => state.debts);
@@ -33,6 +34,12 @@ const DashboardPage: React.FC = () => {
     dispatch(fetchTransactions({ limit: 5 }) as any);
     dispatch(fetchDebtStatistics() as any);
   }, [dispatch]);
+
+  const handleNav = (path: string) => {
+    if (navLoading) return;
+    setNavLoading(path);
+    navigate(path);
+  };
 
   const textColor = 'rgba(255, 255, 255, 0.85)';
   const splitLineColor = 'rgba(255, 255, 255, 0.15)';
@@ -140,9 +147,11 @@ const DashboardPage: React.FC = () => {
           <Button 
             type="primary" 
             icon={<ArrowUpOutlined />} 
-            onClick={() => navigate('/income')}
+            onClick={() => handleNav('/income')}
             size="large"
             className="header-btn income"
+            loading={navLoading === '/income'}
+            disabled={!!navLoading && navLoading !== '/income'}
           >
             记收入
           </Button>
@@ -150,9 +159,11 @@ const DashboardPage: React.FC = () => {
             type="primary" 
             danger
             icon={<ArrowDownOutlined />} 
-            onClick={() => navigate('/expense')}
+            onClick={() => handleNav('/expense')}
             size="large"
             className="header-btn expense"
+            loading={navLoading === '/expense'}
+            disabled={!!navLoading && navLoading !== '/expense'}
           >
             记支出
           </Button>

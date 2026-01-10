@@ -22,6 +22,8 @@ interface TransactionManagerProps {
 const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, title, themeColor, showHeader = true }, ref) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [filterLoading, setFilterLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [filters, setFilters] = useState({ categoryId: '', startDate: '', endDate: '' });
@@ -43,12 +45,18 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     dispatch(fetchCategories(type) as any);
   }, [dispatch, type, filters]);
 
-  const handleFilter = () => {
+  const handleFilter = async () => {
     console.log(`[TransactionManager] 执行筛选: filters=`, filters);
-    dispatch(fetchTransactions({ type, ...filters }) as any);
+    setFilterLoading(true);
+    try {
+      await dispatch(fetchTransactions({ type, ...filters }) as any);
+    } finally {
+      setFilterLoading(false);
+    }
   };
 
   const handleAdd = () => {
+    if (loading) return;
     console.log(`[TransactionManager] 打开添加弹窗`);
     setEditingTransaction(null);
     setModalVisible(true);
@@ -59,6 +67,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   };
 
   const handleEdit = (record: Transaction) => {
+    if (loading) return;
     console.log(`[TransactionManager] 打开编辑弹窗: id=${record.id}`);
     setEditingTransaction(record);
     setModalVisible(true);
@@ -71,14 +80,18 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   };
 
   const handleDelete = async (id: string) => {
+    if (deleteLoading) return;
     console.log(`[TransactionManager] 执行删除: id=${id}`);
+    setDeleteLoading(id);
     try {
       await dispatch(deleteTransaction(id) as any);
       message.success('删除成功');
-      dispatch(fetchTransactions({ type, ...filters }) as any);
+      await dispatch(fetchTransactions({ type, ...filters }) as any);
     } catch (error) {
       console.error(`[TransactionManager] 删除失败:`, error);
       message.error('删除失败');
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
@@ -187,6 +200,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
               type="text" 
               danger 
               icon={<DeleteOutlined />} 
+              loading={deleteLoading === record.id}
               className="action-btn delete"
             />
           </Popconfirm>
@@ -255,6 +269,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
                 onClick={handleFilter} 
                 block 
                 size="large"
+                loading={filterLoading}
                 className="filter-submit-btn"
               >
                 执行筛选

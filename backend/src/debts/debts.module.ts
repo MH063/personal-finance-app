@@ -4,9 +4,13 @@ import { DebtsController } from './debts.controller';
 import { DebtsService } from './debts.service';
 import { Debt } from '../entities/debt.entity';
 import { DebtPayment } from '../entities/debt-payment.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Debt, DebtPayment])],
+  imports: [
+    TypeOrmModule.forFeature([Debt, DebtPayment]),
+    NotificationsModule,
+  ],
   controllers: [DebtsController],
   providers: [DebtsService],
   exports: [DebtsService],

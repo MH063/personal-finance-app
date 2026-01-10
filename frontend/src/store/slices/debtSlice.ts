@@ -79,9 +79,9 @@ export const deleteDebt = createAsyncThunk(
 
 export const repayDebt = createAsyncThunk(
   'debts/repay',
-  async ({ id, amount, transactionDate }: { id: string; amount: number; transactionDate: string }, { rejectWithValue }) => {
+  async ({ id, amount, paymentDate }: { id: string; amount: number; paymentDate: string }, { rejectWithValue }) => {
     try {
-      const data = await debtService.repayDebt(id, amount, transactionDate);
+      const data = await debtService.repayDebt(id, amount, paymentDate);
       return data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '记录还款失败');

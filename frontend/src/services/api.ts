@@ -7,7 +7,7 @@ export const injectStore = (_store: any) => {
   store = _store;
 };
 
-const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:4000/api/v1`;
+const API_URL = import.meta.env.VITE_API_URL || `http://192.168.66.41:4000/api/v1`;
 
 const api = axios.create({
   baseURL: API_URL,
@@ -49,7 +49,17 @@ api.interceptors.request.use(
     // 过滤掉值为 undefined, null 或空字符串的查询参数
     if (config.params) {
       const cleanParams = Object.keys(config.params).reduce((acc: any, key) => {
-        const value = config.params[key];
+        let value = config.params[key];
+        
+        // 如果 value 是对象且只有一个 key 且 key 与外层 key 相同，则解包
+        // 例如 { type: { type: 'expense' } } -> { type: 'expense' }
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          const keys = Object.keys(value);
+          if (keys.length === 1 && keys[0] === key) {
+            value = value[key];
+          }
+        }
+
         if (value !== undefined && value !== null && value !== '') {
           acc[key] = value;
         }
@@ -80,11 +90,13 @@ api.interceptors.response.use(
     // 根据用户规则 5: 后端返回的数据结构是 {success: true, data: {xxx: []}}
     // 我们在这里做一层解构，确保 response.data 拿到的是最内层的 data
     if (response.data && response.data.success) {
+      console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data.data);
       return {
         ...response,
         data: response.data.data !== undefined ? response.data.data : response.data
       };
     }
+    console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data);
     return response;
   },
   async (error) => {
@@ -95,6 +107,7 @@ api.interceptors.response.use(
 
     // 处理 401 Token 过期（排除登录接口本身）
     if (error.response?.status === 401 && !error.config.url?.includes('/auth/login')) {
+      console.warn('[API] 认证失效，跳转登录页');
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
@@ -102,8 +115,12 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+
+    // 提取后端返回的错误信息
+    const errorMessage = error.response?.data?.message || error.message || '网络请求失败';
+    console.error(`[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}:`, errorMessage);
     
-    return Promise.reject(error);
+    return Promise.reject(errorMessage);
   }
 );
 

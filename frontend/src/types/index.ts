@@ -9,3 +9,37 @@ export * from '../store/slices/appSlice';
 export type { User, LoginCredentials, RegisterData, AuthResponse } from '../services/authService';
 export type { Transaction, TransactionQuery, PaginatedTransactions } from '../services/transactionService';
 export type { Category } from '../services/categoryService';
+
+export enum BudgetStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+}
+
+export interface Budget {
+  id: string;
+  categoryId: string;
+  category?: any;
+  amount: number;
+  startDate: string;
+  endDate: string;
+  status: BudgetStatus;
+  usedAmount: number;
+  remainingAmount: number;
+  usagePercentage: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateBudgetDto {
+  categoryId: string;
+  amount: number;
+  startDate: string;
+  endDate: string;
+}
+
+export interface UpdateBudgetDto {
+  amount?: number;
+  startDate?: string;
+  endDate?: string;
+  status?: BudgetStatus;
+}

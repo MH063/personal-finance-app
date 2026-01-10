@@ -11,6 +11,8 @@ const BackupPage: React.FC = () => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
+  const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [backupHistory, setBackupHistory] = useState<any[]>([]);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [restoreModalVisible, setRestoreModalVisible] = useState(false);
@@ -47,6 +49,8 @@ const BackupPage: React.FC = () => {
   };
 
   const handleDownload = async (backupId: string, fileName: string) => {
+    if (downloadLoading) return;
+    setDownloadLoading(backupId);
     try {
       const response = await backupService.downloadBackup(backupId);
       const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -58,16 +62,22 @@ const BackupPage: React.FC = () => {
       link.remove();
     } catch (error) {
       message.error('下载失败');
+    } finally {
+      setDownloadLoading(null);
     }
   };
 
   const handleDeleteBackup = async (backupId: string) => {
+    if (deleteLoading) return;
+    setDeleteLoading(backupId);
     try {
       await backupService.deleteBackup(backupId);
       message.success('备份已删除');
       loadBackupHistory();
     } catch (error) {
       message.error('删除失败');
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
@@ -116,9 +126,23 @@ const BackupPage: React.FC = () => {
       key: 'actions',
       render: (_: any, record: any) => (
         <Space>
-          <Button type="link" icon={<DownloadOutlined />} onClick={() => handleDownload(record.id, record.fileName)}>下载</Button>
+          <Button 
+            type="link" 
+            icon={<DownloadOutlined />} 
+            onClick={() => handleDownload(record.id, record.fileName)}
+            loading={downloadLoading === record.id}
+          >
+            下载
+          </Button>
           <Popconfirm title="确定删除此备份？" onConfirm={() => handleDeleteBackup(record.id)}>
-            <Button type="link" danger icon={<DeleteOutlined />}>删除</Button>
+            <Button 
+              type="link" 
+              danger 
+              icon={<DeleteOutlined />}
+              loading={deleteLoading === record.id}
+            >
+              删除
+            </Button>
           </Popconfirm>
         </Space>
       ),

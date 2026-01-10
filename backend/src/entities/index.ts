@@ -3,6 +3,8 @@ export * from './category.entity';
 export * from './transaction.entity';
 export * from './debt.entity';
 export * from './debt-payment.entity';
+export * from './budget.entity';
 export * from './user-setting.entity';
 export * from './backup-log.entity';
 export * from './transaction-log.entity';
+export * from './notification.entity';

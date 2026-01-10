@@ -55,7 +55,10 @@ const statisticsService = {
    * 导出报表
    */
   exportReport: async (format: 'pdf' | 'excel' | 'csv', params?: any) => {
-    const response = await api.get(`/statistics/export/${format}`, { params, responseType: 'blob' });
+    const response = await api.get(`/statistics/export`, { 
+      params: { ...params, format }, 
+      responseType: 'blob' 
+    });
     return response; // 导出通常需要整个响应来获取文件名等，或者是 blob 数据
   },
 };

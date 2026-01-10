@@ -64,13 +64,13 @@ export const updateProfile = createAsyncThunk(
 );
 export const logout = createAsyncThunk('auth/logout', async () => {
   try {
-    // 假设 api 已经处理了 baseURL 和 header
-    await authService.getProfile(); // 随便调一个接口测试，实际可能需要 logout 接口
+    await authService.logout();
   } catch (error) {
     console.error('Logout error:', error);
   } finally {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
   }
 });
 

@@ -11,12 +11,17 @@
 
 .main-layout {
   min-height: 100vh;
-  background: 
-    radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.15) 0px, transparent 50%),
-    radial-gradient(at 0% 100%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
-    #0f172a;
+  background-color: #0f172a;
+  transition: all var(--duration-slow) var(--ease-out);
+  position: relative;
+  z-index: var(--z-content);
+  overflow: hidden;
+}
+
+.main-layout::before {
+  content: '';
+  position: absolute;
+  inset: 0;
   background-image: 
     radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
     radial-gradient(at 100% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
@@ -27,9 +32,9 @@
   background-attachment: fixed;
   background-size: cover;
   background-position: center;
-  transition: all var(--duration-slow) var(--ease-out);
-  position: relative;
-  z-index: var(--z-content);
+  opacity: 0.4;
+  z-index: -1;
+  pointer-events: none;
 }
 
 .site-layout {
@@ -262,127 +267,132 @@
 }
 
 /* ========================================
+ * 通知下拉菜单样式
+ * ======================================== */
+
+.notification-dropdown .ant-dropdown-menu {
+  background: rgba(30, 41, 59, 0.7) !important;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border-radius: 16px !important;
+  padding: 8px !important;
+  width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.notification-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.notification-popover-item {
+  padding: 12px 16px;
+  border-radius: 12px;
+  transition: all 0.3s;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.notification-popover-item:last-child {
+  border-bottom: none;
+}
+
+.notification-popover-item:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  transform: translateX(4px);
+}
+
+.notification-popover-item.unread {
+  background: rgba(24, 144, 255, 0.05);
+}
+
+.notification-popover-item.unread::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #1890ff;
+}
+
+.notification-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.notification-item-content {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.notification-item-footer {
+  text-align: right;
+}
+
+.notification-popover-item.no-data {
+  text-align: center;
+  padding: 32px 16px;
+  cursor: default;
+}
+
+.notification-popover-item.no-data:hover {
+  transform: none;
+  background: transparent !important;
+}
+
+/* ========================================
  * 响应式适配 - 使用统一断点
  * ======================================== */
 
 @media (max-width: 767px) {
+  .site-layout {
+    margin-left: 0;
+  }
+
+  .app-sider {
+    display: none;
+  }
+
   .app-header {
-    padding: 0 var(--space-4);
-    height: var(--header-height);
-    position: sticky;
-    top: 0;
-    z-index: var(--z-fixed-header);
+    padding: 0 16px;
+    height: 64px;
   }
   
   .app-content {
-    padding: var(--space-4);
-    min-height: calc(100vh - var(--header-height));
-  }
-  
-  .user-display-name {
-    display: none;
-  }
-  
-  .page-breadcrumb {
-    display: none;
+    padding: 16px;
+    min-height: calc(100vh - 64px);
   }
   
   .logo-text {
-    font-size: var(--font-size-lg);
+    font-size: 18px;
+  }
+
+  .header-right-actions {
+    gap: 12px;
   }
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
   .app-header {
-    padding: 0 var(--space-5);
-    height: var(--header-height);
+    padding: 0 24px;
   }
   
   .app-content {
-    padding: var(--space-5);
+    padding: 0 24px 24px;
   }
-}
-
-@media (min-width: 1024px) {
-  .app-header {
-    padding: 0 var(--space-6);
-    height: var(--header-height);
-  }
-  
-  .app-content {
-    padding: var(--space-6);
-  }
-}
-
-/* ========================================
- * 菜单项悬浮效果
- * ======================================== */
-
-.side-menu .ant-menu-item:hover:not(.ant-menu-item-selected) {
-  background: rgba(255, 255, 255, 0.05) !important;
-}
-
-.side-menu .ant-menu-item-selected::after {
-  border-right-color: transparent !important;
-}
-
-/* ========================================
- * 下拉菜单覆盖层
- * ======================================== */
-
-.ant-dropdown {
-  z-index: var(--z-dropdown) !important;
-}
-
-.ant-dropdown-menu {
-  background: var(--color-bg-elevated) !important;
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--modal-ui-border) !important;
-  border-radius: var(--radius-lg) !important;
-  box-shadow: var(--shadow-lg) !important;
-  padding: var(--space-2) !important;
-}
-
-.ant-dropdown-menu-item {
-  border-radius: var(--radius-md) !important;
-  color: var(--modal-text-secondary) !important;
-  position: relative;
-  z-index: var(--z-interactive);
-  transition: all var(--duration-fast) var(--ease-out);
-}
-
-.ant-dropdown-menu-item:hover {
-  background: var(--modal-ui-hover-bg) !important;
-  color: var(--modal-text-color) !important;
-  transform: translateX(4px);
-  z-index: var(--z-interactive-hover);
-}
-
-.ant-dropdown-menu-item-danger {
-  color: var(--color-error) !important;
-}
-
-.ant-dropdown-menu-item-danger:hover {
-  background: rgba(239, 68, 68, 0.1) !important;
-  color: var(--color-error) !important;
-}
-
-/* ========================================
- * 通知项样式
- * ======================================== */
-
-.notification-item {
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  transition: all var(--duration-fast) var(--ease-out);
-  position: relative;
-  z-index: var(--z-content);
-}
-
-.notification-item:hover {
-  background: var(--modal-ui-hover-bg) !important;
-  cursor: pointer;
 }
 
 /* ========================================

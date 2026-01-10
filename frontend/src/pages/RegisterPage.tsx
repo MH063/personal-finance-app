@@ -14,8 +14,8 @@ const RegisterPage: React.FC = () => {
   const dispatch = useDispatch();
 
   // 安全加载背景图片
-  const pageBg = useSafeBackground('https://images.unsplash.com/photo-1556742044-3c52d6e88c62?auto=format&fit=crop&w=1920&q=80');
-  const panelBg = useSafeBackground('https://images.unsplash.com/photo-1557683316-973673baf926?auto=format&fit=crop&w=800&q=80');
+  const pageBg = useSafeBackground('https://picsum.photos/1920/1080?random=3');
+  const panelBg = useSafeBackground('https://picsum.photos/800/1200?random=4');
 
   const onFinish = async (values: { username: string; email: string; password: string; fullName?: string }) => {
     setLoading(true);
@@ -163,10 +163,12 @@ const RegisterPage: React.FC = () => {
               <Button
                 type="primary"
                 htmlType="submit"
-                className="register-button"
+                className="register-form-button"
                 loading={loading}
+                block
+                size="large"
               >
-                立即注册
+                {loading ? '正在注册...' : '立即注册'}
               </Button>
             </Form.Item>
           </Form>

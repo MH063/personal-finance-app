@@ -42,7 +42,7 @@ const AntdConfigProvider: FC<{ children: ReactNode }> = ({ children }) => {
           colorWarning: '#f59e0b',
           colorError: '#ef4444',
           borderRadius: 12,
-          fontFamily: '"Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          fontFamily: '"Inter", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
           fontSize: 16,
           controlHeight: 40,
           colorBgLayout: 'transparent',

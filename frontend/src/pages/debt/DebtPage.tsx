@@ -14,6 +14,8 @@ const { Title, Text } = Typography;
 const DebtPage: React.FC = () => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
@@ -38,6 +40,7 @@ const DebtPage: React.FC = () => {
   };
 
   const handleAdd = () => {
+    if (loading) return;
     setEditingDebt(null);
     setModalVisible(true);
     setTimeout(() => {
@@ -47,6 +50,7 @@ const DebtPage: React.FC = () => {
   };
 
   const handleEdit = (record: Debt) => {
+    if (loading) return;
     setEditingDebt(record);
     setModalVisible(true);
     setTimeout(() => {
@@ -55,6 +59,8 @@ const DebtPage: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    if (deleteLoading) return;
+    setDeleteLoading(id);
     try {
       await dispatch(deleteDebt(id) as any);
       message.success('删除成功');
@@ -62,6 +68,8 @@ const DebtPage: React.FC = () => {
       dispatch(fetchDebtStatistics() as any);
     } catch (error) {
       message.error('删除失败');
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
@@ -92,6 +100,7 @@ const DebtPage: React.FC = () => {
   };
 
   const handleAddPayment = (record: Debt) => {
+    if (paymentLoading) return;
     setSelectedDebt(record);
     setPaymentModalVisible(true);
     setTimeout(() => {
@@ -102,18 +111,21 @@ const DebtPage: React.FC = () => {
 
   const handlePaymentSubmit = async (values: any) => {
     if (!selectedDebt) return;
+    setPaymentLoading(true);
     try {
-      await dispatch(repayDebt({
-        id: selectedDebt.id,
-        amount: values.amount,
-        transactionDate: values.paymentDate.format('YYYY-MM-DD')
+      await dispatch(repayDebt({ 
+        id: selectedDebt.id, 
+        amount: values.amount, 
+        paymentDate: values.paymentDate.format('YYYY-MM-DD') 
       }) as any);
-      message.success('还款记录添加成功');
+      message.success('还款记录已添加');
       setPaymentModalVisible(false);
       loadDebts();
       dispatch(fetchDebtStatistics() as any);
     } catch (error) {
-      message.error('操作失败');
+      message.error('还款失败');
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -134,9 +146,9 @@ const DebtPage: React.FC = () => {
       width: 180,
       render: (_: any, record: Debt) => (
         <div className="debtor-column">
-          <div className="debtor-name">{record.debtorName || record.creditorDebtor}</div>
-          <Tag color={record.type === 'borrowed' ? 'orange' : 'cyan'} className="type-tag">
-            {record.type === 'borrowed' ? '借入' : '借出'}
+          <div className="debtor-name">{record.debtorName}</div>
+          <Tag color={record.debtType === 'borrow' ? 'orange' : 'cyan'} className="type-tag">
+            {record.debtType === 'borrow' ? '借入' : '借出'}
           </Tag>
         </div>
       )
@@ -147,8 +159,8 @@ const DebtPage: React.FC = () => {
       width: 160,
       render: (_: any, record: Debt) => (
         <div className="amount-column">
-          <div className={`original-amount ${record.type === 'borrowed' ? 'borrow' : 'lend'}`}>
-            {record.type === 'borrowed' ? '-' : '+'}¥{Number(record.originalAmount || record.amount).toFixed(2)}
+          <div className={`original-amount ${record.debtType === 'borrow' ? 'borrow' : 'lend'}`}>
+            {record.debtType === 'borrow' ? '-' : '+'}¥{Number(record.originalAmount).toFixed(2)}
           </div>
           <div className="remaining-amount">待还: ¥{Number(record.remainingAmount).toFixed(2)}</div>
         </div>
@@ -159,14 +171,14 @@ const DebtPage: React.FC = () => {
       key: 'progress',
       width: 200,
       render: (_: any, record: Debt) => {
-        const paidPercent = record.paidPercentage ?? Math.round((1 - record.remainingAmount / record.amount) * 100);
+        const paidPercent = record.paidPercentage ?? Math.round((1 - record.remainingAmount / record.originalAmount) * 100);
         return (
           <div className="progress-column">
             <Progress 
               percent={paidPercent} 
               size="small" 
-              status={record.status === 'overdue' ? 'exception' : record.status === 'cleared' ? 'success' : 'normal'} 
-              strokeColor={record.status === 'cleared' ? '#10b981' : undefined}
+              status={record.status === 'overdue' ? 'exception' : record.status === 'paid' ? 'success' : 'normal'} 
+              strokeColor={record.status === 'paid' ? '#10b981' : undefined}
             />
             <div className="status-row">
               <Tag color={getStatusConfig(record.status).color}>
@@ -196,7 +208,7 @@ const DebtPage: React.FC = () => {
       fixed: 'right' as const,
       render: (_: any, record: Debt) => (
         <Space size="small">
-          {record.status !== 'cleared' && (
+          {record.status !== 'paid' && (
             <Button 
               type="text" 
               icon={<DollarOutlined />} 
@@ -375,7 +387,7 @@ const DebtPage: React.FC = () => {
       >
         <Form form={paymentForm} layout="vertical" onFinish={handlePaymentSubmit} className="modern-form">
           <div className="payment-info-card">
-            <div className="info-label">还款对象: {selectedDebt?.debtorName || selectedDebt?.creditorDebtor}</div>
+            <div className="info-label">还款对象: {selectedDebt?.debtorName}</div>
             <div className="info-amount">待还金额: <span>¥{Number(selectedDebt?.remainingAmount || 0).toFixed(2)}</span></div>
           </div>
           <Form.Item name="amount" label="本次还款金额" rules={[{ required: true }]}><InputNumber min={0.01} max={Number(selectedDebt?.remainingAmount) || 999999} precision={2} style={{ width: '100%' }} prefix="¥" /></Form.Item>

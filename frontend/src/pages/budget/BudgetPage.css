@@ -1,0 +1,65 @@
+/* 预算管理页面特定样式 */
+
+.budget-stats {
+  margin-bottom: 24px;
+}
+
+.budget-card {
+  height: 100%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(30, 41, 59, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+.budget-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.budget-progress-container {
+  margin: 16px 0;
+}
+
+.budget-info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.budget-usage-high .ant-progress-bg {
+  background-color: #ff4d4f;
+}
+
+.budget-usage-medium .ant-progress-bg {
+  background-color: #faad14;
+}
+
+.budget-usage-low .ant-progress-bg {
+  background-color: #52c41a;
+}
+
+.budget-grid {
+  margin-top: 24px;
+}
+
+.budget-empty {
+  padding: 48px;
+  text-align: center;
+  background: rgba(30, 41, 59, 0.3);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.budget-category-tag {
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+
+.budget-amount-display {
+  font-size: 20px;
+  font-weight: 600;
+  color: #f8fafc;
+  margin: 12px 0;
+}

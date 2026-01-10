@@ -14,8 +14,8 @@ const LoginPage: React.FC = () => {
   const dispatch = useDispatch();
 
   // 安全加载背景图片
-  const pageBg = useSafeBackground('https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1920&q=80');
-  const panelBg = useSafeBackground('https://images.unsplash.com/photo-1557683311-eac922347aa1?auto=format&fit=crop&w=900&q=80');
+  const pageBg = useSafeBackground('https://picsum.photos/1920/1080?random=1');
+  const panelBg = useSafeBackground('https://picsum.photos/900/1200?random=2');
 
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
@@ -101,10 +101,12 @@ const LoginPage: React.FC = () => {
               <Button
                 type="primary"
                 htmlType="submit"
-                className="login-button"
+                className="login-form-button"
                 loading={loading}
+                block
+                size="large"
               >
-                登录
+                {loading ? '正在登录...' : '立即登录'}
               </Button>
             </Form.Item>
           </Form>

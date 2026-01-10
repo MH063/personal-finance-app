@@ -2,19 +2,17 @@ import api from './api';
 
 export interface Debt {
   id: string;
-  name: string;
-  type: 'lent' | 'borrowed';
-  amount: number;
-  originalAmount?: number;
+  debtorName: string;
+  debtType: 'borrow' | 'lend';
+  originalAmount: number;
   remainingAmount: number;
   paidPercentage?: number;
   interestRate?: number;
-  creditorDebtor: string;
-  debtorName?: string;
   dueDate?: string;
-  status: 'active' | 'cleared' | 'overdue' | 'paid';
+  status: 'pending' | 'partial' | 'paid' | 'overdue';
   description?: string;
-  startDate: string;
+  createdAt: string;
+  isOverdue?: boolean;
 }
 
 const debtService = {
@@ -61,8 +59,8 @@ const debtService = {
   /**
    * 债务还款/收款
    */
-  repayDebt: async (id: string, amount: number, transactionDate: string) => {
-    const response = await api.post<any>(`/debts/${id}/repay`, { amount, transactionDate });
+  repayDebt: async (id: string, amount: number, paymentDate: string) => {
+    const response = await api.post<any>(`/debts/${id}/payments`, { amount, paymentDate });
     return response.data;
   },
 

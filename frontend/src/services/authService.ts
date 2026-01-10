@@ -48,7 +48,12 @@ export const authService = {
   },
 
   updateProfile: async (data: Partial<User>) => {
-    const response = await api.patch<any>('/auth/profile', data);
+    const response = await api.put<any>('/auth/profile', data);
+    return response.data;
+  },
+
+  logout: async () => {
+    const response = await api.post<any>('/auth/logout');
     return response.data;
   }
 };

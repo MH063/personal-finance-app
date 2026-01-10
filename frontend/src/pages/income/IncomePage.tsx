@@ -16,16 +16,22 @@ const IncomePage: React.FC = () => {
   const transactionManagerRef = React.useRef<any>(null);
   const dispatch = useDispatch();
   const { overview } = useSelector((state: RootState) => state.statistics);
+  const [addLoading, setAddLoading] = React.useState(false);
 
   useEffect(() => {
     console.log('[IncomePage] 加载概览数据');
     dispatch(fetchOverview({ timeRange: 'month' }) as any);
   }, [dispatch]);
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     console.log('[IncomePage] 触发添加收入');
     if (transactionManagerRef.current) {
-      transactionManagerRef.current.handleAdd();
+      setAddLoading(true);
+      try {
+        await transactionManagerRef.current.handleAdd();
+      } finally {
+        setAddLoading(false);
+      }
     }
   };
 
@@ -43,6 +49,7 @@ const IncomePage: React.FC = () => {
             onClick={handleAdd}
             size="large"
             className="header-btn income"
+            loading={addLoading}
           >
             记一笔收入
           </Button>
