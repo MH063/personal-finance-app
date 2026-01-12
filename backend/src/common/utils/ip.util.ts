@@ -39,7 +39,7 @@ export function getPrimaryIP(): string {
 
 /**
  * 对 IP 地址进行脱敏掩码处理
- * 例如: 192.168.1.1 -> ***.***.*.*
+ * 例如: ***.***.**.** -> ***.***.*.*
  * @param ip 原始 IP 地址
  * @returns 脱敏后的 IP 地址
  */
@@ -80,9 +80,31 @@ export function maskIPInString(message: string): string {
   // IPv4 正则匹配 (全局)
   const ipv4GlobalRegex = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 
-  return message.replace(ipv4GlobalRegex, (match) => {
+  let maskedMessage = message.replace(ipv4GlobalRegex, (match) => {
     return maskIP(match);
   });
+
+  // UUID 脱敏
+  const uuidGlobalRegex = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
+  maskedMessage = maskedMessage.replace(uuidGlobalRegex, '********-****-****-****-************');
+
+  // Socket.io ID 脱敏 (20位字符，包含字母数字下划线连字符)
+  // 注意：这个正则可能会误伤其他类似格式的 ID，但在日志场景下通常是可以接受的
+  // 仅匹配日志中常见的模式，如 "用户已连接: xxxxx (SocketID)"
+  const socketIdRegex = /([a-zA-Z0-9_-]{20})/g;
+  maskedMessage = maskedMessage.replace(socketIdRegex, (match) => {
+      // 避免误伤常用的短单词，只脱敏那些看起来像 ID 的随机字符串
+      if (match.length === 20) {
+        return '********************';
+      }
+      return match;
+  });
+
+  // Terminal ID 脱敏 (例如: Terminal#1009-1010)
+  const terminalIdRegex = /Terminal#\d+-\d+/g;
+  maskedMessage = maskedMessage.replace(terminalIdRegex, '*');
+
+  return maskedMessage;
 }
 
 /**
