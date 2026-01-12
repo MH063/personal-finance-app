@@ -1,6 +1,7 @@
 import api from './api';
 import { db } from '../db/db';
 import { offlineSyncService } from './offlineSyncService';
+import { collaborativeService } from './collaborativeService';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface Debt {
