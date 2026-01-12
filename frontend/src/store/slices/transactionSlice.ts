@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { transactionService, Transaction, TransactionQuery } from '../../services/transactionService';
+import { collaborativeService } from '../../services/collaborativeService';
 
 export interface TransactionState {
   transactions: Transaction[];
@@ -27,6 +28,8 @@ export const createTransaction = createAsyncThunk(
   async (data: Partial<Transaction>, { rejectWithValue }) => {
     try {
       const result = await transactionService.createTransaction(data);
+      // 发送通知
+      collaborativeService.emit('ledgerUpdate', { type: 'transaction_created', id: result.id });
       return result;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '创建交易记录失败');
@@ -39,6 +42,8 @@ export const updateTransaction = createAsyncThunk(
   async ({ id, data }: { id: string; data: Partial<Transaction> }, { rejectWithValue }) => {
     try {
       const result = await transactionService.updateTransaction(id, data);
+      // 发送通知
+      collaborativeService.emit('ledgerUpdate', { type: 'transaction_updated', id: result.id });
       return result;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '更新交易记录失败');
@@ -51,9 +56,25 @@ export const deleteTransaction = createAsyncThunk(
   async (id: string, { rejectWithValue }) => {
     try {
       await transactionService.deleteTransaction(id);
+      // 发送通知
+      collaborativeService.emit('ledgerUpdate', { type: 'transaction_deleted', id });
       return id;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '删除交易记录失败');
+    }
+  }
+);
+
+export const batchDeleteTransactions = createAsyncThunk(
+  'transactions/batchDelete',
+  async (ids: string[], { rejectWithValue }) => {
+    try {
+      await transactionService.batchDeleteTransactions(ids);
+      // 发送通知
+      collaborativeService.emit('ledgerUpdate', { type: 'transaction_batch_deleted', ids });
+      return ids;
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || '批量删除交易记录失败');
     }
   }
 );
@@ -90,10 +111,12 @@ const transactionSlice = createSlice({
       })
       .addCase(fetchTransactions.fulfilled, (state, action: any) => {
         state.loading = false;
-        state.transactions = action.payload.data;
-        state.total = action.payload.total;
-        state.page = action.payload.page;
-        state.limit = action.payload.limit;
+        // 确保 action.payload 存在且具有预期结构
+        const payload = action.payload || {};
+        state.transactions = payload.data || [];
+        state.total = payload.total || 0;
+        state.page = payload.page || 1;
+        state.limit = payload.limit || 20;
       })
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.loading = false;
@@ -112,6 +135,11 @@ const transactionSlice = createSlice({
       .addCase(deleteTransaction.fulfilled, (state, action) => {
         state.transactions = state.transactions.filter((t) => t.id !== action.payload);
         state.total -= 1;
+      })
+      .addCase(batchDeleteTransactions.fulfilled, (state, action) => {
+        const deletedIds = action.payload;
+        state.transactions = state.transactions.filter((t) => !deletedIds.includes(t.id));
+        state.total -= deletedIds.length;
       });
   },
 });

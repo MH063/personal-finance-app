@@ -1,14 +1,15 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Card, Button, Table, Space, Tag, Modal, Form, Upload, App, Row, Col, Typography, Popconfirm, Statistic, Select, Switch } from 'antd';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { Card, Button, Table, Space, Tag, Modal, Form, Upload, App as AntdApp, Row, Col, Typography, Popconfirm, Statistic, Select, Switch } from 'antd';
 import { DatabaseOutlined, UploadOutlined, DownloadOutlined, DeleteOutlined, PlusOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import backupService from '../../services/backupService';
+import { collaborativeService } from '../../services/collaborativeService';
 import './BackupPage.css';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
 const BackupPage: React.FC = () => {
-  const { message } = App.useApp();
+  const { message } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const [restoreLoading, setRestoreLoading] = useState(false);
   const [downloadLoading, setDownloadLoading] = useState<string | null>(null);
@@ -24,8 +25,8 @@ const BackupPage: React.FC = () => {
     try {
       const data = await backupService.getBackupHistory();
       setBackupHistory(data);
-    } catch (error) {
-      message.error('获取备份历史失败');
+    } catch (error: any) {
+      message.error(typeof error === 'string' ? error : (error?.message || '获取备份历史失败'));
     }
   }, [message]);
 
@@ -33,7 +34,7 @@ const BackupPage: React.FC = () => {
     loadBackupHistory();
   }, [loadBackupHistory]);
 
-  const handleCreateBackup = async (values: any) => {
+  const handleCreateBackup = useCallback(async (values: any) => {
     setLoading(true);
     try {
       await backupService.createBackup(values);
@@ -41,14 +42,14 @@ const BackupPage: React.FC = () => {
       setCreateModalVisible(false);
       form.resetFields();
       loadBackupHistory();
-    } catch (error) {
-      message.error('备份创建失败');
+    } catch (error: any) {
+      message.error(typeof error === 'string' ? error : (error?.message || '备份创建失败'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [form, loadBackupHistory, message]);
 
-  const handleDownload = async (backupId: string, fileName: string) => {
+  const handleDownload = useCallback(async (backupId: string, fileName: string) => {
     if (downloadLoading) return;
     setDownloadLoading(backupId);
     try {
@@ -60,28 +61,28 @@ const BackupPage: React.FC = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-    } catch (error) {
-      message.error('下载失败');
+    } catch (error: any) {
+      message.error(typeof error === 'string' ? error : (error?.message || '下载失败'));
     } finally {
       setDownloadLoading(null);
     }
-  };
+  }, [downloadLoading, message]);
 
-  const handleDeleteBackup = async (backupId: string) => {
+  const handleDeleteBackup = useCallback(async (backupId: string) => {
     if (deleteLoading) return;
     setDeleteLoading(backupId);
     try {
       await backupService.deleteBackup(backupId);
       message.success('备份已删除');
       loadBackupHistory();
-    } catch (error) {
-      message.error('删除失败');
+    } catch (error: any) {
+      message.error(typeof error === 'string' ? error : (error?.message || '删除失败'));
     } finally {
       setDeleteLoading(null);
     }
-  };
+  }, [deleteLoading, loadBackupHistory, message]);
 
-  const handleRestore = async (values: any) => {
+  const handleRestore = useCallback(async (values: any) => {
     if (!selectedFile) {
       message.error('请选择备份文件');
       return;
@@ -91,30 +92,32 @@ const BackupPage: React.FC = () => {
     try {
       await backupService.uploadAndRestore(selectedFile, values.password);
       message.success('数据恢复成功');
+      // 发送全局更新通知，因为恢复数据会影响所有模块
+      collaborativeService.emit('globalUpdate', { type: 'restore' });
       setRestoreModalVisible(false);
       setSelectedFile(null);
-    } catch (error) {
-      message.error('数据恢复失败');
+    } catch (error: any) {
+      message.error(typeof error === 'string' ? error : (error?.message || '数据恢复失败'));
     } finally {
       setRestoreLoading(false);
     }
-  };
+  }, [message, selectedFile]);
 
-  const handleFileChange = (info: any) => {
+  const handleFileChange = useCallback((info: any) => {
     if (info.fileList.length > 0) {
       setSelectedFile(info.fileList[0].originFileObj);
     }
-  };
+  }, []);
 
-  const formatFileSize = (bytes: number) => {
+  const formatFileSize = useCallback((bytes: number) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  }, []);
 
-  const columns = [
+  const columns = useMemo(() => [
     { title: '备份类型', dataIndex: 'backupType', key: 'type', render: (type: string) => <Tag>{type === 'full' ? '完整备份' : type === 'transactions' ? '交易记录' : type === 'categories' ? '分类数据' : type === 'debts' ? '债务数据' : '设置'}</Tag> },
     { title: '文件名', dataIndex: 'fileName', key: 'fileName', ellipsis: true },
     { title: '大小', dataIndex: 'fileSize', key: 'size', render: (size: number) => formatFileSize(size || 0) },
@@ -138,7 +141,7 @@ const BackupPage: React.FC = () => {
             <Button 
               type="link" 
               danger 
-              icon={<DeleteOutlined />}
+              icon={<DeleteOutlined />} 
               loading={deleteLoading === record.id}
             >
               删除
@@ -147,7 +150,7 @@ const BackupPage: React.FC = () => {
         </Space>
       ),
     },
-  ];
+  ], [deleteLoading, downloadLoading, formatFileSize, handleDeleteBackup, handleDownload]);
 
   const successfulBackups = backupHistory.filter((b) => b.isSuccess).length;
   const totalSize = backupHistory.reduce((sum, b) => sum + (b.fileSize || 0), 0);

@@ -7,6 +7,7 @@ import { DebtPayment } from '../entities/debt-payment.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType, NotificationPriority } from '../entities/notification.entity';
 import { CreateDebtDto, UpdateDebtDto, CreatePaymentDto, DebtQueryDto } from './dto/debt.dto';
+import { LedgerGateway } from '../ledgers/ledger.gateway';
 
 export interface DebtStatistics {
   totalDebts: number;
@@ -35,6 +36,7 @@ export class DebtsService {
     @InjectRepository(DebtPayment)
     private readonly paymentRepository: Repository<DebtPayment>,
     private readonly notificationsService: NotificationsService,
+    private readonly ledgerGateway: LedgerGateway,
   ) {}
 
   /**
@@ -55,6 +57,10 @@ export class DebtsService {
 
     const savedDebt = await this.debtRepository.save(debt);
     this.logger.log(`债务创建成功: ${savedDebt.id}`);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'DEBT_CREATED', savedDebt, userId);
+
     return savedDebt;
   }
 
@@ -139,7 +145,12 @@ export class DebtsService {
     }
 
     Object.assign(debt, updateDto);
-    return this.debtRepository.save(debt);
+    const updatedDebt = await this.debtRepository.save(debt);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'DEBT_UPDATED', updatedDebt, userId);
+
+    return updatedDebt;
   }
 
   /**
@@ -158,6 +169,9 @@ export class DebtsService {
 
     await this.debtRepository.remove(debt);
     this.logger.log(`债务删除成功: ${id}`);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'DEBT_DELETED', { id }, userId);
   }
 
   /**
@@ -202,6 +216,10 @@ export class DebtsService {
     await this.debtRepository.save(debt);
 
     this.logger.log(`还款记录添加成功: ${savedPayment.id}`);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'DEBT_PAYMENT_ADDED', { debtId, payment: savedPayment }, userId);
+
     return savedPayment;
   }
 
@@ -240,6 +258,9 @@ export class DebtsService {
 
     await this.paymentRepository.remove(payment);
     this.logger.log(`还款记录删除成功: ${paymentId}`);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'DEBT_PAYMENT_DELETED', { debtId, paymentId }, userId);
   }
 
   /**

@@ -1,0 +1,176 @@
+.ledger-page {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: #fff;
+}
+
+.page-header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-title {
+  margin-bottom: 4px !important;
+  color: #fff !important;
+}
+
+.page-header-section .ant-typography-secondary {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.glass-table {
+  background: transparent;
+}
+
+.glass-table .ant-table {
+  background: transparent !important;
+}
+
+.glass-table .ant-table-thead > tr > th {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.6) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  position: relative;
+  font-weight: 400;
+}
+
+/* 表头垂直分割线 */
+.glass-table .ant-table-thead > tr > th:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 30%;
+  height: 40%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.glass-table .ant-table-tbody > tr > td {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  padding: 16px 24px !important;
+}
+
+.glass-table .ant-table-tbody > tr:hover > td {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* 按钮样式调整 */
+.glass-table .ant-btn-text {
+  color: rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-radius: 20px;
+  padding: 4px 16px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  font-size: 13px;
+}
+
+.glass-table .ant-btn-text:hover {
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: #fff !important;
+}
+
+.glass-table .ant-btn-text.ant-btn-dangerous {
+  color: #ff7875 !important;
+  background: rgba(255, 77, 79, 0.1) !important;
+}
+
+.glass-table .ant-btn-text.ant-btn-dangerous:hover {
+  background: rgba(255, 77, 79, 0.2) !important;
+}
+
+/* Tag 样式优化 */
+.glass-table .ant-tag {
+  border-radius: 10px;
+  border: none;
+  padding: 0 10px;
+}
+
+/* 创建按钮样式 */
+.header-actions .ant-btn-primary {
+  border-radius: 25px;
+  height: 44px;
+  padding: 0 24px;
+  font-weight: 500;
+  box-shadow: 0 4px 15px rgba(24, 144, 255, 0.3);
+  display: flex;
+  align-items: center;
+}
+
+/* 分页样式优化 */
+.glass-table .ant-pagination {
+  margin: 16px 24px !important;
+}
+
+.glass-table .ant-pagination-item,
+.glass-table .ant-pagination-prev,
+.glass-table .ant-pagination-next,
+.glass-table .ant-pagination-jump-prev,
+.glass-table .ant-pagination-jump-next {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 8px !important;
+}
+
+.glass-table .ant-pagination-item a,
+.glass-table .ant-pagination-prev button,
+.glass-table .ant-pagination-next button {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.glass-table .ant-pagination-item-active {
+  background: rgba(24, 144, 255, 0.3) !important;
+  border-color: rgba(24, 144, 255, 0.5) !important;
+}
+
+.glass-table .ant-pagination-item-active a {
+  color: #fff !important;
+}
+
+.glass-table .ant-pagination-total-text {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* 下拉选择器分页大小样式 */
+.glass-table .ant-pagination-options-size-changer.ant-select {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.glass-table .ant-select-selector {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+}
+
+.member-management {
+  padding: 8px 0;
+}
+
+.add-member-section {
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.method-tag {
+  border-radius: 12px;
+  padding: 0 10px;
+}

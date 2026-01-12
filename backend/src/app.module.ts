@@ -13,10 +13,14 @@ import { BackupModule } from './backup/backup.module';
 import { SettingsModule } from './settings/settings.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AiModule } from './ai/ai.module';
+import { LedgersModule } from './ledgers/ledgers.module';
+import { RedisModule } from './common/redis/redis.module';
 import { AppController } from './app.controller';
 import { dataSourceOptions } from './config/data-source';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TransactionLog } from './entities/transaction-log.entity';
+import { NetworkMonitorService } from './common/services/network-monitor.service';
 
 @Module({
   imports: [
@@ -59,9 +63,13 @@ import { TransactionLog } from './entities/transaction-log.entity';
     SettingsModule,
     BudgetsModule,
     NotificationsModule,
+    AiModule,
+    LedgersModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [
+    NetworkMonitorService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

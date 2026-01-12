@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 /**
  * 安全加载背景图片的 Hook
@@ -20,6 +20,13 @@ export const useSafeBackground = (imageUrl: string | null) => {
     let currentObjectUrl: string | null = null;
 
     const loadImage = async () => {
+      // 如果是 picsum.photos，且我们已经知道它可能有 CORS 问题或不稳定的 502，
+      // 且由于它是纯展示图片，可以直接跳过 fetch 过程
+      if (imageUrl.includes('picsum.photos')) {
+        setSafeUrl(imageUrl);
+        return;
+      }
+
       try {
         // 使用 fetch 加载，这会触发 CORS 请求
         // 增加 cache: 'force-cache' 优先使用缓存
@@ -49,13 +56,13 @@ export const useSafeBackground = (imageUrl: string | null) => {
           URL.revokeObjectURL(objectUrl);
         }
       } catch (error) {
-        // 如果失败（被拦截或网络错误），保持为 null，CSS 层的渐变降级会生效
+        // 如果失败（被拦截或网络错误），回退到原始 URL
         if (isMounted) {
           if (error instanceof Error && error.name !== 'AbortError') {
             // 降低日志级别为 debug，避免干扰控制台
-            console.debug(`[SafeBackground] Info: Image fallback to gradient for ${imageUrl}. Reason: ${error.message}`);
+            console.debug(`[SafeBackground] Info: Image fallback to original URL for ${imageUrl}. Reason: ${error.message}`);
           }
-          setSafeUrl(null);
+          setSafeUrl(imageUrl);
         }
       }
     };

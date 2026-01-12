@@ -8,6 +8,8 @@ export enum TimeRange {
   MONTH = 'month',
   QUARTER = 'quarter',
   YEAR = 'year',
+  LAST_6_MONTHS = 'last6months',
+  LAST_12_MONTHS = 'last12months',
   CUSTOM = 'custom',
 }
 
@@ -130,6 +132,20 @@ export interface OverviewData {
   averageDaily: number;
   categoryBreakdown: CategoryBreakdown[];
   monthlyTrends: MonthlyTrend[];
+  incomeComparison: number; // 与上期相比的百分比
+  expenseComparison: number; // 与上期相比的百分比
+  incomeCount: number; // 收入笔数
+  expenseCount: number; // 支出笔数
+  topIncomeCategory: string; // 主要收入源名称
+  topIncomeCategoryPercentage: number; // 主要收入源占比
+  topExpenseCategory: string; // 最大开支项名称
+  topExpenseCategoryPercentage: number; // 最大开支项占比
+  budgetInfo: {
+    totalBudget: number;
+    usedBudget: number;
+    remainingBudget: number;
+    usagePercentage: number;
+  } | null;
 }
 
 export interface FinancialHealth {

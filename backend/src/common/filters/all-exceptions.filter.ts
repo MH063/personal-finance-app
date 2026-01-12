@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { maskIPInString } from '../utils/ip.util';
 
 /**
  * 全局异常过滤器
@@ -44,14 +45,15 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message: Array.isArray(message) ? message[0] : message, // 处理 ValidationPipe 返回的数组
     };
 
-    // 记录错误日志
+    // 记录错误日志，并对敏感 IP 信息进行脱敏
+    const logMessage = maskIPInString(
+      `${request.method} ${request.url} - ${status} - ${JSON.stringify(errorResponse)}`,
+    );
+
     if (status >= 500) {
-      this.logger.error(
-        `${request.method} ${request.url} - ${status} - ${JSON.stringify(errorResponse)}`,
-        (exception as Error).stack,
-      );
+      this.logger.error(logMessage, (exception as Error).stack);
     } else {
-      this.logger.warn(`${request.method} ${request.url} - ${status} - ${message}`);
+      this.logger.warn(maskIPInString(`${request.method} ${request.url} - ${status} - ${message}`));
     }
 
     response.status(status).json(errorResponse);

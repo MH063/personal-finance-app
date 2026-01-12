@@ -8,6 +8,7 @@ import {
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Request } from 'express';
+import { maskIP } from '../utils/ip.util';
 
 /**
  * 全局日志拦截器
@@ -21,11 +22,12 @@ export class LoggingInterceptor implements NestInterceptor {
     const request = context.switchToHttp().getRequest<Request>();
     const { method, url, ip } = request;
     const now = Date.now();
+    const maskedIP = maskIP(ip || '');
 
     return next.handle().pipe(
       tap(() => {
         const delay = Date.now() - now;
-        this.logger.log(`${method} ${url} ${ip} - ${delay}ms`);
+        this.logger.log(`${method} ${url} ${maskedIP} - ${delay}ms`);
       }),
     );
   }

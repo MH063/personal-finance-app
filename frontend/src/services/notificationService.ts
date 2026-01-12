@@ -43,7 +43,10 @@ const notificationService = {
    */
   getNotifications: async (query?: NotificationQuery): Promise<NotificationListResponse> => {
     const response = await api.get('/notifications', { params: query });
-    return response.data;
+    const result = response.data;
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -51,7 +54,10 @@ const notificationService = {
    */
   markAsRead: async (id: string): Promise<Notification> => {
     const response = await api.patch(`/notifications/${id}/read`);
-    return response.data;
+    const result = response.data;
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**

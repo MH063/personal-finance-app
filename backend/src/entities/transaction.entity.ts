@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Category } from './category.entity';
+import { Ledger } from './ledger.entity';
 
 export enum TransactionType {
   INCOME = 'income',
@@ -88,4 +89,13 @@ export class Transaction {
 
   @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
   deletedAt: Date;
+
+  @Column({ name: 'ledger_id', nullable: true })
+  ledgerId: string;
+
+  @ManyToOne(() => Ledger, (ledger) => ledger.transactions, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'ledger_id' })
+  ledger: Ledger;
 }

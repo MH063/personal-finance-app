@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Form, Input, Button, App } from 'antd';
+import { Form, Input, Button, App as AntdApp } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
 import { useDispatch } from 'react-redux';
 import { register, setTokens } from '@store/slices/authSlice';
 import { useSafeBackground } from '../hooks/useSafeBackground';
+import WindowControls from '../components/layout/WindowControls';
 import './RegisterPage.css';
 
-const RegisterPage: React.FC = () => {
-  const { message } = App.useApp();
+const RegisterPage = () => {
+  const { message } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -29,7 +30,8 @@ const RegisterPage: React.FC = () => {
         message.success('注册成功');
         navigate('/');
       } else {
-        message.error(resultAction.payload || '注册失败');
+        const errorMsg = resultAction.payload || '注册失败';
+        message.error(typeof errorMsg === 'string' ? errorMsg : (errorMsg?.message || '注册失败'));
       }
     } catch {
       message.error('注册失败，请稍后重试');
@@ -46,6 +48,7 @@ const RegisterPage: React.FC = () => {
         '--panel-bg-image': panelBg ? `url(${panelBg})` : 'none'
       } as React.CSSProperties}
     >
+      <WindowControls backgroundColor={pageBg || undefined} />
       <div className="register-content">
         <div className="register-side-panel">
           <div className="panel-content">

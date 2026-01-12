@@ -1,0 +1,58 @@
+.category-page {
+  padding: 24px;
+  min-height: 100%;
+}
+
+.category-page .page-header-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+}
+
+.category-page .page-title {
+  margin: 0 0 4px 0 !important;
+  color: #f8fafc;
+}
+
+.category-page .glass-card {
+  background: rgba(30, 41, 59, 0.7) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
+
+.category-page .glass-table .ant-table {
+  background: transparent !important;
+}
+
+.category-page .glass-table .ant-table-thead > tr > th {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.category-page .glass-table .ant-table-tbody > tr > td {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  color: #f1f5f9 !important;
+}
+
+.category-page .glass-table .ant-table-tbody > tr:hover > td {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+@media (max-width: 768px) {
+  .category-page .page-header-section {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .category-page .header-actions {
+    width: 100%;
+  }
+  
+  .category-page .header-actions .ant-btn {
+    width: 100%;
+  }
+}

@@ -121,26 +121,6 @@ const statisticsSlice = createSlice({
       .addCase(fetchOverview.fulfilled, (state, action) => {
         state.loading = false;
         state.overview = action.payload;
-        // 同时填充图表数据
-        if (action.payload.monthlyTrends) {
-          state.chartData.lineChart = {
-            income: action.payload.monthlyTrends.map((item: any) => ({
-              date: item.month,
-              value: item.income
-            })),
-            expense: action.payload.monthlyTrends.map((item: any) => ({
-              date: item.month,
-              value: item.expense
-            }))
-          };
-        }
-        if (action.payload.categoryBreakdown) {
-          state.chartData.pieChart = action.payload.categoryBreakdown.map((item: any) => ({
-            type: item.categoryName,
-            value: item.amount,
-            color: item.categoryColor
-          }));
-        }
       })
       .addCase(fetchOverview.rejected, (state, action) => {
         state.loading = false;
@@ -163,7 +143,7 @@ const statisticsSlice = createSlice({
       .addCase(fetchCategoryStats.fulfilled, (state, action) => {
         if (action.payload.categoryBreakdown) {
           state.chartData.pieChart = action.payload.categoryBreakdown.map((item: any) => ({
-            type: item.categoryName,
+            name: item.categoryName,
             value: item.amount,
             color: item.categoryColor
           }));

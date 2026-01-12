@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Card, Form, Input, Button, Divider, App, Upload, Avatar, Typography, Modal, Spin } from 'antd';
+import { Card, Form, Input, Button, Divider, App as AntdApp, Upload, Avatar, Typography, Modal, Spin } from 'antd';
 import { UserOutlined, MailOutlined, SaveOutlined, UploadOutlined, CameraOutlined, LoadingOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
@@ -13,7 +13,7 @@ const { Title, Text } = Typography;
  * 用于展示和修改用户的个人信息，包括姓名、邮箱和头像
  */
 const ProfilePage: React.FC = () => {
-  const { message, modal } = App.useApp();
+  const { message, modal } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
   const [form] = Form.useForm();
@@ -43,9 +43,9 @@ const ProfilePage: React.FC = () => {
     try {
       await dispatch(updateProfile(values) as any);
       message.success('个人资料已更新');
-    } catch (error) {
+    } catch (error: any) {
       console.error('更新个人资料失败:', error);
-      message.error('更新失败');
+      message.error(typeof error === 'string' ? error : (error?.message || '更新失败'));
     } finally {
       setLoading(false);
     }

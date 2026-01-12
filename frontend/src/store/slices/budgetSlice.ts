@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import budgetService from '../../services/budgetService';
 import { Budget, CreateBudgetDto, UpdateBudgetDto } from '../../types';
+import { collaborativeService } from '../../services/collaborativeService';
 
 interface BudgetState {
   budgets: Budget[];
@@ -34,7 +35,10 @@ export const fetchBudgetById = createAsyncThunk('budget/fetchById', async (id: s
 
 export const createBudget = createAsyncThunk('budget/create', async (data: CreateBudgetDto, { rejectWithValue }) => {
   try {
-    return await budgetService.createBudget(data);
+    const result = await budgetService.createBudget(data);
+    // 发送通知
+    collaborativeService.emit('ledgerUpdate', { type: 'budget_created', id: result.id });
+    return result;
   } catch (error: any) {
     return rejectWithValue(error.response?.data?.message || '创建预算失败');
   }
@@ -42,7 +46,10 @@ export const createBudget = createAsyncThunk('budget/create', async (data: Creat
 
 export const updateBudget = createAsyncThunk('budget/update', async ({ id, data }: { id: string; data: UpdateBudgetDto }, { rejectWithValue }) => {
   try {
-    return await budgetService.updateBudget(id, data);
+    const result = await budgetService.updateBudget(id, data);
+    // 发送通知
+    collaborativeService.emit('ledgerUpdate', { type: 'budget_updated', id: result.id });
+    return result;
   } catch (error: any) {
     return rejectWithValue(error.response?.data?.message || '更新预算失败');
   }
@@ -51,6 +58,8 @@ export const updateBudget = createAsyncThunk('budget/update', async ({ id, data 
 export const deleteBudget = createAsyncThunk('budget/delete', async (id: string, { rejectWithValue }) => {
   try {
     await budgetService.deleteBudget(id);
+    // 发送通知
+    collaborativeService.emit('ledgerUpdate', { type: 'budget_deleted', id });
     return id;
   } catch (error: any) {
     return rejectWithValue(error.response?.data?.message || '删除预算失败');

@@ -6,7 +6,11 @@ const settingsService = {
    */
   getSettings: async () => {
     const response = await api.get<any>('/settings');
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -14,7 +18,11 @@ const settingsService = {
    */
   updateSettings: async (data: any) => {
     const response = await api.put<any>('/settings', data);
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -22,7 +30,11 @@ const settingsService = {
    */
   updateProfile: async (data: any) => {
     const response = await api.put<any>('/auth/profile', data);
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -30,7 +42,11 @@ const settingsService = {
    */
   changePassword: async (data: any) => {
     const response = await api.put<any>('/auth/password', data);
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 };
 

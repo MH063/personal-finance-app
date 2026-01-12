@@ -55,6 +55,11 @@ export class CreateTransactionDto {
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
+
+  @ApiPropertyOptional({ description: '账本ID' })
+  @IsUUID()
+  @IsOptional()
+  ledgerId?: string;
 }
 
 export class UpdateTransactionDto {
@@ -74,6 +79,11 @@ export class UpdateTransactionDto {
   @IsUUID()
   @IsOptional()
   categoryId?: string;
+
+  @ApiPropertyOptional({ description: '账本ID' })
+  @IsUUID()
+  @IsOptional()
+  ledgerId?: string;
 
   @ApiPropertyOptional()
   @IsString()
@@ -155,6 +165,11 @@ export class TransactionQueryDto {
   @IsEnum(PaymentMethod)
   @IsOptional()
   paymentMethod?: PaymentMethod;
+
+  @ApiPropertyOptional({ description: '账本ID' })
+  @IsUUID()
+  @IsOptional()
+  ledgerId?: string;
 
   @ApiPropertyOptional({ description: '排序字段', default: 'transactionDate' })
   @IsString()

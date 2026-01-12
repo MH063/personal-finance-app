@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, Form, Input, Button, App, Typography, Divider } from 'antd';
+import { Card, Form, Input, Button, App as AntdApp, Typography, Divider } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import settingsService from '../../services/settingsService';
 import './SettingsPage.css';
@@ -11,7 +11,7 @@ const { Title, Text } = Typography;
  * 用于用户修改登录密码，增强账户安全性
  */
 const SecurityPage: React.FC = () => {
-  const { message } = App.useApp();
+  const { message } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
 
@@ -30,7 +30,7 @@ const SecurityPage: React.FC = () => {
       form.resetFields();
     } catch (error: any) {
       console.error('修改密码失败:', error);
-      const errorMsg = error.response?.data?.message || '密码更改失败，请稍后重试';
+      const errorMsg = typeof error === 'string' ? error : (error.response?.data?.message || error.message || '密码更改失败，请稍后重试');
       message.error(errorMsg);
     } finally {
       setLoading(false);

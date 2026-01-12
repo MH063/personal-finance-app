@@ -7,7 +7,19 @@ export const injectStore = (_store: any) => {
   store = _store;
 };
 
-const API_URL = import.meta.env.VITE_API_URL || `http://192.168.66.41:4000/api/v1`;
+const getApiUrl = () => {
+  // 如果环境变量中有定义，优先使用环境变量
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  // 否则根据当前页面的 hostname 动态生成 API 地址
+  const hostname = window.location.hostname;
+  // 保持端口 4000 和路径前缀 /api/v1
+  return `http://${hostname}:4000/api/v1`;
+};
+
+const API_URL = getApiUrl();
 
 const api = axios.create({
   baseURL: API_URL,
@@ -89,14 +101,21 @@ api.interceptors.response.use(
 
     // 根据用户规则 5: 后端返回的数据结构是 {success: true, data: {xxx: []}}
     // 我们在这里做一层解构，确保 response.data 拿到的是最内层的 data
+    const isSilent = response.config?.headers?.['X-Silent-Error'] === 'true';
+    
     if (response.data && response.data.success) {
-      console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data.data);
+      if (!isSilent) {
+        console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data.data);
+      }
       return {
         ...response,
         data: response.data.data !== undefined ? response.data.data : response.data
       };
     }
-    console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data);
+    
+    if (!isSilent) {
+      console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data);
+    }
     return response;
   },
   async (error) => {
@@ -107,20 +126,42 @@ api.interceptors.response.use(
 
     // 处理 401 Token 过期（排除登录接口本身）
     if (error.response?.status === 401 && !error.config.url?.includes('/auth/login')) {
-      console.warn('[API] 认证失效，跳转登录页');
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+      const isSilent = error.config?.headers?.['X-Silent-Error'] === 'true';
+      
+      // 如果不是静默请求，则执行跳转
+      if (!isSilent) {
+        console.warn('[API] 认证失效，跳转登录页');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
+        }
+      } else {
+        console.warn('[API] 后台请求认证失效，静默跳过跳转');
       }
     }
 
     // 提取后端返回的错误信息
-    const errorMessage = error.response?.data?.message || error.message || '网络请求失败';
-    console.error(`[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}:`, errorMessage);
+    let errorMessage = error.response?.data?.message || error.message || '网络请求失败';
     
-    return Promise.reject(errorMessage);
+    // 如果错误信息是数组（通常是 NestJS 验证错误），将其转换为字符串
+    if (Array.isArray(errorMessage)) {
+      errorMessage = errorMessage.join(', ');
+    }
+    
+    // 检查是否需要静默处理错误（不打印到控制台）
+    const isSilent = error.config?.headers?.['X-Silent-Error'] === 'true';
+    if (!isSilent) {
+      console.error(`[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}:`, errorMessage);
+    }
+    
+    // 将格式化后的错误信息附加到 error 对象上，以便下游使用
+    if (error && typeof error === 'object') {
+      error.formattedMessage = errorMessage;
+    }
+    
+    return Promise.reject(error);
   }
 );
 

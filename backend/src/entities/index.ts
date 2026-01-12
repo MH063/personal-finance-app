@@ -8,3 +8,4 @@ export * from './user-setting.entity';
 export * from './backup-log.entity';
 export * from './transaction-log.entity';
 export * from './notification.entity';
+export * from './ledger.entity';

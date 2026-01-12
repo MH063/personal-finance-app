@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Select, DatePicker, Button, Statistic, Progress, List, Tag, Typography, Space, App as AntdApp } from 'antd';
+import { Card, Row, Col, Select, DatePicker, Button, Statistic, Typography, Space, App as AntdApp, Tag, Progress, List } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, DownloadOutlined, AccountBookOutlined } from '@ant-design/icons';
-import ReactECharts from 'echarts-for-react';
+import SafeChart from '../../components/common/SafeChart';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
 import { fetchOverview, fetchTrend, fetchFinancialHealth } from '../../store/slices/statisticsSlice';
+import { fetchAiHealthAnalysis, fetchAiForecast } from '../../store/slices/aiSlice';
+import { collaborativeService } from '../../services/collaborativeService';
 import statisticsService from '../../services/statisticsService';
+import { aiService } from '../../services/aiService';
+import { useSafeBackground } from '../../hooks/useSafeBackground';
 import './StatisticsPage.css';
 
 const { Title, Text } = Typography;
@@ -15,31 +19,114 @@ const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 const StatisticsPage: React.FC = () => {
-  const [timeRange, setTimeRange] = useState('month');
+  const [timeRange, setTimeRange] = useState('last6months');
   const [customRange, setCustomRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
+  const [aiData, setAiData] = useState<any>(null);
+  const [forecastData, setForecastData] = useState<any[]>([]);
 
   const [quickAddLoading, setQuickAddLoading] = useState<string | null>(null);
 
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { overview, health } = useSelector((state: RootState) => state.statistics);
+  const { healthAnalysis, forecast } = useSelector((state: RootState) => state.ai);
   const { message } = AntdApp.useApp();
 
+  // 采样背景亮度以动态调整文字颜色
+  const pageBg = useSafeBackground('https://picsum.photos/1920/1080');
+  const [brightness, setBrightness] = useState(0); // 0-100
+
   useEffect(() => {
-    const loadData = () => {
-      const query: any = { timeRange };
-      if (timeRange === 'custom') {
-        if (!customRange) return;
-        query.startDate = customRange[0].format('YYYY-MM-DD');
-        query.endDate = customRange[1].format('YYYY-MM-DD');
+    if (!pageBg) return;
+
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      canvas.width = 100;
+      canvas.height = 100;
+      ctx.drawImage(img, 0, 0, 100, 100);
+      const data = ctx.getImageData(0, 0, 100, 100).data;
+      let r = 0, g = 0, b = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        r += data[i];
+        g += data[i+1];
+        b += data[i+2];
       }
-      dispatch(fetchOverview(query) as any);
-      dispatch(fetchTrend(query) as any);
-      dispatch(fetchFinancialHealth(timeRange === 'month' ? 'month' : timeRange === 'year' ? 'year' : 'quarter') as any);
+      const count = data.length / 4;
+      const avgR = r / count;
+      const avgG = g / count;
+      const avgB = b / count;
+      // 使用亮度公式
+      const lum = ((0.299 * avgR + 0.587 * avgG + 0.114 * avgB) / 255) * 100;
+      setBrightness(lum);
+    };
+    img.src = pageBg;
+  }, [pageBg]);
+
+  const isLightBackground = brightness > 60;
+  const textColor = isLightBackground ? 'rgba(0, 0, 0, 0.85)' : 'rgba(255, 255, 255, 0.95)';
+  const secondaryColor = isLightBackground ? 'rgba(0, 0, 0, 0.65)' : 'rgba(255, 255, 255, 0.7)';
+  const textShadow = isLightBackground 
+    ? '0 1px 1px rgba(255, 255, 255, 0.5)' 
+    : '0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4)';
+
+  const refreshData = () => {
+    console.log('[Statistics] 正在刷新数据...');
+    const query: any = { timeRange };
+    if (timeRange === 'custom') {
+      if (!customRange) return;
+      query.startDate = customRange[0].format('YYYY-MM-DD');
+      query.endDate = customRange[1].format('YYYY-MM-DD');
+    }
+    dispatch(fetchOverview(query) as any);
+    dispatch(fetchTrend(query) as any);
+    dispatch(fetchFinancialHealth(timeRange === 'month' ? 'month' : timeRange === 'year' ? 'year' : 'quarter') as any);
+    
+    // 加载 AI 数据
+    dispatch(fetchAiHealthAnalysis() as any);
+    dispatch(fetchAiForecast() as any);
+    
+    // 同时同步本地状态
+    aiService.getForecast().then(res => {
+      // 确保 res 是数组，Rule 5 处理由 service 完成，此处做最终保险
+      const data = Array.isArray(res) ? res : [];
+      setForecastData(data);
+    }).catch(err => {
+      console.warn('[Statistics] 加载预测数据失败:', err);
+      setForecastData([]);
+    });
+    
+    aiService.getHealthAnalysis().then(res => {
+      if (res) setAiData(res);
+    });
+  };
+
+  useEffect(() => {
+    refreshData();
+
+    // 初始化实时协作
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      collaborativeService.init(token);
+    }
+
+    // 监听更新
+    const handleUpdate = (data: any) => {
+      console.log('[Statistics] 监听到实时更新:', data);
+      refreshData();
     };
 
-    loadData();
+    collaborativeService.on('ledgerUpdate', handleUpdate);
+    collaborativeService.on('globalUpdate', handleUpdate);
+
+    return () => {
+      collaborativeService.off('ledgerUpdate', handleUpdate);
+      collaborativeService.off('globalUpdate', handleUpdate);
+    };
   }, [dispatch, timeRange, customRange]);
 
   const handleQuickAdd = (type: 'income' | 'expense') => {
@@ -71,7 +158,7 @@ const StatisticsPage: React.FC = () => {
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
     xAxis: {
       type: 'category', 
-      data: overview?.monthlyTrends?.map((t: any) => t.month) || [],
+      data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.month) : [],
       axisLine: { lineStyle: { color: '#e2e8f0' } },
       axisLabel: { color: '#64748b' }
     },
@@ -85,7 +172,7 @@ const StatisticsPage: React.FC = () => {
         name: '收入', 
         type: 'bar', 
         barWidth: '20%',
-        data: overview?.monthlyTrends?.map((t: any) => t.income) || [], 
+        data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.income) : [], 
         itemStyle: { 
           color: '#10b981',
           borderRadius: [4, 4, 0, 0]
@@ -95,7 +182,7 @@ const StatisticsPage: React.FC = () => {
         name: '支出', 
         type: 'bar', 
         barWidth: '20%',
-        data: overview?.monthlyTrends?.map((t: any) => t.expense) || [], 
+        data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.expense) : [], 
         itemStyle: { 
           color: '#ef4444',
           borderRadius: [4, 4, 0, 0]
@@ -124,11 +211,11 @@ const StatisticsPage: React.FC = () => {
           fontWeight: 'bold'
         }
       },
-      data: overview?.categoryBreakdown?.map((cat: any) => ({
+      data: Array.isArray(overview?.categoryBreakdown) ? overview.categoryBreakdown.map((cat: any) => ({
         value: cat.amount,
         name: cat.categoryName,
         itemStyle: { color: cat.categoryColor },
-      })) || [],
+      })) : [],
     }],
   };
 
@@ -138,7 +225,7 @@ const StatisticsPage: React.FC = () => {
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
     xAxis: { 
       type: 'category', 
-      data: overview?.monthlyTrends?.map((t: any) => t.month) || [],
+      data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.month) : [],
       axisLine: { lineStyle: { color: '#e2e8f0' } }
     },
     yAxis: { 
@@ -151,7 +238,7 @@ const StatisticsPage: React.FC = () => {
       smooth: true, 
       symbol: 'circle',
       symbolSize: 8,
-      data: overview?.monthlyTrends?.map((t: any) => t.netIncome) || [], 
+      data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.netIncome) : [], 
       itemStyle: { color: '#6366f1' }, 
       lineStyle: { width: 4 },
       areaStyle: { 
@@ -165,6 +252,23 @@ const StatisticsPage: React.FC = () => {
         } 
       } 
     }],
+  };
+
+  const forecastChartOption = {
+    tooltip: { trigger: 'axis' },
+    xAxis: { 
+      type: 'category', 
+      data: Array.isArray(forecastData) ? forecastData.map(d => d.month) : [],
+      axisLine: { lineStyle: { color: '#e2e8f0' } }
+    },
+    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+    series: [{
+      data: Array.isArray(forecastData) ? forecastData.map(d => d.amount) : [],
+      type: 'line',
+      smooth: true,
+      lineStyle: { type: 'dashed', color: '#6366f1' },
+      areaStyle: { color: 'rgba(99, 102, 241, 0.1)' }
+    }]
   };
 
   const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
@@ -185,9 +289,9 @@ const StatisticsPage: React.FC = () => {
       link.click();
       link.remove();
       message.success('导出成功');
-    } catch (error) {
+    } catch (error: any) {
       console.error('[StatisticsPage] 导出失败:', error);
-      message.error('导出失败');
+      message.error(typeof error === 'string' ? error : (error?.message || '导出失败'));
     } finally {
       setExportLoading(false);
     }
@@ -263,6 +367,8 @@ const StatisticsPage: React.FC = () => {
             >
               <Option value="week">本周</Option>
               <Option value="month">本月</Option>
+              <Option value="last6months">最近6个月</Option>
+              <Option value="last12months">最近12个月</Option>
               <Option value="quarter">本季度</Option>
               <Option value="year">本年</Option>
               <Option value="custom">自定义范围</Option>
@@ -291,29 +397,71 @@ const StatisticsPage: React.FC = () => {
       <Row gutter={[24, 24]} className="chart-grid">
         <Col xs={24} lg={16}>
           <Card title="收支对比分析" className="glass-card chart-card" variant="borderless">
-            <ReactECharts option={lineChartOption} style={{ height: '380px' }} />
+            <SafeChart 
+              option={lineChartOption} 
+              style={{ height: '380px' }} 
+            />
           </Card>
         </Col>
         <Col xs={24} lg={8}>
           <Card title="支出结构" className="glass-card chart-card" variant="borderless">
-            <ReactECharts option={pieChartOption} style={{ height: '380px' }} />
+            <SafeChart 
+              option={pieChartOption} 
+              style={{ height: '380px' }} 
+            />
           </Card>
         </Col>
+        
+        {/* AI 智能预测卡片 */}
+        <Col span={24}>
+          <Card 
+            title={<span><AccountBookOutlined style={{ marginRight: 8, color: '#6366f1' }} />AI 支出趋势预测</span>} 
+            className="glass-card chart-card ai-forecast-card" 
+            variant="borderless"
+            extra={<Tag color="purple">智能预测</Tag>}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', height: '300px' }}>
+              <div style={{ flex: 1 }}>
+                <SafeChart 
+                  option={forecastChartOption} 
+                  style={{ height: '300px' }} 
+                />
+              </div>
+              <div style={{ width: '300px', padding: '0 24px' }}>
+                <Title level={5} className="high-readability-title" style={{ color: textColor, textShadow }}>预测说明</Title>
+                <Text className="high-readability-secondary" style={{ color: secondaryColor, textShadow }}>基于您过去几个月的消费习惯，AI 预测了未来 3 个月的支出走势。虚线部分代表预测值，仅供参考。</Text>
+                {forecastData.length === 0 && (
+                  <div style={{ marginTop: 16 }}>
+                    <Tag color="warning">数据不足，至少需要 2 个月的数据进行预测</Tag>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        </Col>
+
         <Col span={24}>
           <Card title="财务趋势演变" className="glass-card chart-card" variant="borderless">
-            <ReactECharts option={trendChartOption} style={{ height: '380px' }} />
+            <SafeChart 
+              option={trendChartOption} 
+              style={{ height: '380px' }} 
+            />
           </Card>
         </Col>
       </Row>
 
       <Row gutter={[24, 24]} className="bottom-section">
         <Col xs={24} lg={14}>
-          <Card title="财务健康评估" className="glass-card health-card" variant="borderless">
+          <Card 
+            title={<span><AccountBookOutlined style={{ marginRight: 8, color: '#10b981' }} />财务健康评估 & AI 洞察</span>} 
+            className="glass-card health-card" 
+            variant="borderless"
+          >
             <div className="health-container">
               <div className="health-main">
                 <Progress 
                   type="dashboard" 
-                  percent={health?.healthScore || 0} 
+                  percent={aiData?.score || health?.healthScore || 0} 
                   size={200}
                   strokeWidth={12}
                   strokeColor={{
@@ -332,26 +480,29 @@ const StatisticsPage: React.FC = () => {
                 <div className="metric-row">
                   <div className="metric-item">
                     <Text type="secondary">储蓄率</Text>
-                    <div className="metric-value">{Math.abs(health?.savingsRate || 0)}%</div>
-                    <Progress percent={Math.abs(health?.savingsRate || 0)} size="small" showInfo={false} strokeColor="#6366f1" />
+                    <div className="metric-value">{aiData?.savingsRate || Math.abs(health?.savingsRate || 0)}%</div>
+                    <Progress percent={parseFloat(aiData?.savingsRate) || Math.abs(health?.savingsRate || 0)} size="small" showInfo={false} strokeColor="#6366f1" />
                   </div>
                   <div className="metric-item">
-                    <Text type="secondary">支出占比</Text>
-                    <div className="metric-value">{health?.expenseRatio || 0}%</div>
-                    <Progress percent={health?.expenseRatio || 0} size="small" showInfo={false} status={health?.expenseRatio > 80 ? 'exception' : 'normal'} />
+                    <Text type="secondary">债务收入比</Text>
+                    <div className="metric-value">{aiData?.debtToIncomeRatio || 0}%</div>
+                    <Progress percent={parseFloat(aiData?.debtToIncomeRatio) || 0} size="small" showInfo={false} status={(parseFloat(aiData?.debtToIncomeRatio) || 0) > 40 ? 'exception' : 'normal'} />
                   </div>
                 </div>
                 <div className="health-recommendations">
                   <div className="recommendation-header">
-                    <Title level={5}>改善建议</Title>
+                    <Title level={5} className="high-readability-title" style={{ color: textColor, textShadow }}>AI 改善建议</Title>
                   </div>
                   <List 
                     size="small" 
-                    dataSource={(health?.recommendations || []) as string[]} 
+                    dataSource={(Array.isArray(aiData?.insights) && aiData.insights.length > 0 
+                      ? aiData.insights 
+                      : (Array.isArray(health?.recommendations) ? health.recommendations : [])
+                    ) as string[]} 
                     renderItem={(item: string) => (
                       <List.Item className="recommendation-item">
-                        <Tag color="blue" className="suggestion-tag">建议</Tag>
-                        <Text className="suggestion-text">{item}</Text>
+                        <Tag color="purple" className="suggestion-tag">AI 建议</Tag>
+                        <Text className="suggestion-text high-readability-text" style={{ color: textColor, textShadow }}>{item}</Text>
                       </List.Item>
                     )} 
                   />
@@ -363,7 +514,7 @@ const StatisticsPage: React.FC = () => {
         <Col xs={24} lg={10}>
           <Card title="分类支出排行" className="glass-card category-card" variant="borderless">
             <List 
-              dataSource={overview?.categoryBreakdown || []} 
+              dataSource={Array.isArray(overview?.categoryBreakdown) ? overview.categoryBreakdown : []} 
               className="category-rank-list"
               renderItem={(item: any) => (
                 <List.Item className="rank-item">
@@ -375,8 +526,8 @@ const StatisticsPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="rank-right">
-                    <div className="amount">¥{item.amount.toFixed(2)}</div>
-                    <div className="percentage">{item.percentage}%</div>
+                    <div className="amount">¥{(item.amount || 0).toFixed(2)}</div>
+                    <div className="percentage">{item.percentage || 0}%</div>
                   </div>
                 </List.Item>
               )} 

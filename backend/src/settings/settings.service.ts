@@ -3,12 +3,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserSetting } from '../entities/user-setting.entity';
 import { UpdateSettingsDto } from './dto/settings.dto';
+import { LedgerGateway } from '../ledgers/ledger.gateway';
 
 @Injectable()
 export class SettingsService {
   constructor(
     @InjectRepository(UserSetting)
     private readonly userSettingRepository: Repository<UserSetting>,
+    private readonly ledgerGateway: LedgerGateway,
   ) {}
 
   /**
@@ -44,6 +46,11 @@ export class SettingsService {
     }
 
     Object.assign(settings, dto);
-    return this.userSettingRepository.save(settings);
+    const savedSettings = await this.userSettingRepository.save(settings);
+    
+    // 发送实时更新通知
+    this.ledgerGateway.notifySettingsUpdate(userId, savedSettings);
+    
+    return savedSettings;
   }
 }

@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Badge, Button, Space, Typography, Spin, Input } from 'antd';
+import React, { useState, useEffect } from 'react';
+import { Layout, Menu, Avatar, Dropdown, Badge, Button, Space, Typography, Spin, Input, Tooltip } from 'antd';
 import {
   DashboardOutlined,
   RiseOutlined,
@@ -15,6 +15,10 @@ import {
   LogoutOutlined,
   SettingFilled,
   WalletOutlined,
+  BookOutlined,
+  TagsOutlined,
+  CloudSyncOutlined,
+  SyncOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -23,6 +27,9 @@ import { RootState, AppDispatch } from '../../store';
 import { logout } from '../../store/slices/authSlice';
 import { fetchNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../store/slices/notificationSlice';
 import { useSafeBackground } from '../../hooks/useSafeBackground';
+import { collaborativeService } from '../../services/collaborativeService';
+import WindowControls from './WindowControls';
+import SyncMonitor from './SyncMonitor';
 import './MainLayout.css';
 
 const { Header, Sider, Content } = Layout;
@@ -32,7 +39,7 @@ const { Text } = Typography;
  * 应用主布局组件
  * 包含侧边栏导航、顶部工具栏（搜索、消息通知、主题切换、用户登出）和内容区域
  */
-const MainLayout: React.FC = () => {
+const MainLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const dispatch = useDispatch<AppDispatch>();
@@ -40,6 +47,50 @@ const MainLayout: React.FC = () => {
   const { notifications, unreadCount } = useSelector((state: RootState) => state.notifications);
   const { loading: globalLoading } = useSelector((state: RootState) => state.app);
   const { user } = useSelector((state: RootState) => state.auth);
+
+  const [syncStatus, setSyncStatus] = useState<'connected' | 'disconnected' | 'syncing'>('disconnected');
+  const [syncMonitorVisible, setSyncMonitorVisible] = useState(false);
+
+  useEffect(() => {
+    // 初始化实时协作
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      collaborativeService.init(token);
+    }
+
+    const handleConnect = () => {
+      console.log('[MainLayout] Sync Connected');
+      setSyncStatus('connected');
+    };
+    const handleDisconnect = () => {
+      console.warn('[MainLayout] Sync Disconnected');
+      setSyncStatus('disconnected');
+    };
+    const handleUpdate = () => {
+      setSyncStatus('syncing');
+      setTimeout(() => setSyncStatus('connected'), 1000);
+    };
+
+    collaborativeService.on('connect', handleConnect);
+    collaborativeService.on('disconnect', handleDisconnect);
+    collaborativeService.on('ledgerUpdate', handleUpdate);
+    collaborativeService.on('globalUpdate', handleUpdate);
+    collaborativeService.on('settingsUpdate', handleUpdate);
+
+    // 初始化时检查状态
+    // @ts-ignore - 访问私有 socket 仅用于状态展示
+    if (collaborativeService.socket?.connected) {
+      setSyncStatus('connected');
+    }
+
+    return () => {
+      collaborativeService.off('connect', handleConnect);
+      collaborativeService.off('disconnect', handleDisconnect);
+      collaborativeService.off('ledgerUpdate', handleUpdate);
+      collaborativeService.off('globalUpdate', handleUpdate);
+      collaborativeService.off('settingsUpdate', handleUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     dispatch(fetchNotifications({ limit: 5 }));
@@ -65,6 +116,7 @@ const MainLayout: React.FC = () => {
     { key: '/expense', icon: <FallOutlined />, label: '支出管理' },
     { key: '/debt', icon: <AccountBookOutlined />, label: '债务管理' },
     { key: '/budget', icon: <WalletOutlined />, label: '预算管理' },
+    { key: '/ledgers', icon: <BookOutlined />, label: '账本管理' },
   ];
 
   const toolItems = [
@@ -81,6 +133,7 @@ const MainLayout: React.FC = () => {
         { key: '/profile', icon: <UserOutlined />, label: '个人资料' },
         { key: '/security', icon: <SecurityScanOutlined />, label: '密码安全' },
         { key: '/notifications', icon: <BellOutlined />, label: '通知设置' },
+        { key: '/categories', icon: <TagsOutlined />, label: '分类管理' },
         { key: '/preferences', icon: <GlobalOutlined />, label: '偏好设置' },
       ]
     },
@@ -177,7 +230,7 @@ const MainLayout: React.FC = () => {
           <span className="logo-text">财富管家</span>
         </div>
         
-        <div className="menu-wrapper" style={{ overflowY: 'auto', overflowX: 'hidden', flex: 1 }}>
+        <div className="menu-wrapper" style={{ flex: 1 }}>
           <div className="menu-group-title">核心功能</div>
           <Menu
             theme="dark"
@@ -208,24 +261,9 @@ const MainLayout: React.FC = () => {
             className="side-menu"
           />
         </div>
-      </Sider>
 
-      <Layout className="site-layout">
-        <Header className="app-header">
-          <div className="header-right-actions">
-            <Dropdown
-              menu={{ items: notificationItems }}
-              placement="bottomRight"
-              trigger={['click']}
-              overlayClassName="notification-dropdown"
-            >
-              <Badge count={unreadCount || 0} size="small" offset={[-2, 4]}>
-                <BellOutlined className="header-action-icon" />
-              </Badge>
-            </Dropdown>
-            
-            <SettingFilled className="header-action-icon" onClick={() => navigate('/preferences')} />
-            
+        <div className="sider-footer">
+          <div className="sider-actions">
             <Dropdown
               menu={{
                 items: userMenuItems,
@@ -233,7 +271,7 @@ const MainLayout: React.FC = () => {
                   if (key === 'logout') handleLogout();
                 },
               }}
-              placement="bottomRight"
+              placement="topRight"
               trigger={['click']}
             >
               <div className="user-avatar-wrapper">
@@ -244,7 +282,41 @@ const MainLayout: React.FC = () => {
                 />
               </div>
             </Dropdown>
+
+            <Tooltip title={syncStatus === 'connected' ? '数据同步已连接' : syncStatus === 'syncing' ? '正在同步数据...' : '同步已断开'}>
+              <div className="header-action-icon-wrapper" onClick={() => setSyncMonitorVisible(true)}>
+                <Badge dot color={syncStatus === 'connected' ? '#52c41a' : syncStatus === 'syncing' ? '#1890ff' : '#f5222d'}>
+                  {syncStatus === 'syncing' ? (
+                    <SyncOutlined spin className="header-action-icon" />
+                  ) : (
+                    <CloudSyncOutlined 
+                      className={`header-action-icon ${syncStatus === 'connected' ? 'sync-connected' : 'sync-disconnected'}`} 
+                    />
+                  )}
+                </Badge>
+              </div>
+            </Tooltip>
+
+            <Dropdown
+              menu={{ items: notificationItems }}
+              placement="topRight"
+              trigger={['click']}
+              overlayClassName="notification-dropdown"
+            >
+              <Badge count={unreadCount || 0} size="small" offset={[-2, 4]}>
+                <BellOutlined className="header-action-icon" />
+              </Badge>
+            </Dropdown>
           </div>
+        </div>
+      </Sider>
+
+      <Layout className="site-layout">
+        <Header className="main-header" style={{ background: 'transparent' }}>
+          <div className="header-left">
+            {/* 顶部左侧区域，可保留为空以维持拖拽区 */}
+          </div>
+          <WindowControls backgroundColor={pageBg || undefined} />
         </Header>
 
         <Content className="app-content">
@@ -259,6 +331,11 @@ const MainLayout: React.FC = () => {
           </Spin>
         </Content>
       </Layout>
+
+      <SyncMonitor 
+        visible={syncMonitorVisible} 
+        onClose={() => setSyncMonitorVisible(false)} 
+      />
     </Layout>
   );
 };

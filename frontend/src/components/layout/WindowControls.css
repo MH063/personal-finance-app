@@ -1,0 +1,91 @@
+/* 动态颜色适配方案 - 使用 CSS 变量 */
+.window-controls {
+  --control-btn-color: #ffffff;
+  --control-btn-stroke: #000000;
+  
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  -webkit-app-region: no-drag;
+  z-index: 10000; /* 确保在最上层 */
+  position: fixed; /* 固定定位 */
+  top: 0;
+  right: 0;
+}
+
+/* 浅色背景适配 */
+.window-controls.light-bg {
+  --control-btn-color: #000000;
+  --control-btn-stroke: #ffffff;
+  --hover-bg-rgb: 0, 0, 0;
+}
+
+/* 深色背景适配 */
+.window-controls.dark-bg {
+  --control-btn-color: #ffffff;
+  --control-btn-stroke: #000000;
+  --hover-bg-rgb: 255, 255, 255;
+}
+
+.control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: all 200ms ease-in-out;
+  padding: 0;
+  outline: none;
+  
+  color: var(--control-btn-color);
+  text-shadow: 
+    -1px -1px 0 var(--control-btn-stroke),  
+     1px -1px 0 var(--control-btn-stroke),
+    -1px  1px 0 var(--control-btn-stroke),
+     1px  1px 0 var(--control-btn-stroke);
+}
+
+.control-btn svg {
+  filter: drop-shadow(0 0 1px var(--control-btn-stroke));
+}
+
+/* 交互状态反馈 */
+
+.control-btn:hover {
+  opacity: 0.8;
+  background-color: rgba(var(--hover-bg-rgb, 128, 128, 128), 0.1);
+}
+
+.control-btn:active {
+  opacity: 0.6;
+}
+
+.control-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 特殊样式：关闭按钮悬停变红 */
+.control-btn.close:hover {
+  background-color: #ff4d4f;
+  color: #ffffff !important;
+  opacity: 1;
+  text-shadow: none;
+}
+
+.control-btn.close:hover svg {
+  filter: none;
+}
+
+/* 高 DPI 支持 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .control-btn {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}

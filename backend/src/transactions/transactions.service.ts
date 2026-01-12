@@ -9,7 +9,9 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, Like, FindOptionsWhere, In, Not } from 'typeorm';
 import { Transaction, TransactionType } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
+import { Ledger, LedgerMember } from '../entities/ledger.entity';
 import { TransactionLog, LogAction, EntityType } from '../entities/transaction-log.entity';
+import { LedgerGateway } from '../ledgers/ledger.gateway';
 import {
   CreateTransactionDto,
   UpdateTransactionDto,
@@ -35,8 +37,13 @@ export class TransactionsService {
     private readonly transactionRepository: Repository<Transaction>,
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(Ledger)
+    private readonly ledgerRepository: Repository<Ledger>,
+    @InjectRepository(LedgerMember)
+    private readonly ledgerMemberRepository: Repository<LedgerMember>,
     @InjectRepository(TransactionLog)
     private readonly logRepository: Repository<TransactionLog>,
+    private readonly ledgerGateway: LedgerGateway,
   ) {}
 
   /**
@@ -72,15 +79,39 @@ export class TransactionsService {
       await this.validateCategory(userId, createDto.categoryId, createDto.type);
     }
 
+    let ledgerId = createDto.ledgerId;
+    if (!ledgerId) {
+      // 获取用户的默认私有账本
+      const defaultLedger = await this.ledgerRepository.findOne({
+        where: { ownerId: userId, isDefault: true },
+      });
+      if (!defaultLedger) {
+        throw new NotFoundException('未找到用户的默认账本');
+      }
+      ledgerId = defaultLedger.id;
+    } else {
+      // 验证用户是否有权限在该账本中创建交易
+      const membership = await this.ledgerMemberRepository.findOne({
+        where: { ledgerId, userId },
+      });
+      if (!membership) {
+        throw new ForbiddenException('您没有权限在该账本中创建交易');
+      }
+    }
+
     const transaction = this.transactionRepository.create({
       ...createDto,
       userId,
+      ledgerId,
       categoryId: createDto.categoryId || undefined,
       transactionDate: new Date(createDto.transactionDate),
     });
 
     const result = await this.transactionRepository.save(transaction);
     const savedTransaction = Array.isArray(result) ? result[0] : result;
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(ledgerId, 'TRANSACTION_CREATED', savedTransaction, userId);
 
     await this.logRepository.save({
       action: LogAction.CREATE,
@@ -108,6 +139,7 @@ export class TransactionsService {
       endDate,
       type,
       categoryId,
+      ledgerId,
       minAmount,
       maxAmount,
       paymentMethod,
@@ -115,10 +147,30 @@ export class TransactionsService {
       sortOrder = 'desc',
     } = query;
 
-    const where: FindOptionsWhere<Transaction> = {
-      userId,
-      isDeleted: false,
-    };
+    const where: FindOptionsWhere<Transaction> = { isDeleted: false };
+
+    // 如果指定了账本 ID，先验证权限
+    if (ledgerId) {
+      const membership = await this.ledgerMemberRepository.findOne({
+        where: { ledgerId, userId },
+      });
+      if (!membership) {
+        throw new ForbiddenException('您没有权限查看该账本的交易');
+      }
+      where.ledgerId = ledgerId;
+    } else {
+      // 如果没指定账本，则返回用户作为成员的所有账本下的交易
+      const memberships = await this.ledgerMemberRepository.find({
+        where: { userId },
+      });
+      const ledgerIds = memberships.map((m) => m.ledgerId);
+      if (ledgerIds.length > 0) {
+        where.ledgerId = In(ledgerIds);
+      } else {
+        // 如果没有加入任何账本，则只能看自己的交易且没有账本的（理论上不会发生，因为注册时有默认账本）
+        where.userId = userId;
+      }
+    }
 
     if (startDate && endDate) {
       where.transactionDate = Between(new Date(startDate), new Date(endDate));
@@ -170,12 +222,21 @@ export class TransactionsService {
    */
   async findOne(userId: string, id: string): Promise<Transaction> {
     const transaction = await this.transactionRepository.findOne({
-      where: { id, userId, isDeleted: false },
-      relations: ['category'],
+      where: { id, isDeleted: false },
+      relations: ['category', 'ledger'],
     });
 
     if (!transaction) {
       throw new NotFoundException('交易记录不存在');
+    }
+
+    // 验证用户是否有权访问该交易（必须是该交易所在账本的成员）
+    const membership = await this.ledgerMemberRepository.findOne({
+      where: { ledgerId: transaction.ledgerId, userId },
+    });
+
+    if (!membership && transaction.userId !== userId) {
+      throw new ForbiddenException('您没有权限查看此交易记录');
     }
 
     return transaction;
@@ -188,7 +249,16 @@ export class TransactionsService {
     this.logger.log(`用户 ${userId} 更新交易记录: ${id}`);
 
     const transaction = await this.findOne(userId, id);
-    const oldData = { ...transaction };
+
+    // 验证权限：只有交易创建者、账本所有者或账本管理员可以修改
+    const membership = await this.ledgerMemberRepository.findOne({
+      where: { ledgerId: transaction.ledgerId, userId },
+    });
+
+    const isOwnerOrAdmin = membership && ['owner', 'admin'].includes(membership.role);
+    if (transaction.userId !== userId && !isOwnerOrAdmin) {
+      throw new ForbiddenException('您没有权限修改此交易记录');
+    }
 
     if (updateDto.categoryId) {
       await this.validateCategory(
@@ -197,6 +267,18 @@ export class TransactionsService {
         updateDto.type || (transaction.type as TransactionType),
       );
     }
+
+    // 如果尝试更改账本，验证权限
+    if (updateDto.ledgerId && updateDto.ledgerId !== transaction.ledgerId) {
+      const membership = await this.ledgerMemberRepository.findOne({
+        where: { ledgerId: updateDto.ledgerId, userId },
+      });
+      if (!membership) {
+        throw new ForbiddenException('您没有权限将交易移动到该账本');
+      }
+    }
+
+    const oldData = { ...transaction };
 
     const changedFields: string[] = [];
     Object.keys(updateDto).forEach((key) => {
@@ -214,7 +296,10 @@ export class TransactionsService {
       transaction.transactionDate = new Date(updateDto.transactionDate);
     }
 
-    await this.transactionRepository.save(transaction);
+    const updatedTransaction = await this.transactionRepository.save(transaction);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(transaction.ledgerId, 'TRANSACTION_UPDATED', updatedTransaction, userId);
 
     await this.logRepository.save({
       action: LogAction.UPDATE,
@@ -237,9 +322,22 @@ export class TransactionsService {
 
     const transaction = await this.findOne(userId, id);
 
+    // 验证权限：只有交易创建者、账本所有者或账本管理员可以删除
+    const membership = await this.ledgerMemberRepository.findOne({
+      where: { ledgerId: transaction.ledgerId, userId },
+    });
+
+    const isOwnerOrAdmin = membership && ['owner', 'admin'].includes(membership.role);
+    if (transaction.userId !== userId && !isOwnerOrAdmin) {
+      throw new ForbiddenException('您没有权限删除此交易记录');
+    }
+
     transaction.isDeleted = true;
     transaction.deletedAt = new Date();
     await this.transactionRepository.save(transaction);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(transaction.ledgerId, 'TRANSACTION_DELETED', { id }, userId);
 
     await this.logRepository.save({
       action: LogAction.DELETE,
@@ -267,10 +365,13 @@ export class TransactionsService {
       throw new NotFoundException('未找到要删除的交易记录');
     }
 
+    // 批量删除时，由于涉及多个可能的账本，我们简单触发一个全局更新或者针对该用户的更新
+    this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_DELETED', { ids: dto.ids }, userId);
+
     await this.logRepository.save({
       action: LogAction.DELETE,
       entityType: EntityType.TRANSACTION,
-      entityId: dto.ids.join(','),
+      entityId: dto.ids.length === 1 ? dto.ids[0] : 'batch',
       oldData: { ids: dto.ids },
       userId,
     });
@@ -314,6 +415,9 @@ export class TransactionsService {
       { categoryId: dto.categoryId },
     );
 
+    // 触发更新通知
+    this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_UPDATED', { ids: dto.ids, categoryId: dto.categoryId }, userId);
+
     if (result.affected === 0) {
       throw new NotFoundException('未找到要更新的交易记录');
     }
@@ -321,7 +425,7 @@ export class TransactionsService {
     await this.logRepository.save({
       action: LogAction.UPDATE,
       entityType: EntityType.TRANSACTION,
-      entityId: dto.ids.join(','),
+      entityId: dto.ids.length === 1 ? dto.ids[0] : 'batch',
       newData: { categoryId: dto.categoryId, count: result.affected },
       changedFields: ['categoryId'],
       userId,

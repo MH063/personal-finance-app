@@ -300,6 +300,28 @@
 }
 
 
+/* 批量操作按钮 */
+.batch-delete-btn {
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  transition: all 0.3s ease !important;
+}
+
+/* 优化表格选择框样式 */
+.transaction-table .ant-checkbox-inner {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.transaction-table .ant-checkbox-checked .ant-checkbox-inner {
+  background-color: #f87171 !important;
+  border-color: #f87171 !important;
+}
+
+.transaction-table .ant-table-row-selected > td {
+  background: rgba(248, 113, 113, 0.05) !important;
+}
+
 /* ========================================
  * 响应式适配 - 使用统一断点
  * ======================================== */

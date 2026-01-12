@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Switch, Divider, Typography, Button, App, Spin } from 'antd';
+import { Card, Switch, Divider, Typography, Button, App as AntdApp, Spin } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '@store/index';
@@ -13,7 +13,7 @@ const { Title, Text } = Typography;
  * 用户可以开启或关闭各种系统提醒和邮件通知
  */
 const NotificationPage: React.FC = () => {
-  const { message } = App.useApp();
+  const { message } = AntdApp.useApp();
   const dispatch = useDispatch<AppDispatch>();
   const settingsState = useSelector((state: RootState) => state.settings) || { settings: null, loading: false };
   const { settings, loading } = settingsState;
@@ -35,7 +35,7 @@ const NotificationPage: React.FC = () => {
       await dispatch(updateSettings({ notificationSettings: localSettings })).unwrap();
       message.success('通知设置已保存');
     } catch (error: any) {
-      message.error(error || '保存失败');
+      message.error(typeof error === 'string' ? error : (error?.message || '保存失败'));
     }
   };
 

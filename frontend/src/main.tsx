@@ -1,5 +1,5 @@
+import React, { ReactNode, FC } from 'react';
 import ReactDOM from 'react-dom/client';
-import type { ReactNode, FC } from 'react';
 import { HashRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { ConfigProvider, App as AntdApp, theme as antdTheme } from 'antd';
@@ -10,6 +10,20 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import './assets/styles/index.css';
 import './assets/styles/variable-fonts.css';
 import { DesignSystemProvider } from './components/design-system';
+import { offlineSyncService } from './services/offlineSyncService';
+import { registerSW } from 'virtual:pwa-register';
+
+// 注册 PWA Service Worker
+const updateSW = registerSW({
+  onNeedRefresh() {
+    if (confirm('新版本可用，是否立即更新？')) {
+      updateSW(true);
+    }
+  },
+  onOfflineReady() {
+    console.log('应用已准备好离线使用');
+  },
+});
 
 /**
  * 主题提供组件
@@ -97,15 +111,23 @@ const AntdConfigProvider: FC<{ children: ReactNode }> = ({ children }) => {
   );
 };
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root')!;
+
+// 在开发模式下，为了避免 HMR 导致重复调用 createRoot 的警告，将 root 挂载到 window 对象上
+let root: ReactDOM.Root;
+if (import.meta.hot) {
+  if (!(window as any)._reactRoot) {
+    (window as any)._reactRoot = ReactDOM.createRoot(rootElement);
+  }
+  root = (window as any)._reactRoot;
+} else {
+  root = ReactDOM.createRoot(rootElement);
+}
+
+root.render(
   <ErrorBoundary>
     <Provider store={store}>
-      <HashRouter
-        future={{
-          v7_startTransition: true,
-          v7_relativeSplatPath: true,
-        }}
-      >
+      <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <ThemeProvider>
           <App />
         </ThemeProvider>

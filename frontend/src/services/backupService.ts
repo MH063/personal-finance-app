@@ -7,7 +7,11 @@ const backupService = {
   createBackup: async (data?: any) => {
     // 确保路径是 /backup/create 而不是 /backup
     const response = await api.post<any>('/backup/create', data);
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -15,7 +19,11 @@ const backupService = {
    */
   getBackupHistory: async () => {
     const response = await api.get<any>('/backup/history');
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -33,7 +41,11 @@ const backupService = {
   restoreBackup: async (id: string, password?: string) => {
     // 确保路径匹配后端: /backup/:id/restore
     const response = await api.post<any>(`/backup/${id}/restore`, { password });
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -48,7 +60,11 @@ const backupService = {
     const response = await api.post<any>('/backup/upload-restore', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -56,7 +72,11 @@ const backupService = {
    */
   deleteBackup: async (id: string) => {
     const response = await api.delete<any>(`/backup/${id}`);
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 };
 

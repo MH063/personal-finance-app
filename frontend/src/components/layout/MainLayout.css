@@ -10,12 +10,12 @@
  * ======================================== */
 
 .main-layout {
-  min-height: 100vh;
+  height: 100vh; /* 固定高度为视窗高度 */
   background-color: #0f172a;
   transition: all var(--duration-slow) var(--ease-out);
   position: relative;
   z-index: var(--z-content);
-  overflow: hidden;
+  overflow: hidden; /* 防止最外层出现滚动条 */
 }
 
 .main-layout::before {
@@ -40,12 +40,13 @@
 .site-layout {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh; /* 填充整个视窗高度 */
   transition: all var(--duration-base) var(--ease-out);
   background: transparent !important;
   position: relative;
   z-index: var(--z-content);
   margin-left: calc(var(--sidebar-width) + var(--space-4) * 2);
+  overflow: hidden; /* 防止内部容器溢出 */
 }
 
 /* ========================================
@@ -108,6 +109,17 @@
   z-index: var(--z-content);
 }
 
+.menu-wrapper {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;
+  scrollbar-width: none; /* Firefox 隐藏滚动条 */
+}
+
+.menu-wrapper::-webkit-scrollbar {
+  display: none; /* Chrome/Safari 隐藏滚动条 */
+}
+
 /* 侧边栏菜单分组标题 */
 .menu-group-title {
   padding: 24px 24px 12px;
@@ -167,6 +179,27 @@
 }
 
 /* ========================================
+ * 侧边栏底部操作区
+ * ======================================== */
+
+.sider-footer {
+  position: absolute;
+  bottom: 30px;
+  left: 0;
+  right: 0;
+  padding: 0 24px;
+  z-index: 1015;
+  transition: all 0.3s ease;
+}
+
+.sider-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.3s ease;
+}
+
+/* ========================================
  * 顶部导航栏样式 - 粘性定位
  * ======================================== */
 
@@ -183,14 +216,16 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  -webkit-app-region: drag; /* 允许拖拽窗口 */
 }
 
 .header-right-actions {
-  display: flex;
+  display: none;
   align-items: center;
   gap: 24px;
   position: relative;
   z-index: var(--z-content);
+  -webkit-app-region: no-drag; /* 交互元素不可拖拽 */
 }
 
 .header-action-icon {
@@ -209,10 +244,36 @@
   z-index: var(--z-interactive-hover);
 }
 
+.header-action-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.header-action-icon-wrapper:hover {
+  transform: translateY(-2px);
+}
+
+.header-action-icon.sync-connected {
+  color: #52c41a;
+}
+
+.header-action-icon.sync-disconnected {
+  color: #f5222d;
+}
+
+.header-action-icon.active {
+  color: #1890ff;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 .user-avatar-wrapper {
-  padding: 2px;
-  border-radius: 50%;
-  background: linear-gradient(45deg, var(--color-primary-400), #fbc2eb);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -223,8 +284,7 @@
 }
 
 .user-avatar-wrapper:hover {
-  transform: scale(1.05) rotate(5deg);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transform: scale(1.05);
   z-index: var(--z-interactive-hover);
 }
 
@@ -234,10 +294,33 @@
 
 .app-content {
   padding: 0 40px 40px;
-  min-height: calc(100vh - 80px);
+  flex: 1; /* 占据剩余空间 */
+  overflow-y: auto; /* 允许主内容区域垂直滚动 */
+  overflow-x: hidden; /* 禁用水平滚动 */
   background: transparent !important;
   position: relative;
   z-index: var(--z-content);
+  
+  /* 自定义滚动条样式，使其更简洁 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.app-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.app-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-content::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.app-content::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
 .page-content-wrapper {
@@ -364,6 +447,14 @@
 
   .app-sider {
     display: none;
+  }
+
+  .sider-footer {
+    display: none;
+  }
+
+  .header-right-actions {
+    display: flex;
   }
 
   .app-header {

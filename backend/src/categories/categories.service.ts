@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, TreeRepository } from 'typeorm';
 import { Category, CategoryType } from '../entities/category.entity';
 import { CreateCategoryDto, UpdateCategoryDto, CategoryQueryDto } from './dto/category.dto';
+import { LedgerGateway } from '../ledgers/ledger.gateway';
 
 export interface CategoryTreeNode extends Omit<Category, 'children'> {
   children?: CategoryTreeNode[];
@@ -21,6 +22,7 @@ export class CategoriesService {
   constructor(
     @InjectRepository(Category)
     private readonly categoryRepository: TreeRepository<Category>,
+    private readonly ledgerGateway: LedgerGateway,
   ) {}
 
   /**
@@ -51,6 +53,10 @@ export class CategoriesService {
 
     const savedCategory = await this.categoryRepository.save(category);
     this.logger.log(`分类创建成功: ${savedCategory.id}`);
+    
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'CATEGORY_CREATED', savedCategory, userId);
+    
     return savedCategory;
   }
 
@@ -139,7 +145,12 @@ export class CategoriesService {
     }
 
     Object.assign(category, updateCategoryDto);
-    return this.categoryRepository.save(category);
+    const updatedCategory = await this.categoryRepository.save(category);
+    
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'CATEGORY_UPDATED', updatedCategory, userId);
+    
+    return updatedCategory;
   }
 
   /**
@@ -164,6 +175,9 @@ export class CategoriesService {
 
     await this.categoryRepository.remove(category);
     this.logger.log(`分类删除成功: ${id}`);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'CATEGORY_DELETED', { id }, userId);
   }
 
   /**
@@ -182,6 +196,9 @@ export class CategoriesService {
     const deletableCategories = categories.filter((c) => !c.isSystem);
     await this.categoryRepository.remove(deletableCategories);
 
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'CATEGORY_BATCH_DELETED', { ids: deletableCategories.map(c => c.id) }, userId);
+
     return { deletedCount: deletableCategories.length };
   }
 
@@ -192,6 +209,9 @@ export class CategoriesService {
     for (let i = 0; i < ids.length; i++) {
       await this.categoryRepository.update({ id: ids[i], userId }, { sortOrder: i });
     }
+    
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'CATEGORY_REORDERED', { ids }, userId);
   }
 
   /**

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   Row, 
   Col, 
@@ -12,7 +12,7 @@ import {
   InputNumber, 
   Select, 
   DatePicker, 
-  App, 
+  App as AntdApp, 
   Empty, 
   Tag,
   Popconfirm,
@@ -38,6 +38,7 @@ import {
   deleteBudget 
 } from '../../store/slices/budgetSlice';
 import { fetchCategories } from '../../store/slices/categorySlice';
+import { collaborativeService } from '../../services/collaborativeService';
 import { Budget, BudgetStatus } from '../../types';
 import './BudgetPage.css';
 
@@ -46,7 +47,7 @@ const { Option } = Select;
 const { RangePicker } = DatePicker;
 
 const BudgetPage: React.FC = () => {
-  const { message } = App.useApp();
+  const { message } = AntdApp.useApp();
   const dispatch = useDispatch<AppDispatch>();
   const { budgets, loading } = useSelector((state: RootState) => state.budgets);
   const { categories } = useSelector((state: RootState) => state.categories);
@@ -60,16 +61,34 @@ const BudgetPage: React.FC = () => {
   useEffect(() => {
     dispatch(fetchBudgets());
     dispatch(fetchCategories({ type: 'expense' }));
+
+    // 监听更新
+    const handleUpdate = (data: any) => {
+      console.log('[BudgetPage] 监听到实时更新:', data);
+      // 预算、分类更新或重连同步时刷新
+      if (data.type?.includes('BUDGET') || data.type?.includes('CATEGORY') || data.type === 'RECONNECTED_SYNC') {
+        dispatch(fetchBudgets());
+        dispatch(fetchCategories({ type: 'expense' }));
+      }
+    };
+
+    collaborativeService.on('ledgerUpdate', handleUpdate);
+    collaborativeService.on('globalUpdate', handleUpdate);
+
+    return () => {
+      collaborativeService.off('ledgerUpdate', handleUpdate);
+      collaborativeService.off('globalUpdate', handleUpdate);
+    };
   }, [dispatch]);
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     if (submitLoading) return;
     setEditingBudget(null);
     form.resetFields();
     setModalVisible(true);
-  };
+  }, [form, submitLoading]);
 
-  const handleEdit = (budget: Budget) => {
+  const handleEdit = useCallback((budget: Budget) => {
     if (submitLoading) return;
     setEditingBudget(budget);
     form.setFieldsValue({
@@ -79,22 +98,24 @@ const BudgetPage: React.FC = () => {
       status: budget.status
     });
     setModalVisible(true);
-  };
+  }, [form, submitLoading]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (deleteLoading) return;
     setDeleteLoading(id);
     try {
       await dispatch(deleteBudget(id)).unwrap();
       message.success('预算已删除');
+      // 删除后刷新列表，确保统计数据更新
+      dispatch(fetchBudgets());
     } catch (error: any) {
-      message.error(error || '删除失败');
+      message.error(typeof error === 'string' ? error : (error?.message || '删除失败'));
     } finally {
       setDeleteLoading(null);
     }
-  };
+  }, [deleteLoading, dispatch, message]);
 
-  const handleModalOk = async () => {
+  const handleModalOk = useCallback(async () => {
     try {
       const values = await form.validateFields();
       setSubmitLoading(true);
@@ -114,21 +135,23 @@ const BudgetPage: React.FC = () => {
         message.success('预算已创建');
       }
       setModalVisible(false);
+      // 重新获取预算列表以确保所有计算字段（如已用金额、百分比）和关联数据（分类信息）都是最新的
+      dispatch(fetchBudgets());
     } catch (error: any) {
       if (error?.errorFields) return; // Form validation failed
-      message.error(error || '操作失败');
+      message.error(typeof error === 'string' ? error : (error?.message || '操作失败'));
     } finally {
       setSubmitLoading(false);
     }
-  };
+  }, [editingBudget, dispatch, form, message]);
 
-  const getStatusColor = (percentage: number) => {
+  const getStatusColor = useCallback((percentage: number) => {
     if (percentage >= 90) return '#ff4d4f';
     if (percentage >= 70) return '#faad14';
     return '#52c41a';
-  };
+  }, []);
 
-  const renderBudgetCard = (budget: Budget) => {
+  const renderBudgetCard = useCallback((budget: Budget) => {
     const isOverBudget = budget.usagePercentage > 100;
     const statusColor = getStatusColor(budget.usagePercentage);
 
@@ -197,7 +220,7 @@ const BudgetPage: React.FC = () => {
         </Card>
       </Col>
     );
-  };
+  }, [deleteLoading, getStatusColor, handleDelete, handleEdit]);
 
   return (
     <div className="budget-page">

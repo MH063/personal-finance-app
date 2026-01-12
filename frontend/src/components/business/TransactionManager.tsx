@@ -1,11 +1,14 @@
-import { useEffect, useState, useImperativeHandle, forwardRef } from 'react';
-import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App, Row, Col, Popconfirm } from 'antd';
+import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
+import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App as AntdApp, Row, Col, Popconfirm } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
-import { fetchTransactions, createTransaction, updateTransaction, deleteTransaction } from '../../store/slices/transactionSlice';
-import { fetchCategories, Category } from '../../store/slices/categorySlice';
+import { fetchTransactions, createTransaction, updateTransaction, deleteTransaction, batchDeleteTransactions } from '../../store/slices/transactionSlice';
+import { fetchCategories, createCategory, Category } from '../../store/slices/categorySlice';
+import { fetchLedgers } from '../../store/slices/ledgerSlice';
+import { aiService } from '../../services/aiService';
+import { collaborativeService } from '../../services/collaborativeService';
 import type { Transaction } from '../../services/transactionService';
 import './TransactionManager.css';
 
@@ -17,23 +20,31 @@ interface TransactionManagerProps {
   title: string;
   themeColor: string;
   showHeader?: boolean;
+  onSuccess?: () => void;
 }
 
-const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, title, themeColor, showHeader = true }, ref) => {
-  const { message } = App.useApp();
+const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, title, themeColor, showHeader = true, onSuccess }, ref) => {
+  const { message, modal } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [batchDeleteLoading, setBatchDeleteLoading] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [filterLoading, setFilterLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [filters, setFilters] = useState({ categoryId: '', startDate: '', endDate: '' });
+  const [predicting, setPredicting] = useState(false);
+  const [categoryForm] = Form.useForm();
+  const [filters, setFilters] = useState({ categoryId: '', ledgerId: '', startDate: '', endDate: '' });
   const [form] = Form.useForm();
 
   const dispatch = useDispatch<AppDispatch>();
-  const { transactions, total, loading: txLoading } = useSelector((state: RootState) => state.transactions);
-  const { categories } = useSelector((state: RootState) => state.categories);
+  const { user } = useSelector((state: RootState) => state.auth);
+  const { transactions = [], total = 0, page = 1, limit = 10, loading: txLoading = false } = useSelector((state: RootState) => state.transactions || {});
+  const { categories = [] } = useSelector((state: RootState) => state.categories || {});
+  const { ledgers = [] } = useSelector((state: RootState) => state.ledger || {});
 
-  const filteredCategories = categories.filter((c) => c.type === type);
+  const filteredCategories = (categories || []).filter((c) => c.type === type);
 
   useImperativeHandle(ref, () => ({
     handleAdd
@@ -43,19 +54,58 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     console.log(`[TransactionManager] 加载数据: type=${type}, filters=`, filters);
     dispatch(fetchTransactions({ type, ...filters }) as any);
     dispatch(fetchCategories(type) as any);
+    dispatch(fetchLedgers() as any);
+    
+    // 初始化实时协作
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      collaborativeService.init(token);
+    }
+    
+    // 监听实时更新
+    const handleUpdate = (data: any) => {
+      console.log('[TransactionManager] 监听到实时更新:', data);
+      
+      const { type: updateType, ledgerId } = data;
+      
+      // 1. 如果是交易更新，且属于当前账本或全局，刷新交易列表
+      if (updateType.startsWith('transaction_')) {
+        if (!filters.ledgerId || ledgerId === filters.ledgerId) {
+          dispatch(fetchTransactions({ type, ...filters }) as any);
+        }
+      }
+      
+      // 2. 如果是分类更新，刷新分类列表
+      if (updateType.startsWith('category_')) {
+        dispatch(fetchCategories(type) as any);
+      }
+      
+      // 3. 如果是账本更新，刷新账本列表
+      if (updateType.startsWith('ledger_')) {
+        dispatch(fetchLedgers() as any);
+      }
+    };
+    
+    collaborativeService.on('ledgerUpdate', handleUpdate);
+    
+    return () => {
+      collaborativeService.off('ledgerUpdate', handleUpdate);
+      // 注意：这里不 disconnect，因为其他组件可能还在用
+    };
   }, [dispatch, type, filters]);
 
   const handleFilter = async () => {
     console.log(`[TransactionManager] 执行筛选: filters=`, filters);
     setFilterLoading(true);
     try {
-      await dispatch(fetchTransactions({ type, ...filters }) as any);
+      // 筛选时重置到第一页
+      await dispatch(fetchTransactions({ type, ...filters, page: 1 }) as any);
     } finally {
       setFilterLoading(false);
     }
   };
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     if (loading) return;
     console.log(`[TransactionManager] 打开添加弹窗`);
     setEditingTransaction(null);
@@ -64,9 +114,9 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       form.resetFields();
       form.setFieldsValue({ transactionDate: dayjs(), type });
     }, 0);
-  };
+  }, [form, loading, type]);
 
-  const handleEdit = (record: Transaction) => {
+  const handleEdit = useCallback((record: Transaction) => {
     if (loading) return;
     console.log(`[TransactionManager] 打开编辑弹窗: id=${record.id}`);
     setEditingTransaction(record);
@@ -77,9 +127,9 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         transactionDate: dayjs(record.transactionDate),
       });
     }, 0);
-  };
+  }, [form, loading]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (deleteLoading) return;
     console.log(`[TransactionManager] 执行删除: id=${id}`);
     setDeleteLoading(id);
@@ -87,22 +137,84 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       await dispatch(deleteTransaction(id) as any);
       message.success('删除成功');
       await dispatch(fetchTransactions({ type, ...filters }) as any);
-    } catch (error) {
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (error: any) {
       console.error(`[TransactionManager] 删除失败:`, error);
-      message.error('删除失败');
+      message.error(typeof error === 'string' ? error : (error?.message || '删除失败'));
     } finally {
       setDeleteLoading(null);
     }
-  };
+  }, [dispatch, filters, message, type, onSuccess]);
+
+  const handleBatchDelete = useCallback(async () => {
+    if (selectedRowKeys.length === 0 || batchDeleteLoading) return;
+    
+    modal.confirm({
+      title: '批量删除',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 条记录吗？`,
+      okText: '确定',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        setBatchDeleteLoading(true);
+        try {
+          const ids = selectedRowKeys.map(key => key.toString());
+          await dispatch(batchDeleteTransactions(ids) as any);
+          
+          message.success('批量删除成功');
+          setSelectedRowKeys([]);
+          await dispatch(fetchTransactions({ type, ...filters }) as any);
+          if (onSuccess) {
+            onSuccess();
+          }
+        } catch (error: any) {
+          console.error(`[TransactionManager] 批量删除失败:`, error);
+          message.error('部分记录删除失败');
+        } finally {
+          setBatchDeleteLoading(false);
+        }
+      }
+    });
+  }, [selectedRowKeys, batchDeleteLoading, modal, dispatch, type, filters, message, onSuccess]);
 
   const handleSubmit = async (values: any) => {
     console.log(`[TransactionManager] 提交表单: values=`, values);
+    
+    // 重复记录检查
+    if (!editingTransaction) {
+      const isDuplicate = transactions.some(t => 
+        t.amount === values.amount && 
+        dayjs(t.transactionDate).format('YYYY-MM-DD') === values.transactionDate.format('YYYY-MM-DD') &&
+        t.categoryId === values.categoryId &&
+        t.ledgerId === values.ledgerId
+      );
+
+      if (isDuplicate) {
+        const confirmed = await new Promise((resolve) => {
+          modal.confirm({
+            title: '疑似重复记录',
+            content: '系统检测到已存在一笔金额、日期、分类完全相同的记录，确定要再次添加吗？',
+            okText: '确定添加',
+            cancelText: '取消',
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+          });
+        });
+        if (!confirmed) return;
+      }
+    }
+
     setLoading(true);
     try {
       const data = {
         ...values,
+        type, // 显式包含交易类型 (income 或 expense)
         transactionDate: values.transactionDate.format('YYYY-MM-DD'),
       };
+
+      console.log(`[TransactionManager] 准备提交交易数据: type=${type}, action=${editingTransaction ? 'UPDATE' : 'CREATE'}`, data);
 
       if (editingTransaction) {
         await dispatch(updateTransaction({ id: editingTransaction.id, data }) as any);
@@ -113,16 +225,59 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       }
 
       setModalVisible(false);
-      dispatch(fetchTransactions({ type, ...filters }) as any);
-    } catch (error) {
+      await dispatch(fetchTransactions({ type, ...filters }) as any);
+      
+      // 触发成功回调，通知父组件刷新相关数据（如概览统计）
+      if (onSuccess) {
+        onSuccess();
+      }
+    } catch (error: any) {
       console.error(`[TransactionManager] 提交失败:`, error);
-      message.error('操作失败');
+      message.error(typeof error === 'string' ? error : (error?.message || '操作失败'));
     } finally {
       setLoading(false);
     }
   };
 
-  const columns = [
+  const handleCategorySubmit = async (values: any) => {
+    setLoading(true);
+    try {
+      await dispatch(createCategory({ ...values, type }) as any);
+      message.success('分类创建成功');
+      setCategoryModalVisible(false);
+      categoryForm.resetFields();
+      // fetchCategories 会通过 collaborativeService 自动触发刷新，或者手动触发
+      dispatch(fetchCategories(type) as any);
+    } catch (error: any) {
+      message.error(error.message || '创建分类失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDescriptionBlur = async (e: React.FocusEvent<HTMLTextAreaElement>) => {
+    const description = e.target.value;
+    if (!description || editingTransaction || form.getFieldValue('categoryId')) return;
+
+    setPredicting(true);
+    try {
+      const categoryId = await aiService.predictCategory(description);
+      if (categoryId) {
+        // 检查预测的分类是否在当前类型的分类列表中
+        const exists = filteredCategories.some(c => c.id === categoryId);
+        if (exists) {
+          form.setFieldsValue({ categoryId });
+          message.info('AI 已根据您的描述自动选择分类');
+        }
+      }
+    } catch (error) {
+      console.error('AI 预测失败:', error);
+    } finally {
+      setPredicting(false);
+    }
+  };
+
+  const columns = useMemo(() => [
     { 
       title: '分类/备注', 
       key: 'category', 
@@ -163,6 +318,16 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         return <Tag color={config.color} className="method-tag">{config.label}</Tag>;
       }
     },
+    {
+      title: '账本',
+      dataIndex: 'ledgerId',
+      key: 'ledger',
+      width: 120,
+      render: (ledgerId: string) => {
+        const ledger = ledgers.find(l => l.id === ledgerId);
+        return ledger ? <Tag color="purple">{ledger.name}</Tag> : <Tag>默认账本</Tag>;
+      }
+    },
     { 
       title: '交易日期', 
       dataIndex: 'transactionDate', 
@@ -181,33 +346,47 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       key: 'actions',
       width: 150,
       fixed: 'right' as const,
-      render: (_: any, record: Transaction) => (
-        <Space size="small">
-          <Button 
-            type="text" 
-            icon={<EditOutlined />} 
-            onClick={() => handleEdit(record)}
-            className="action-btn edit"
-          />
-          <Popconfirm 
-            title="删除记录" 
-            description="确定要删除这条交易记录吗？"
-            onConfirm={() => handleDelete(record.id)}
-            okText="确定"
-            cancelText="取消"
-          >
+      render: (_: any, record: Transaction) => {
+        // 权限判断：只有交易创建者、账本所有者或管理员可以修改/删除
+        const ledger = ledgers.find(l => l.id === record.ledgerId);
+        const isCreator = record.userId === user?.id;
+        const userRole = ledger?.ownerId === user?.id 
+          ? 'owner' 
+          : ledger?.members?.find((m: any) => m.userId === user?.id)?.role;
+        
+        const canManage = isCreator || userRole === 'owner' || userRole === 'admin';
+
+        return (
+          <Space size="small">
             <Button 
               type="text" 
-              danger 
-              icon={<DeleteOutlined />} 
-              loading={deleteLoading === record.id}
-              className="action-btn delete"
+              icon={<EditOutlined />} 
+              onClick={() => handleEdit(record)}
+              className="action-btn edit"
+              disabled={!canManage}
             />
-          </Popconfirm>
-        </Space>
-      ),
+            <Popconfirm 
+              title="删除记录" 
+              description="确定要删除这条交易记录吗？"
+              onConfirm={() => handleDelete(record.id)}
+              okText="确定"
+              cancelText="取消"
+              disabled={!canManage}
+            >
+              <Button 
+                type="text" 
+                danger 
+                icon={<DeleteOutlined />} 
+                loading={deleteLoading === record.id}
+                className="action-btn delete"
+                disabled={!canManage}
+              />
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
-  ];
+  ], [deleteLoading, handleDelete, handleEdit, ledgers, type]);
 
   return (
     <div className={`transaction-manager ${type}-manager`}>
@@ -219,18 +398,41 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
             <div className="title-dot" style={{ backgroundColor: themeColor }}></div>
             <span>{title}</span>
           </div>
-        ) : null} 
-        extra={showHeader ? (
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />} 
-            onClick={handleAdd}
-            className="add-button"
-            size="large"
-            style={{ backgroundColor: themeColor, borderColor: themeColor }}
-          >
-            添加新记录
-          </Button>
+        ) : (
+          selectedRowKeys.length > 0 ? (
+            <div className="card-header-title">
+              <div className="title-dot" style={{ backgroundColor: '#f87171' }}></div>
+              <span>已选中 {selectedRowKeys.length} 条记录</span>
+            </div>
+          ) : null
+        )} 
+        extra={(showHeader || selectedRowKeys.length > 0) ? (
+          <Space>
+            {selectedRowKeys.length > 0 && (
+              <Button 
+                danger 
+                icon={<DeleteOutlined />} 
+                onClick={handleBatchDelete}
+                loading={batchDeleteLoading}
+                size="large"
+                className="batch-delete-btn"
+              >
+                批量删除
+              </Button>
+            )}
+            {showHeader && (
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />} 
+                onClick={handleAdd}
+                className="add-button"
+                size="large"
+                style={{ backgroundColor: themeColor, borderColor: themeColor }}
+              >
+                添加新记录
+              </Button>
+            )}
+          </Space>
         ) : null}
       >
         <div className="filter-section">
@@ -249,7 +451,20 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
                 {filteredCategories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
               </Select>
             </Col>
-            <Col xs={24} sm={24} md={10}>
+            <Col xs={24} sm={12} md={8}>
+              <div className="filter-label">账本筛选</div>
+              <Select 
+                placeholder="全部账本" 
+                style={{ width: '100%' }} 
+                allowClear
+                value={filters.ledgerId || undefined}
+                onChange={(val) => setFilters({ ...filters, ledgerId: val || '' })}
+                size="large"
+              >
+                {ledgers.map(l => <Option key={l.id} value={l.id}>{l.name}</Option>)}
+              </Select>
+            </Col>
+            <Col xs={24} sm={24} md={8}>
               <div className="filter-label">时间范围</div>
               <DatePicker.RangePicker 
                 style={{ width: '100%' }}
@@ -280,13 +495,18 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
 
         <div className="table-container">
           <Table 
+            rowSelection={{
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys),
+            }}
             columns={columns} 
             dataSource={transactions} 
             rowKey="id" 
             loading={txLoading}
             pagination={{ 
               total, 
-              pageSize: 10,
+              current: page,
+              pageSize: limit,
               showSizeChanger: true,
               showTotal: (total) => `共 ${total} 条记录`
             }}
@@ -325,12 +545,39 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="categoryId" label="分类" rules={[{ required: true, message: '请选择分类' }]}>
-                <Select placeholder="选择分类" size="large">
+                <Select 
+                  placeholder="选择分类" 
+                  size="large"
+                  dropdownRender={(menu) => (
+                    <>
+                      {menu}
+                      <Space style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                        <Button 
+                          type="text" 
+                          icon={<PlusOutlined />} 
+                          onClick={() => setCategoryModalVisible(true)}
+                          block
+                        >
+                          新增分类
+                        </Button>
+                      </Space>
+                    </>
+                  )}
+                >
                   {filteredCategories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
                 </Select>
               </Form.Item>
             </Col>
             <Col span={12}>
+              <Form.Item name="ledgerId" label="账本" rules={[{ required: true, message: '请选择账本' }]}>
+                <Select placeholder="选择账本" size="large">
+                  {ledgers.map(l => <Option key={l.id} value={l.id}>{l.name}</Option>)}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={24}>
               <Form.Item name="transactionDate" label="日期" rules={[{ required: true, message: '请选择日期' }]}>
                 <DatePicker style={{ width: '100%' }} size="large" />
               </Form.Item>
@@ -359,7 +606,40 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
           </Form.Item>
 
           <Form.Item name="description" label="备注">
-            <TextArea rows={3} placeholder="添加备注信息..." showCount maxLength={200} />
+            <TextArea 
+              rows={3} 
+              placeholder="添加备注信息..." 
+              showCount 
+              maxLength={200} 
+              onBlur={handleDescriptionBlur}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`新增${type === 'income' ? '收入' : '支出'}分类`}
+        open={categoryModalVisible}
+        onOk={() => categoryForm.submit()}
+        onCancel={() => setCategoryModalVisible(false)}
+        confirmLoading={loading}
+        destroyOnHidden
+        className="custom-modal"
+        width={400}
+      >
+        <Form form={categoryForm} layout="vertical" onFinish={handleCategorySubmit}>
+          <Form.Item 
+            name="name" 
+            label="分类名称" 
+            rules={[{ required: true, message: '请输入分类名称' }]}
+          >
+            <Input placeholder="例如：餐饮、交通、工资等" size="large" />
+          </Form.Item>
+          <Form.Item name="icon" label="图标 (可选)">
+            <Input placeholder="图标名称" size="large" />
+          </Form.Item>
+          <Form.Item name="color" label="颜色 (可选)">
+            <Input type="color" size="large" style={{ width: '100%', height: '40px', padding: '4px' }} />
           </Form.Item>
         </Form>
       </Modal>

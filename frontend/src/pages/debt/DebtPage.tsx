@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App, Row, Col, Progress, Popconfirm, Statistic, Typography } from 'antd';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App as AntdApp, Row, Col, Progress, Popconfirm, Statistic, Typography } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, DollarOutlined, ArrowDownOutlined, ArrowUpOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
 import { fetchDebts, createDebt, updateDebt, deleteDebt, fetchDebtStatistics, repayDebt, Debt } from '../../store/slices/debtSlice';
+import { collaborativeService } from '../../services/collaborativeService';
 import './DebtPage.css';
 
 const { Option } = Select;
@@ -12,7 +13,7 @@ const { TextArea } = Input;
 const { Title, Text } = Typography;
 
 const DebtPage: React.FC = () => {
-  const { message } = App.useApp();
+  const { message } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
@@ -27,19 +28,31 @@ const DebtPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { debts, statistics, loading: debtLoading } = useSelector((state: RootState) => state.debts);
 
-  useEffect(() => {
-    const loadDebts = () => {
-      dispatch(fetchDebts(filters) as any);
-      dispatch(fetchDebtStatistics() as any);
-    };
-    loadDebts();
+  const loadDebts = useCallback(() => {
+    dispatch(fetchDebts(filters) as any);
   }, [dispatch, filters]);
 
-  const loadDebts = () => {
-    dispatch(fetchDebts(filters) as any);
-  };
+  useEffect(() => {
+    loadDebts();
+    dispatch(fetchDebtStatistics() as any);
 
-  const handleAdd = () => {
+    // 监听更新
+    const handleUpdate = (data: any) => {
+      console.log('[DebtPage] 监听到实时更新:', data);
+      loadDebts();
+      dispatch(fetchDebtStatistics() as any);
+    };
+
+    collaborativeService.on('ledgerUpdate', handleUpdate);
+    collaborativeService.on('globalUpdate', handleUpdate);
+
+    return () => {
+      collaborativeService.off('ledgerUpdate', handleUpdate);
+      collaborativeService.off('globalUpdate', handleUpdate);
+    };
+  }, [dispatch, loadDebts]);
+
+  const handleAdd = useCallback(() => {
     if (loading) return;
     setEditingDebt(null);
     setModalVisible(true);
@@ -47,18 +60,18 @@ const DebtPage: React.FC = () => {
       form.resetFields();
       form.setFieldsValue({ debtType: 'borrow', isReminderEnabled: true });
     }, 0);
-  };
+  }, [form, loading]);
 
-  const handleEdit = (record: Debt) => {
+  const handleEdit = useCallback((record: Debt) => {
     if (loading) return;
     setEditingDebt(record);
     setModalVisible(true);
     setTimeout(() => {
       form.setFieldsValue({ ...record, dueDate: record.dueDate ? dayjs(record.dueDate) : null });
     }, 0);
-  };
+  }, [form, loading]);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     if (deleteLoading) return;
     setDeleteLoading(id);
     try {
@@ -66,14 +79,14 @@ const DebtPage: React.FC = () => {
       message.success('删除成功');
       loadDebts();
       dispatch(fetchDebtStatistics() as any);
-    } catch (error) {
-      message.error('删除失败');
+    } catch (error: any) {
+      message.error(typeof error === 'string' ? error : (error?.message || '删除失败'));
     } finally {
       setDeleteLoading(null);
     }
-  };
+  }, [deleteLoading, dispatch, loadDebts, message]);
 
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = useCallback(async (values: any) => {
     setLoading(true);
     try {
       const data = {
@@ -92,14 +105,14 @@ const DebtPage: React.FC = () => {
       setModalVisible(false);
       loadDebts();
       dispatch(fetchDebtStatistics() as any);
-    } catch (error) {
-      message.error('操作失败');
+    } catch (error: any) {
+      message.error(typeof error === 'string' ? error : (error?.message || '操作失败'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [editingDebt, dispatch, loadDebts, message]);
 
-  const handleAddPayment = (record: Debt) => {
+  const handleAddPayment = useCallback((record: Debt) => {
     if (paymentLoading) return;
     setSelectedDebt(record);
     setPaymentModalVisible(true);
@@ -107,9 +120,9 @@ const DebtPage: React.FC = () => {
       paymentForm.resetFields();
       paymentForm.setFieldsValue({ paymentDate: dayjs() });
     }, 0);
-  };
+  }, [paymentForm, paymentLoading]);
 
-  const handlePaymentSubmit = async (values: any) => {
+  const handlePaymentSubmit = useCallback(async (values: any) => {
     if (!selectedDebt) return;
     setPaymentLoading(true);
     try {
@@ -122,14 +135,14 @@ const DebtPage: React.FC = () => {
       setPaymentModalVisible(false);
       loadDebts();
       dispatch(fetchDebtStatistics() as any);
-    } catch (error) {
-      message.error('还款失败');
+    } catch (error: any) {
+      message.error(typeof error === 'string' ? error : (error?.message || '还款失败'));
     } finally {
       setPaymentLoading(false);
     }
-  };
+  }, [selectedDebt, dispatch, loadDebts, message]);
 
-  const getStatusConfig = (status: string) => {
+  const getStatusConfig = useCallback((status: string) => {
     const config: Record<string, { color: string; text: string; icon?: React.ReactNode }> = {
       pending: { color: 'orange', text: '待还' },
       partial: { color: 'blue', text: '部分还款' },
@@ -137,9 +150,9 @@ const DebtPage: React.FC = () => {
       overdue: { color: 'red', text: '已逾期' },
     };
     return config[status] || { color: 'default', text: status };
-  };
+  }, []);
 
-  const columns = [
+  const columns = useMemo(() => [
     { 
       title: '对象/类型', 
       key: 'debtor',
@@ -172,6 +185,7 @@ const DebtPage: React.FC = () => {
       width: 200,
       render: (_: any, record: Debt) => {
         const paidPercent = record.paidPercentage ?? Math.round((1 - record.remainingAmount / record.originalAmount) * 100);
+        const statusConfig = getStatusConfig(record.status);
         return (
           <div className="progress-column">
             <Progress 
@@ -181,8 +195,8 @@ const DebtPage: React.FC = () => {
               strokeColor={record.status === 'paid' ? '#10b981' : undefined}
             />
             <div className="status-row">
-              <Tag color={getStatusConfig(record.status).color}>
-                {getStatusConfig(record.status).text}
+              <Tag color={statusConfig.color}>
+                {statusConfig.text}
               </Tag>
             </div>
           </div>
@@ -240,7 +254,7 @@ const DebtPage: React.FC = () => {
         </Space>
       ),
     },
-  ];
+  ], [getStatusConfig, handleAddPayment, handleEdit, handleDelete]);
 
   return (
     <div className="debt-page">

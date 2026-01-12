@@ -6,7 +6,11 @@ process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
 // 禁用某些可能导致控制台报错的特性 (如 Autofill.enable 错误)
 // 这些错误通常是因为 DevTools 尝试使用 Electron/Chromium 中未启用或不存在的协议域
-app.commandLine.appendSwitch('disable-features', 'Autofill,PasswordManager,AutoFillServerCommunication');
+app.commandLine.appendSwitch('disable-features', 'Autofill,PasswordManager,AutoFillServerCommunication,AutofillAssistant');
+app.commandLine.appendSwitch('disable-autofill');
+app.commandLine.appendSwitch('disable-blink-features', 'Autofill');
+// 降低日志级别以减少不必要的控制台干扰 (2: ERROR, 3: FATAL)
+app.commandLine.appendSwitch('log-level', '3');
 
 const isDev = process.env.NODE_ENV && process.env.NODE_ENV.trim() === 'development' || !process.env.NODE_ENV;
 
@@ -42,15 +46,37 @@ function createMainWindow() {
     },
     show: false,
     titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#ffffff00', // 透明背景
-      symbolColor: '#333333', // 按钮图标颜色，可以根据主题调整
-      height: 40,
-    },
+    // 移除 titleBarOverlay 以便使用自定义控制按钮
+  });
+
+  // 监听窗口最大化状态变化并发送给渲染进程
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window-maximized', true);
+  });
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-maximized', false);
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:8000');
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    let localIp = 'localhost';
+    
+    for (const devName in interfaces) {
+      const iface = interfaces[devName];
+      for (let i = 0; i < iface.length; i++) {
+        const alias = iface[i];
+        if (alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal) {
+          localIp = alias.address;
+          break;
+        }
+      }
+      if (localIp !== 'localhost') break;
+    }
+    
+    console.log(`[Main] Loading URL: http://${localIp}:8000`);
+    mainWindow.loadURL(`http://${localIp}:8000`);
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
@@ -87,34 +113,46 @@ function showNotification(title, body) {
   }
 }
 
-ipcMain.handle('get-app-version', () => {
-  return app.getVersion();
-});
+function registerIpcHandlers() {
+  console.log('[Main] Registering IPC handlers...');
+  
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion();
+  });
 
-ipcMain.handle('show-notification', async (event, { title, body }) => {
-  showNotification(title, body);
-  return true;
-});
+  ipcMain.handle('show-notification', async (event, { title, body }) => {
+    showNotification(title, body);
+    return true;
+  });
 
-ipcMain.handle('minimize-window', () => {
-  if (mainWindow) mainWindow.minimize();
-});
+  ipcMain.handle('minimize-window', () => {
+    if (mainWindow) mainWindow.minimize();
+  });
 
-ipcMain.handle('maximize-window', () => {
-  if (mainWindow) {
-    if (mainWindow.isMaximized()) {
-      mainWindow.unmaximize();
-    } else {
-      mainWindow.maximize();
+  ipcMain.handle('maximize-window', () => {
+    if (mainWindow) {
+      if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+      } else {
+        mainWindow.maximize();
+      }
     }
-  }
-});
+  });
 
-ipcMain.handle('close-window', () => {
-  if (mainWindow) mainWindow.close();
-});
+  ipcMain.handle('is-window-maximized', () => {
+    const maximized = mainWindow ? mainWindow.isMaximized() : false;
+    return maximized;
+  });
+
+  ipcMain.handle('close-window', () => {
+    if (mainWindow) mainWindow.close();
+  });
+  
+  console.log('[Main] IPC handlers registered.');
+}
 
 app.whenReady().then(() => {
+  registerIpcHandlers();
   createSplashWindow();
   setTimeout(createMainWindow, 100);
 

@@ -15,6 +15,7 @@ import { Category } from './category.entity';
 import { Debt } from './debt.entity';
 import { UserSetting } from './user-setting.entity';
 import { BackupLog } from './backup-log.entity';
+import { Ledger, LedgerMember } from './ledger.entity';
 
 export enum UserStatus {
   ACTIVE = 'active',
@@ -76,6 +77,12 @@ export class User {
 
   @OneToMany(() => BackupLog, (backup) => backup.user)
   backups: BackupLog[];
+
+  @OneToMany(() => Ledger, (ledger) => ledger.owner)
+  ownedLedgers: Ledger[];
+
+  @OneToMany(() => LedgerMember, (member) => member.user)
+  ledgerMemberships: LedgerMember[];
 
   @BeforeInsert()
   @BeforeUpdate()

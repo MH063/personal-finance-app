@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import settingsService from '../../services/settingsService';
+import { collaborativeService } from '../../services/collaborativeService';
 
 interface SettingsState {
   settings: any | null;
@@ -30,6 +31,8 @@ export const updateSettings = createAsyncThunk(
   async (settings: any, { rejectWithValue }) => {
     try {
       const data = await settingsService.updateSettings(settings);
+      // 发送设置更新通知
+      collaborativeService.emit('settingsUpdate', data);
       return data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '更新设置失败');

@@ -6,7 +6,11 @@ const statisticsService = {
    */
   getOverview: async (params?: any) => {
     const response = await api.get<any>('/statistics/overview', { params });
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -14,7 +18,11 @@ const statisticsService = {
    */
   getTrend: async (params?: any) => {
     const response = await api.get<any>('/statistics/overview', { params });
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -22,7 +30,11 @@ const statisticsService = {
    */
   getCategoryStats: async (params?: any) => {
     const response = await api.get<any>('/statistics/overview', { params });
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -30,7 +42,11 @@ const statisticsService = {
    */
   getNetWorth: async () => {
     const response = await api.get<any>('/statistics/overview');
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -40,7 +56,11 @@ const statisticsService = {
     const response = await api.get<any>('/statistics/health', { 
       params: { period: params?.timeRange || 'month' } 
     });
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**
@@ -48,7 +68,11 @@ const statisticsService = {
    */
   getDebtStats: async () => {
     const response = await api.get<any>('/statistics/debts');
-    return response.data;
+    const result = response.data;
+    // 根据 Rule 5: 优先获取嵌套的 data 字段
+    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+      ? result.data 
+      : result;
   },
 
   /**

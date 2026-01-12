@@ -9,6 +9,7 @@ import { Repository, Between } from 'typeorm';
 import { Budget, BudgetStatus } from '../entities/budget.entity';
 import { Transaction, TransactionType } from '../entities/transaction.entity';
 import { CreateBudgetDto, UpdateBudgetDto } from './dto/budget.dto';
+import { LedgerGateway } from '../ledgers/ledger.gateway';
 
 @Injectable()
 export class BudgetsService {
@@ -19,6 +20,7 @@ export class BudgetsService {
     private readonly budgetRepository: Repository<Budget>,
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
+    private readonly ledgerGateway: LedgerGateway,
   ) {}
 
   async create(userId: string, createBudgetDto: CreateBudgetDto): Promise<Budget> {
@@ -37,6 +39,10 @@ export class BudgetsService {
 
     const savedBudget = await this.budgetRepository.save(budget);
     this.logger.log(`预算创建成功: ${savedBudget.id}`);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'BUDGET_CREATED', savedBudget, userId);
+
     return savedBudget;
   }
 
@@ -97,6 +103,10 @@ export class BudgetsService {
     Object.assign(budget, updateBudgetDto);
     const updatedBudget = await this.budgetRepository.save(budget);
     this.logger.log(`预算 ${id} 更新成功`);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'BUDGET_UPDATED', updatedBudget, userId);
+
     return updatedBudget;
   }
 
@@ -105,6 +115,9 @@ export class BudgetsService {
     const budget = await this.findOne(userId, id);
     await this.budgetRepository.remove(budget);
     this.logger.log(`预算 ${id} 删除成功`);
+
+    // 发送实时更新通知
+    this.ledgerGateway.notifyUpdate(null, 'BUDGET_DELETED', { id }, userId);
   }
 
   /**

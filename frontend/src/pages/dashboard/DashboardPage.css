@@ -188,11 +188,20 @@
 
 .card-footer .ant-tag {
   border-radius: 6px !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   font-size: 13px !important;
-  padding: 2px 8px !important;
+  padding: 2px 10px !important;
   border: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  color: white !important; /* 强制所有标签文字为白色，确保在深色背景下可见 */
 }
+
+/* 针对不同类型的标签进行背景强化 */
+.card-footer .ant-tag-success { background: rgba(34, 197, 94, 0.8) !important; }
+.card-footer .ant-tag-warning { background: rgba(245, 158, 11, 0.8) !important; }
+.card-footer .ant-tag-error { background: rgba(239, 68, 68, 0.8) !important; }
+.card-footer .ant-tag-processing { background: rgba(59, 130, 246, 0.8) !important; }
+.card-footer .ant-tag-default { background: rgba(255, 255, 255, 0.15) !important; }
 
 /* 图表卡片样式 - 表面层 */
 .chart-card, .health-card, .recent-transactions-card, .category-pie-card {

@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authService, User, LoginCredentials, RegisterData } from '../../services/authService';
+import { offlineSyncService } from '../../services/offlineSyncService';
 
 interface AuthState {
   user: User | null;
@@ -105,6 +106,8 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = true;
         state.user = action.payload.user;
+        // 登录成功后初始化同步服务
+        setTimeout(() => offlineSyncService.init(), 0);
       })
       .addCase(login.rejected, (state, action) => {
         state.loading = false;
@@ -118,6 +121,8 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = true;
         state.user = action.payload.user;
+        // 注册成功后初始化同步服务
+        setTimeout(() => offlineSyncService.init(), 0);
       })
       .addCase(register.rejected, (state, action) => {
         state.loading = false;
@@ -130,6 +135,8 @@ const authSlice = createSlice({
         state.loading = false;
         state.isAuthenticated = true;
         state.user = action.payload;
+        // 获取用户信息成功后初始化同步服务
+        setTimeout(() => offlineSyncService.init(), 0);
       })
       .addCase(getProfile.rejected, (state) => {
         state.loading = false;

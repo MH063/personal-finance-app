@@ -8,14 +8,17 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import ReactECharts from 'echarts-for-react';
+import SafeChart from '../../components/common/SafeChart';
+import * as echarts from 'echarts';
 import { RootState } from '../../store';
 import { fetchOverview, fetchTrend, fetchCategoryStats, fetchFinancialHealth, fetchDebtOverview } from '../../store/slices/statisticsSlice';
 import { fetchTransactions } from '../../store/slices/transactionSlice';
 import { fetchDebtStatistics } from '../../store/slices/debtSlice';
+import { fetchAiHealthAnalysis, fetchAiForecast } from '../../store/slices/aiSlice';
+import { collaborativeService } from '../../services/collaborativeService';
 import './DashboardPage.css';
 
-const { Title, Text } = Typography;
+const { Title, Text, Paragraph } = Typography;
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -24,15 +27,38 @@ const DashboardPage: React.FC = () => {
   const { overview, chartData, health } = useSelector((state: RootState) => state.statistics);
   const { transactions } = useSelector((state: RootState) => state.transactions);
   const { statistics: debtStats } = useSelector((state: RootState) => state.debts);
+  const { healthAnalysis, forecast } = useSelector((state: RootState) => state.ai);
 
-  useEffect(() => {
+  const refreshData = () => {
+    console.log('[Dashboard] 正在刷新数据...');
     dispatch(fetchOverview({ timeRange: 'month' }) as any);
-    dispatch(fetchTrend({ timeRange: 'month' }) as any);
+    dispatch(fetchTrend({ timeRange: 'last6months' }) as any);
     dispatch(fetchCategoryStats({ timeRange: 'month' }) as any);
     dispatch(fetchFinancialHealth('month') as any);
     dispatch(fetchDebtOverview() as any);
     dispatch(fetchTransactions({ limit: 5 }) as any);
     dispatch(fetchDebtStatistics() as any);
+    dispatch(fetchAiHealthAnalysis() as any);
+    dispatch(fetchAiForecast() as any);
+  };
+
+  useEffect(() => {
+    refreshData();
+
+    // 监听更新
+    const handleUpdate = (data: any) => {
+      console.log('[Dashboard] 监听到实时更新:', data);
+      // 只要有任何更新，或者重连成功，都刷新概览数据
+      refreshData();
+    };
+
+    collaborativeService.on('ledgerUpdate', handleUpdate);
+    collaborativeService.on('globalUpdate', handleUpdate);
+
+    return () => {
+      collaborativeService.off('ledgerUpdate', handleUpdate);
+      collaborativeService.off('globalUpdate', handleUpdate);
+    };
   }, [dispatch]);
 
   const handleNav = (path: string) => {
@@ -63,7 +89,7 @@ const DashboardPage: React.FC = () => {
       boundaryGap: false,
       axisLine: { lineStyle: { color: splitLineColor } },
       axisLabel: { color: textColor },
-      data: chartData.lineChart.income.map((item) => item.date) || [],
+      data: Array.isArray(chartData.lineChart.income) ? chartData.lineChart.income.map((item) => item.date) : [],
     },
     yAxis: { 
       type: 'value',
@@ -77,7 +103,7 @@ const DashboardPage: React.FC = () => {
         smooth: 0.4,
         symbol: 'circle',
         symbolSize: 8,
-        data: chartData.lineChart.income.map((item) => item.value) || [],
+        data: Array.isArray(chartData.lineChart.income) ? chartData.lineChart.income.map((item) => item.value) : [],
         itemStyle: { color: '#10b981' },
         areaStyle: {
           color: {
@@ -93,7 +119,7 @@ const DashboardPage: React.FC = () => {
         smooth: 0.4,
         symbol: 'circle',
         symbolSize: 8,
-        data: chartData.lineChart.expense.map((item) => item.value) || [],
+        data: Array.isArray(chartData.lineChart.expense) ? chartData.lineChart.expense.map((item) => item.value) : [],
         itemStyle: { color: '#ef4444' },
         areaStyle: {
           color: {
@@ -127,13 +153,54 @@ const DashboardPage: React.FC = () => {
         radius: ['50%', '80%'],
         avoidLabelOverlap: false,
         label: { show: false },
-        data: chartData.pieChart.map((item) => ({
+        data: Array.isArray(chartData.pieChart) ? chartData.pieChart.map((item) => ({
           value: item.value,
           name: item.name,
           itemStyle: { color: item.color || '#6366f1' },
-        })),
+        })) : [],
       },
     ],
+  };
+
+  const forecastChartOption = {
+    backgroundColor: 'transparent',
+    tooltip: { 
+      trigger: 'axis',
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      borderColor: 'rgba(255, 255, 255, 0.2)',
+      textStyle: { color: '#fff' }
+    },
+    grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      axisLine: { lineStyle: { color: splitLineColor } },
+      axisLabel: { color: textColor },
+      data: Array.isArray(forecast) ? forecast.map(f => f.month) : [],
+    },
+    yAxis: { 
+      type: 'value',
+      axisLabel: { color: textColor },
+      splitLine: { lineStyle: { type: 'dashed', color: splitLineColor } }
+    },
+    series: [
+      {
+        name: '预测支出',
+        type: 'bar',
+        data: Array.isArray(forecast) ? forecast.map(f => f.amount) : [],
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: '#6366f1' },
+            { offset: 1, color: '#a855f7' }
+          ])
+        },
+        label: {
+          show: true,
+          position: 'top',
+          color: textColor,
+          formatter: (params: any) => `¥${params.value.toFixed(0)}`
+        }
+      }
+    ]
   };
 
   return (
@@ -184,7 +251,9 @@ const DashboardPage: React.FC = () => {
               prefix="¥" 
             />
             <div className="card-footer">
-              <Tag color="success">较上月 +12%</Tag>
+              <Tag color={(overview?.incomeComparison || 0) >= 0 ? "success" : "error"}>
+                较上月 {(overview?.incomeComparison || 0) >= 0 ? '+' : ''}{overview?.incomeComparison || 0}%
+              </Tag>
             </div>
           </Card>
         </Col>
@@ -200,7 +269,11 @@ const DashboardPage: React.FC = () => {
               prefix="¥" 
             />
             <div className="card-footer">
-              <Tag color="warning">预算剩余 ¥{((overview?.totalIncome || 0) * 0.8 - (overview?.totalExpense || 0)).toFixed(2)}</Tag>
+              <Tag color={overview?.budgetInfo ? (overview.budgetInfo.usagePercentage > 90 ? "error" : "warning") : "processing"}>
+                {overview?.budgetInfo 
+                  ? `预算剩余 ¥${overview.budgetInfo.remainingBudget.toFixed(2)}` 
+                  : "暂无预算设置"}
+              </Tag>
             </div>
           </Card>
         </Col>
@@ -248,15 +321,15 @@ const DashboardPage: React.FC = () => {
         {/* 图表区域 */}
         <Col xs={24} lg={16}>
           <Card title="收支趋势" className="chart-card" variant="borderless">
-            <ReactECharts option={lineChartOption} style={{ height: 350 }} />
+            <SafeChart option={lineChartOption} style={{ height: '350px' }} />
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card title="财务健康度" className="health-card" variant="borderless">
+          <Card title="AI 财务健康分析" className="health-card" variant="borderless">
             <div className="health-content">
               <Progress
                 type="dashboard"
-                percent={health?.healthScore || 0}
+                percent={healthAnalysis?.score || 0}
                 strokeColor={{
                   '0%': '#ef4444',
                   '50%': '#f59e0b',
@@ -266,10 +339,41 @@ const DashboardPage: React.FC = () => {
                 size={180}
               />
               <div className="health-info">
-                <Title level={4}>{health?.healthLevel || '未知'}</Title>
-                <Text type="secondary">建议保持良好的记账习惯，合理规划每一笔开支。</Text>
+                <Title level={4}>
+                  {healthAnalysis ? (healthAnalysis.score >= 80 ? '极佳' : healthAnalysis.score >= 60 ? '良好' : '需注意') : '分析中...'}
+                </Title>
+                <div className="health-metrics">
+                  <Text type="secondary">储蓄率: <Text strong style={{ color: Number(healthAnalysis?.savingsRate) > 0 ? '#10b981' : '#ef4444' }}>{healthAnalysis?.savingsRate || 0}%</Text></Text>
+                  <br />
+                  <Text type="secondary">债务收入比: <Text strong style={{ color: Number(healthAnalysis?.debtToIncomeRatio) < 40 ? '#10b981' : '#ef4444' }}>{healthAnalysis?.debtToIncomeRatio || 0}%</Text></Text>
+                </div>
+                {Array.isArray(healthAnalysis?.insights) && healthAnalysis.insights.length > 0 && (
+                  <div className="health-insights">
+                    <div className="insights-header">
+                      <Title level={5}>AI 改善建议</Title>
+                    </div>
+                    <ul className="insights-list">
+                      {healthAnalysis.insights.map((insight, idx) => (
+                        <li key={idx} className="insight-item">
+                          <Tag color="purple">建议</Tag>
+                          <Text>{insight}</Text>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={24}>
+          <Card title="AI 支出预测 (未来3个月)" className="forecast-card" variant="borderless">
+            {forecast && forecast.length > 0 ? (
+              <SafeChart option={forecastChartOption} style={{ height: '300px' }} />
+            ) : (
+              <Empty description="数据不足，无法生成预测。请保持至少2个月的记账记录。" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            )}
           </Card>
         </Col>
 
@@ -281,7 +385,7 @@ const DashboardPage: React.FC = () => {
             extra={<Button type="link" onClick={() => navigate('/statistics')}>查看详情</Button>}
           >
             {chartData.pieChart.length > 0 ? (
-              <ReactECharts option={pieChartOption} style={{ height: 300 }} />
+              <SafeChart option={pieChartOption} style={{ height: '300px' }} />
             ) : (
               <Empty description="暂无分类数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
             )}

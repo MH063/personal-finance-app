@@ -273,11 +273,31 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-2);
-}
-
 .filter-label {
   color: rgba(255, 255, 255, 0.65) !important;
-  font-weight: 500;
+}
+
+/* 高可读性文字样式 */
+.high-readability-text {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 0 1px rgba(0, 0, 0, 0.5);
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+.high-readability-secondary {
+  color: rgba(255, 255, 255, 0.85) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4);
+}
+
+.high-readability-title {
+  color: #ffffff !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5), 0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+/* 动态背景适配逻辑由 JS 处理，此处提供基础样式增强 */
+.ai-forecast-card .ant-typography {
+  position: relative;
+  z-index: 1;
+}  font-weight: 500;
   white-space: nowrap;
 }
 

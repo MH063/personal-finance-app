@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Card, Form, Select, Button, Typography, App, Spin } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Card, Form, Select, Button, Typography, App as AntdApp, Spin } from 'antd';
 import { MoonOutlined, SaveOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '@store/index';
@@ -14,7 +14,7 @@ const { Option } = Select;
  * 用户可以配置应用的语言、货币、日期格式和主题模式等个性化选项
  */
 const PreferencePage: React.FC = () => {
-  const { message } = App.useApp();
+  const { message } = AntdApp.useApp();
   const dispatch = useDispatch<AppDispatch>();
   const settingsState = useSelector((state: RootState) => state.settings) || { settings: null, loading: false };
   const { settings, loading } = settingsState;
@@ -42,7 +42,7 @@ const PreferencePage: React.FC = () => {
       await dispatch(updateSettings(values)).unwrap();
       message.success('偏好设置已更新');
     } catch (error: any) {
-      message.error(error || '保存失败');
+      message.error(typeof error === 'string' ? error : (error?.message || '保存失败'));
     }
   };
 

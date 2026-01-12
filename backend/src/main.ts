@@ -9,15 +9,23 @@ import { AppModule } from './app.module';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { getPrimaryIP } from './common/utils/ip.util';
+import { MaskedLogger } from './common/logger/masked.logger';
+import { RedisIoAdapter } from './common/redis/redis-io.adapter';
+import { UpdateLifecycleInterceptor } from './common/interceptors/update-lifecycle.interceptor';
+import { LedgerGateway } from './ledgers/ledger.gateway';
 
 /**
  * 启动应用程序
  */
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
+  const logger = new MaskedLogger('Bootstrap');
   const app = await NestFactory.create(AppModule, {
-    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+    logger: logger,
   });
+
+  // 设置为全局日志器，这样所有使用 Logger 类的服务都会应用脱敏逻辑
+  app.useLogger(logger);
 
   // 启用安全头
   app.use(helmet());
@@ -28,6 +36,13 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);
   const host = configService.get<string>('APP_HOST', '0.0.0.0');
+  
+  // 配置 Redis Socket.io 适配器
+  const redisIoAdapter = new RedisIoAdapter(app);
+  const redisClient = app.get('REDIS_CLIENT');
+  await redisIoAdapter.connectToRedis(redisClient);
+  app.useWebSocketAdapter(redisIoAdapter);
+
   const apiPrefix = configService.get<string>('API_PREFIX', 'api/v1');
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
 
@@ -42,8 +57,15 @@ async function bootstrap() {
 
   app.setGlobalPrefix(apiPrefix);
 
+  // 获取 LedgerGateway 实例用于拦截器
+  const ledgerGateway = app.get(LedgerGateway);
+
   // 注册统一响应格式拦截器
-  app.useGlobalInterceptors(new TransformInterceptor(), new LoggingInterceptor());
+  app.useGlobalInterceptors(
+    new TransformInterceptor(), 
+    new LoggingInterceptor(),
+    new UpdateLifecycleInterceptor(ledgerGateway)
+  );
 
   // 注册全局异常过滤器
   app.useGlobalFilters(new AllExceptionsFilter());
@@ -62,7 +84,33 @@ async function bootstrap() {
   const corsOrigins = configService.get<string>('CORS_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',');
 
   app.enableCors({
-    origin: corsOrigins,
+    origin: (origin, callback) => {
+      // 允许没有 origin 的请求 (如移动端或 curl)
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      const originUrl = new URL(origin);
+      const hostname = originUrl.hostname;
+
+      // 动态允许本地 IP 和配置的 Origins
+      // 注意：生产环境应严格限制域名模式，此处正则表达式已脱敏处理
+      if (
+        hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1' ||
+        corsOrigins.some((o) => o.includes(hostname)) ||
+        /^192\.168\.\d{1,3}\.\d{1,3}$/.test(hostname) || // 允许局域网 IP
+        /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(hostname)
+      ) {
+        callback(null, true);
+      } else {
+        logger.warn(`CORS 拒绝了来自 ${origin} 的请求`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
   });
@@ -99,10 +147,13 @@ async function bootstrap() {
     });
   }
 
-  await app.listen(port, host);
-  const displayHost = host === '0.0.0.0' ? '127.0.0.1' : host;
-  logger.log(`🚀 应用已启动: http://${displayHost}:${port}/${apiPrefix}`);
-  logger.log(`📚 API文档: http://${displayHost}:${port}/docs`);
+  const primaryIP = getPrimaryIP();
+  await app.listen(port, '0.0.0.0');
+  
+  logger.log(`🚀 应用已启动并监听所有网卡接口`);
+  logger.log(`🏠 本地访问: http://localhost:${port}/${apiPrefix}`);
+  logger.log(`🌐 网络访问: http://${primaryIP}:${port}/${apiPrefix}`);
+  logger.log(`📚 API文档: http://${primaryIP}:${port}/docs`);
   logger.log(`🌍 环境: ${nodeEnv}`);
 }
 

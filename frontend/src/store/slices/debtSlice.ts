@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import debtService, { Debt } from '../../services/debtService';
+import { collaborativeService } from '../../services/collaborativeService';
 
 interface DebtState {
   debts: Debt[];
@@ -46,6 +47,8 @@ export const createDebt = createAsyncThunk(
   async (data: Partial<Debt>, { rejectWithValue }) => {
     try {
       const dataResult = await debtService.createDebt(data);
+      // 发送通知
+      collaborativeService.emit('ledgerUpdate', { type: 'debt_created', id: dataResult.id });
       return dataResult;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '创建债务失败');
@@ -58,6 +61,8 @@ export const updateDebt = createAsyncThunk(
   async ({ id, data }: { id: string; data: Partial<Debt> }, { rejectWithValue }) => {
     try {
       const dataResult = await debtService.updateDebt(id, data);
+      // 发送通知
+      collaborativeService.emit('ledgerUpdate', { type: 'debt_updated', id: dataResult.id });
       return dataResult;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '更新债务失败');
@@ -70,6 +75,8 @@ export const deleteDebt = createAsyncThunk(
   async (id: string, { rejectWithValue }) => {
     try {
       await debtService.deleteDebt(id);
+      // 发送通知
+      collaborativeService.emit('ledgerUpdate', { type: 'debt_deleted', id });
       return id;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '删除债务失败');
@@ -82,6 +89,8 @@ export const repayDebt = createAsyncThunk(
   async ({ id, amount, paymentDate }: { id: string; amount: number; paymentDate: string }, { rejectWithValue }) => {
     try {
       const data = await debtService.repayDebt(id, amount, paymentDate);
+      // 发送通知
+      collaborativeService.emit('ledgerUpdate', { type: 'debt_repaid', id });
       return data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '记录还款失败');

@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Form, Input, Button, App } from 'antd';
+import { Form, Input, Button, App as AntdApp } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { useDispatch } from 'react-redux';
 import { login } from '@store/slices/authSlice';
 import { useSafeBackground } from '../hooks/useSafeBackground';
+import WindowControls from '../components/layout/WindowControls';
 import './LoginPage.css';
 
-const LoginPage: React.FC = () => {
-  const { message } = App.useApp();
+const LoginPage = () => {
+  const { message } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -29,7 +30,7 @@ const LoginPage: React.FC = () => {
       } else {
         const errorMsg = resultAction.payload || '登录失败';
         console.error('登录失败原因:', errorMsg);
-        message.error(errorMsg);
+        message.error(typeof errorMsg === 'string' ? errorMsg : (errorMsg?.message || '登录失败'));
       }
     } catch (error) {
       console.error('登录异常:', error);
@@ -47,6 +48,7 @@ const LoginPage: React.FC = () => {
         '--panel-bg-image': panelBg ? `url(${panelBg})` : 'none'
       } as React.CSSProperties}
     >
+      <WindowControls backgroundColor={pageBg || undefined} />
       <div className="login-content">
         <div className="login-side-panel">
           <div className="panel-content">
