@@ -54,20 +54,37 @@ const CategoryPage: React.FC = () => {
   const handleAdd = useCallback(() => {
     setEditingCategory(null);
     setModalVisible(true);
-    form.resetFields();
-    form.setFieldsValue({ type: 'expense', color: '#1677ff' });
-  }, [form]);
+  }, []);
 
   const handleEdit = useCallback((category: Category) => {
     setEditingCategory(category);
     setModalVisible(true);
-    form.setFieldsValue({
-      name: category.name,
-      type: category.type,
-      icon: category.icon,
-      color: category.color || '#1677ff',
-    });
-  }, [form]);
+  }, []);
+
+  /**
+   * 监听模态框显示状态，在显示时初始化表单数据
+   * 解决 "Instance created by useForm is not connected to any Form element" 警告
+   */
+  useEffect(() => {
+    if (modalVisible) {
+      // 使用 setTimeout 确保 Form 组件已挂载并连接到 useForm 实例
+      // 彻底解决 "Instance created by useForm is not connected to any Form element" 警告
+      const timer = setTimeout(() => {
+        if (editingCategory) {
+          form.setFieldsValue({
+            name: editingCategory.name,
+            type: editingCategory.type,
+            icon: editingCategory.icon,
+            color: editingCategory.color || '#1677ff',
+          });
+        } else {
+          form.resetFields();
+          form.setFieldsValue({ type: 'expense', color: '#1677ff' });
+        }
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, [modalVisible, editingCategory, form]);
 
   const handleDelete = useCallback(async (id: string) => {
     try {
@@ -215,7 +232,7 @@ const CategoryPage: React.FC = () => {
         onOk={() => form.submit()}
         onCancel={() => setModalVisible(false)}
         confirmLoading={submitLoading}
-        destroyOnHidden
+        destroyOnClose
         className="custom-modal"
         centered
         maskClosable={true}

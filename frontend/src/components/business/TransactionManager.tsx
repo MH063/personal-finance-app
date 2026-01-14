@@ -562,7 +562,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         onOk={() => form.submit()}
         onCancel={() => setModalVisible(false)}
         confirmLoading={loading}
-        destroyOnHidden
+        destroyOnClose
         className="custom-modal"
         width={600}
         centered
@@ -665,7 +665,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         onOk={() => categoryForm.submit()}
         onCancel={() => setCategoryModalVisible(false)}
         confirmLoading={loading}
-        destroyOnHidden
+        destroyOnClose
         className="custom-modal"
         width={400}
         centered

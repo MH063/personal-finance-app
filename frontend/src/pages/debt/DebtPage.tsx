@@ -434,7 +434,7 @@ const DebtPage: React.FC = () => {
         onCancel={() => setModalVisible(false)} 
         footer={null} 
         width={600} 
-        destroyOnHidden
+        destroyOnClose
         className="custom-modal"
         centered
         maskClosable={true}
@@ -498,7 +498,7 @@ const DebtPage: React.FC = () => {
         confirmLoading={paymentLoading}
         footer={null} 
         width={500} 
-        destroyOnHidden
+        destroyOnClose
         className="custom-modal"
         centered
         maskClosable={true}

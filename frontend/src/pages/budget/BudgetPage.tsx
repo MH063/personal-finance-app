@@ -298,7 +298,7 @@ const BudgetPage: React.FC = () => {
         okText="保存"
         cancelText="取消"
         confirmLoading={submitLoading}
-        destroyOnHidden
+        destroyOnClose
         className="custom-modal"
         centered
         maskClosable={true}

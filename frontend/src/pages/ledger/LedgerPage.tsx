@@ -64,16 +64,20 @@ const LedgerPage: React.FC = () => {
   // 当 Modal 显示且编辑数据变化时，更新表单值
   useEffect(() => {
     if (modalVisible) {
-      if (editingLedger) {
-        form.setFieldsValue({
-          name: editingLedger.name,
-          description: editingLedger.description,
-          type: editingLedger.type,
-        });
-      } else {
-        form.resetFields();
-        form.setFieldsValue({ type: 'shared' });
-      }
+      // 使用 setTimeout 确保 Form 组件已挂载并连接到 useForm 实例
+      const timer = setTimeout(() => {
+        if (editingLedger) {
+          form.setFieldsValue({
+            name: editingLedger.name,
+            description: editingLedger.description,
+            type: editingLedger.type,
+          });
+        } else {
+          form.resetFields();
+          form.setFieldsValue({ type: 'shared' });
+        }
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [modalVisible, editingLedger, form]);
 
@@ -313,7 +317,7 @@ const LedgerPage: React.FC = () => {
         onOk={() => form.submit()}
         onCancel={() => setModalVisible(false)}
         confirmLoading={submitLoading}
-        destroyOnHidden
+        destroyOnClose
         className="custom-modal"
         centered
         maskClosable={true}
@@ -342,7 +346,7 @@ const LedgerPage: React.FC = () => {
         onCancel={() => setMemberModalVisible(false)}
         footer={null}
         width={600}
-        destroyOnHidden
+        destroyOnClose
         className="custom-modal"
         centered
         maskClosable={true}
