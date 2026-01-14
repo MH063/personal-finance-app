@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  VersionColumn,
   ManyToOne,
   OneToMany,
   JoinColumn,
@@ -49,6 +50,9 @@ export class Ledger {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @VersionColumn()
+  version: number;
 
   @OneToMany(() => LedgerMember, (member) => member.ledger)
   members: LedgerMember[];

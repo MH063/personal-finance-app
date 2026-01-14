@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Typography, Button, Row, Col, Card, Table, Tag, Space, Modal, Form, Input, Select, App as AntdApp, Popconfirm, ColorPicker } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, TagsOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { fetchCategories, createCategory, updateCategory, deleteCategory, Category } from '../../store/slices/categorySlice';
@@ -216,6 +216,10 @@ const CategoryPage: React.FC = () => {
         onCancel={() => setModalVisible(false)}
         confirmLoading={submitLoading}
         destroyOnHidden
+        className="custom-modal"
+        centered
+        maskClosable={true}
+        keyboard={true}
       >
         <Form form={form} layout="vertical" onFinish={handleModalSubmit}>
           <Form.Item name="name" label="分类名称" rules={[{ required: true, message: '请输入分类名称' }]}>

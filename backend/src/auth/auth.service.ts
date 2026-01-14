@@ -222,6 +222,10 @@ export class AuthService {
       user.fullName = updateProfileDto.fullName;
     }
 
+    if (updateProfileDto.avatar) {
+      user.avatar = updateProfileDto.avatar;
+    }
+
     await this.userRepository.save(user);
     this.logger.log(`用户资料已更新: ${userId}`);
 

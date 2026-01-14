@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { authService, User, LoginCredentials, RegisterData } from '../../services/authService';
 import { offlineSyncService } from '../../services/offlineSyncService';
+import { db } from '../../db/db';
 
 interface AuthState {
   user: User | null;
@@ -10,6 +11,51 @@ interface AuthState {
   accessToken: string | null;
 }
 
+const LAST_USER_ID_KEY = 'lastUserId';
+
+/**
+ * 用户切换时清理本地离线缓存与同步队列，避免跨账号数据串用
+ */
+const resetLocalCacheIfUserChanged = async (nextUserId?: string | null) => {
+  if (!nextUserId) return;
+
+  const prevUserId = localStorage.getItem(LAST_USER_ID_KEY);
+  if (!prevUserId) {
+    try {
+      const pendingCount = await db.syncQueue.count();
+      if (pendingCount === 0) {
+        const [debtsCount, ledgersCount, categoriesCount, transactionsCount, budgetsCount] = await Promise.all([
+          db.debts.count(),
+          db.ledgers.count(),
+          db.categories.count(),
+          db.transactions.count(),
+          db.budgets.count(),
+        ]);
+        const hasLegacyCache = debtsCount + ledgersCount + categoriesCount + transactionsCount + budgetsCount > 0;
+        if (hasLegacyCache) {
+          console.log('[Auth] 检测到历史本地缓存且无待同步项，已清空以避免跨账号脏数据');
+          await db.clearAll();
+        }
+      }
+    } catch (error) {
+      console.warn('[Auth] 初始化用户标识时检查本地缓存失败', error);
+    }
+    localStorage.setItem(LAST_USER_ID_KEY, nextUserId);
+    return;
+  }
+
+  if (prevUserId && prevUserId !== nextUserId) {
+    console.log(`[Auth] 检测到用户切换: ${prevUserId} -> ${nextUserId}，清空本地缓存与同步队列`);
+    try {
+      await db.clearAll();
+    } catch (error) {
+      console.warn('[Auth] 清空本地缓存失败，将继续登录流程', error);
+    }
+  }
+
+  localStorage.setItem(LAST_USER_ID_KEY, nextUserId);
+};
+
 export const login = createAsyncThunk(
   'auth/login',
   async (credentials: LoginCredentials, { rejectWithValue }) => {
@@ -18,6 +64,7 @@ export const login = createAsyncThunk(
       const { accessToken, refreshToken } = data.tokens;
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
+      await resetLocalCacheIfUserChanged(data.user?.id);
       return data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '登录失败');
@@ -30,12 +77,33 @@ export const register = createAsyncThunk(
   async (data: RegisterData, { rejectWithValue }) => {
     try {
       const result = await authService.register(data);
-      const { accessToken, refreshToken } = result.tokens;
+      console.log('[Auth] Register response:', result);
+
+      const accessToken = result.tokens?.accessToken || result.accessToken;
+      const refreshToken = result.tokens?.refreshToken || result.refreshToken;
+
+      if (!accessToken || !refreshToken) {
+        console.error('[Auth] Missing tokens in register response:', result);
+        throw new Error('注册失败：服务器返回的 Token 无效');
+      }
+
       localStorage.setItem('accessToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
-      return result;
+      
+      const user = result.user || result.data?.user || result;
+      await resetLocalCacheIfUserChanged(user?.id);
+      
+      if (result.tokens) {
+        return result;
+      } else {
+        return {
+          user: user,
+          tokens: { accessToken, refreshToken }
+        };
+      }
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || '注册失败');
+      console.error('[Auth] Register error:', error);
+      return rejectWithValue(error.response?.data?.message || error.message || '注册失败');
     }
   }
 );
@@ -45,6 +113,7 @@ export const getProfile = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const data = await authService.getProfile();
+      await resetLocalCacheIfUserChanged(data?.id);
       return data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '获取用户信息失败');
@@ -72,6 +141,12 @@ export const logout = createAsyncThunk('auth/logout', async () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
+    localStorage.removeItem(LAST_USER_ID_KEY);
+    try {
+      await db.clearAll();
+    } catch (error) {
+      console.warn('[Auth] 退出登录清空本地缓存失败', error);
+    }
   }
 });
 

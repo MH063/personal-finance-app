@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Typography, Button, Row, Col, Card, Table, Tag, Space, Modal, Form, Input, Select, App as AntdApp, Popconfirm, Badge, Tooltip } from 'antd';
+import { Typography, Button, Card, Table, Tag, Space, Modal, Form, Input, Select, App as AntdApp, Popconfirm, Badge, Tooltip } from 'antd';
 import { PlusOutlined, TeamOutlined, EditOutlined, DeleteOutlined, UserAddOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
@@ -314,6 +314,10 @@ const LedgerPage: React.FC = () => {
         onCancel={() => setModalVisible(false)}
         confirmLoading={submitLoading}
         destroyOnHidden
+        className="custom-modal"
+        centered
+        maskClosable={true}
+        keyboard={true}
       >
         <Form form={form} layout="vertical" onFinish={handleModalSubmit}>
           <Form.Item name="name" label="账本名称" rules={[{ required: true, message: '请输入账本名称' }]}>
@@ -339,6 +343,10 @@ const LedgerPage: React.FC = () => {
         footer={null}
         width={600}
         destroyOnHidden
+        className="custom-modal"
+        centered
+        maskClosable={true}
+        keyboard={true}
       >
         <div className="member-management">
           {canManageMembers && (

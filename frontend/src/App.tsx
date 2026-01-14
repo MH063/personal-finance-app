@@ -1,10 +1,9 @@
 import React, { Suspense, lazy } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
-import { RootState, AppDispatch } from '@store/index';
+import { useSelector } from 'react-redux';
+import { RootState } from '@store/index';
 import { Spin } from 'antd';
 import MainLayout from '@components/layout/MainLayout';
-import ErrorBoundary from '@components/common/ErrorBoundary';
 import { offlineSyncService } from './services/offlineSyncService';
 
 // 核心页面保持直接导入，或者也可以懒加载

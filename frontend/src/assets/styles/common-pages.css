@@ -431,17 +431,51 @@
  * 模态框样式
  * ======================================== */
 
+/* 统一遮罩层样式 */
+.ant-modal-mask {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  z-index: var(--z-modal-backdrop) !important;
+}
+
+.ant-modal-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: var(--z-modal) !important;
+}
+
+.custom-modal {
+  padding-bottom: 0 !important;
+  top: 0 !important;
+  margin: var(--space-4) !important;
+  max-width: calc(100vw - 32px) !important;
+}
+
 .custom-modal .ant-modal-content {
   border-radius: var(--radius-2xl) !important;
   padding: 0 !important;
   overflow: hidden;
   background: var(--color-bg-elevated) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(25px) !important;
+  -webkit-backdrop-filter: blur(25px) !important;
   border: 1px solid var(--modal-ui-border) !important;
-  box-shadow: var(--shadow-xl) !important;
+  box-shadow: var(--shadow-2xl) !important;
   color: var(--modal-text-color) !important;
   text-shadow: var(--modal-text-shadow) !important;
+  animation: modalContentIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
+@keyframes modalContentIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .custom-modal .ant-modal-header {
@@ -454,10 +488,21 @@
 .custom-modal .ant-modal-title {
   color: var(--modal-text-color) !important;
   text-shadow: var(--modal-text-shadow) !important;
+  font-size: 20px !important;
+  font-weight: 700 !important;
 }
 
 .custom-modal .ant-modal-close {
   color: var(--modal-text-secondary) !important;
+  top: 20px !important;
+  right: 20px !important;
+  transition: all 0.3s ease !important;
+}
+
+.custom-modal .ant-modal-close:hover {
+  color: var(--modal-text-color) !important;
+  transform: rotate(90deg);
+  background: var(--modal-ui-bg) !important;
 }
 
 .custom-modal .ant-modal-body {
@@ -467,6 +512,7 @@
 .custom-modal .ant-modal-footer {
   padding: var(--space-4) var(--space-6) !important;
   border-top: 1px solid var(--modal-ui-border) !important;
+  background: var(--modal-ui-bg) !important;
 }
 
 /* ========================================

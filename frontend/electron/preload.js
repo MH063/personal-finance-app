@@ -7,6 +7,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
   closeWindow: () => ipcRenderer.invoke('close-window'),
   isWindowMaximized: () => ipcRenderer.invoke('is-window-maximized'),
+  saveBackground: (imageUrl, format) => ipcRenderer.invoke('save-background', { imageUrl, format }),
+  selectBackgroundFile: () => ipcRenderer.invoke('select-background-file'),
+  getBackgroundConfig: () => ipcRenderer.invoke('get-background-config'),
   onWindowMaximized: (callback) => {
     const subscription = (event, value) => callback(value);
     ipcRenderer.on('window-maximized', subscription);

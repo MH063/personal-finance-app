@@ -49,20 +49,292 @@
   transition: all 0.3s ease;
 }
 
-.backup-page .history-card.glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  box-shadow: var(--shadow-glass-hover) !important;
+.backup-page .history-card.glass-card .ant-card-head {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  padding: 16px 24px !important;
 }
 
-/* 表格内部样式优化 */
-.backup-page .glass-table .ant-table-thead > tr > th {
+.backup-page .card-header-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.backup-page .card-header-title .title-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: block !important; /* 恢复显示 */
+}
+
+.backup-page .title-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.backup-page .title-content span:first-child {
+  font-size: 16px;
+  font-weight: 600;
+  color: white;
+  line-height: 1.2;
+}
+
+.backup-page .title-desc {
+  font-size: 12px !important;
+  font-weight: normal;
+  margin-top: 4px;
+  opacity: 0.6;
+}
+
+.backup-page .refresh-btn {
+  color: rgba(255, 255, 255, 0.45) !important;
+  font-size: 13px !important;
+}
+
+.backup-page .refresh-btn:hover {
+  color: var(--primary-400) !important;
   background: rgba(255, 255, 255, 0.05) !important;
-  color: rgba(255, 255, 255, 0.6) !important;
-  border-bottom: 1px solid var(--color-glass-border) !important;
+}
+
+/* 筛选栏样式 */
+.table-filter-bar {
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+/* 原始搜索框样式 - 彻底去装饰 */
+.raw-search-input {
+  border-radius: 4px 0 0 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important; /* 使用统一的浅色边框 */
+  background: rgba(255, 255, 255, 0.05) !important; /* 稍微透一点底色，避免纯白突兀 */
+  color: white !important;
+  height: 32px !important;
+  box-shadow: none !important; /* 彻底移除内阴影/投影 */
+}
+
+/* 移除 Ant Design Input 内部的额外边框装饰 */
+.raw-search-input.ant-input-affix-wrapper,
+.raw-search-input.ant-input-affix-wrapper:hover,
+.raw-search-input.ant-input-affix-wrapper:focus,
+.raw-search-input.ant-input-affix-wrapper-focused {
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: none !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  padding: 0 !important; /* 移除容器内边距，让内部 input 填满 */
+  display: flex !important;
+  align-items: center !important;
+}
+
+.raw-search-input .ant-input {
+  background: transparent !important;
+  border: none !important; /* 移除内层 Input 的边框 */
+  color: white !important;
+  box-shadow: none !important;
+  height: 32px !important; /* 与外层高度一致 */
+  padding: 0 12px !important; /* 给予充足的左右边距 */
+  font-size: 14px !important;
+  flex: 1 !important; /* 填满剩余空间 */
+}
+
+/* 调整清除按钮的位置，确保其在右侧且不遮挡文字 */
+.raw-search-input .ant-input-suffix {
+  margin-right: 8px !important;
+  color: rgba(255, 255, 255, 0.4) !important;
+}
+
+.raw-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+.raw-search-btn {
+  border-radius: 0 4px 4px 0 !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 15px !important;
+  border: 1px solid var(--primary-500) !important;
+  border-left: none !important; /* 与输入框无缝衔接 */
+  box-shadow: none !important;
+}
+
+.filter-select .ant-select-selector {
+  background: rgba(0, 0, 0, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: white !important;
+  border-radius: 8px !important;
+}
+
+.record-count {
+  font-size: 12px !important;
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* 状态标签容器 - 确保绝对居中 */
+.status-tag-container {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  width: 100%;
+}
+
+/* 状态标签 - 深度对齐优化 */
+.status-tag {
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  padding: 0 8px 0 6px !important; /* 调整内边距，补偿图标宽度 */
+  border: none !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 auto !important;
+  min-width: 60px; /* 固定最小宽度确保对齐一致性 */
+  height: 22px !important;
+}
+
+/* 关键：调整图标位置，使其不占用文字的中心对齐空间 */
+.status-tag .anticon {
+  margin-right: 4px !important;
+  font-size: 12px !important;
+}
+
+.status-tag.ant-tag-success {
+  color: var(--success) !important;
+  background: rgba(82, 196, 26, 0.1) !important;
+}
+
+.status-tag.ant-tag-error {
+  color: var(--error) !important;
+  background: rgba(255, 77, 79, 0.1) !important;
+}
+
+/* 表格内部样式优化 - 压缩布局并确保绝对对齐 */
+.backup-page .glass-table .ant-table-thead > tr > th {
+  background: transparent !important;
+  color: rgba(255, 255, 255, 0.45) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  padding: 12px 8px !important;
+  font-size: 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* 强制表头内容居中，处理 Ant Design 默认的 Flex 布局 */
+.backup-page .glass-table .ant-table-thead > tr > th .ant-table-column-sorters {
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.backup-page .glass-table .ant-table-thead > tr > th .ant-table-column-title {
+  flex: none !important; /* 避免占据剩余空间 */
+  display: inline-flex !important;
+  justify-content: center !important;
+  align-items: center !important;
 }
 
 .backup-page .glass-table .ant-table-tbody > tr > td {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
+  padding: 8px !important;
+  height: 48px;
+  vertical-align: middle !important;
+  text-align: center !important;
+}
+
+/* 确保单元格内的容器也是居中的 */
+.backup-page .glass-table .ant-table-cell {
+  padding: 0 8px !important;
+}
+
+/* 紧凑字体样式 - 确保绝对水平居中 */
+.compact-font {
+  font-family: 'Roboto Condensed', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif !important;
+  font-size: 12px !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin: 0 auto;
+}
+
+/* 备份类型标签紧凑化且对齐 */
+.backup-type-tag {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  color: rgba(255, 255, 255, 0.65) !important;
+  border-radius: 4px !important;
+  padding: 0 8px !important;
+  font-size: 11px !important;
+  height: 22px !important;
+  line-height: 20px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto !important;
+}
+
+/* 优化操作按钮布局 - 极简且精准对齐 */
+.table-actions {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 8px !important; /* 严格遵循 8px 间距 */
+  width: 100%;
+}
+
+.compact-action-btn {
+  padding: 0 8px !important;
+  height: 28px !important;
+  font-size: 12px !important;
+  background: transparent !important;
+  border: none !important;
+  color: var(--primary-400) !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.compact-action-btn:hover {
+  color: var(--primary-300) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.compact-action-btn.ant-btn-dangerous {
+  color: #ff7875 !important;
+}
+
+/* 响应式断点处理 */
+@media screen and (max-width: 1024px) {
+  .backup-page .ant-table {
+    min-width: 800px;
+  }
+}
+
+@media screen and (max-width: 768px) {
+  .backup-page .ant-table {
+    min-width: 600px;
+  }
+  .header-actions .ant-btn {
+    padding: 0 12px !important;
+  }
+  .backup-page .history-card.glass-card .ant-card-head {
+    padding: 12px !important;
+  }
+}
+
+@media screen and (max-width: 320px) {
+  .backup-page .ant-table {
+    min-width: 280px; /* 压缩到 280px */
+  }
+  .backup-page .page-title {
+    font-size: 18px !important;
+  }
 }
 
 /* 警告框样式 */

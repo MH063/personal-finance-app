@@ -12,6 +12,7 @@ export interface Ledger {
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
+  version?: number;
   members?: LedgerMember[];
   owner?: {
     id: string;
@@ -121,7 +122,7 @@ export const ledgerService = {
 
     // 3. 触发同步
     if (offlineSyncService.isOnline()) {
-      offlineSyncService.syncPendingChanges().catch(() => {});
+      await offlineSyncService.syncPendingChanges().catch(() => {});
     }
 
     return newLedger;
@@ -131,6 +132,9 @@ export const ledgerService = {
    * 更新账本
    */
   updateLedger: async (id: string, data: Partial<Ledger>) => {
+    // 获取当前记录
+    const current = await db.ledgers.get(id);
+
     // 1. 更新本地
     await db.ledgers.update(id, {
       ...data,
@@ -142,13 +146,13 @@ export const ledgerService = {
       action: 'UPDATE',
       entity: 'LEDGER',
       entityId: id,
-      data,
+      data: { ...data, version: current?.version }, // 包含版本号以支持乐观锁
       timestamp: Date.now(),
     });
 
     // 3. 触发同步
     if (offlineSyncService.isOnline()) {
-      offlineSyncService.syncPendingChanges().catch(() => {});
+      await offlineSyncService.syncPendingChanges().catch(() => {});
     }
 
     return { id, ...data };
@@ -179,9 +183,7 @@ export const ledgerService = {
 
     // 3. 触发同步
     if (offlineSyncService.isOnline()) {
-      offlineSyncService.syncPendingChanges().catch(err => {
-        // 静默处理，offlineSyncService 内部已经处理了具体的错误日志
-      });
+      await offlineSyncService.syncPendingChanges().catch(() => {});
     }
 
     return { id };

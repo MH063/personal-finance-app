@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { maskIPInString } from '../utils/ip.util';
+import { OptimisticLockVersionMismatchError } from 'typeorm';
 
 /**
  * 全局异常过滤器
@@ -22,20 +23,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status =
+    let status =
       exception instanceof HttpException
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const exceptionResponse =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : { message: (exception as Error).message || 'Internal server error' };
+    let message = (exception as any).message || 'Internal server error';
 
-    const message =
-      typeof exceptionResponse === 'object' && 'message' in exceptionResponse
+    // 处理 TypeORM 乐观锁冲突错误
+    if (exception instanceof OptimisticLockVersionMismatchError) {
+      status = HttpStatus.CONFLICT;
+      message = '数据已被其他操作更新，请刷新后重试';
+    } else if (exception instanceof HttpException) {
+      const exceptionResponse = exception.getResponse();
+      message = typeof exceptionResponse === 'object' && 'message' in exceptionResponse
         ? (exceptionResponse as any).message
         : exceptionResponse;
+    }
 
     const errorResponse = {
       success: false,

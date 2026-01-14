@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Card, Form, Input, Button, Divider, App as AntdApp, Upload, Avatar, Typography, Modal, Spin } from 'antd';
-import { UserOutlined, MailOutlined, SaveOutlined, UploadOutlined, CameraOutlined, LoadingOutlined } from '@ant-design/icons';
+import React, { useEffect, useState } from 'react';
+import { Card, Form, Input, Button, Divider, App as AntdApp, Upload, Avatar, Typography, Spin } from 'antd';
+import { UserOutlined, SaveOutlined, CameraOutlined, LoadingOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '../../store';
 import { getProfile, updateProfile } from '@store/slices/authSlice';
+import { authService } from '../../services/authService';
 import './SettingsPage.css';
 
 const { Title, Text } = Typography;
@@ -16,14 +17,23 @@ const ProfilePage: React.FC = () => {
   const { message, modal } = AntdApp.useApp();
   const [loading, setLoading] = useState(false);
   const [avatarLoading, setAvatarLoading] = useState(false);
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
+  const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string | null>(null);
   const [form] = Form.useForm();
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
-  const uploadRef = useRef<any>(null);
 
   useEffect(() => {
     dispatch(getProfile() as any);
   }, [dispatch]);
+
+  useEffect(() => {
+    return () => {
+      if (previewAvatarUrl) {
+        URL.revokeObjectURL(previewAvatarUrl);
+      }
+    };
+  }, [previewAvatarUrl]);
 
   useEffect(() => {
     if (user) {
@@ -41,8 +51,23 @@ const ProfilePage: React.FC = () => {
   const handleSubmit = async (values: any) => {
     setLoading(true);
     try {
-      await dispatch(updateProfile(values) as any);
+      let avatarUrl = user?.avatar;
+      
+      // 如果有待上传的头像，先上传
+      if (pendingAvatarFile) {
+        try {
+          const uploadResult = await authService.uploadAvatar(pendingAvatarFile);
+          avatarUrl = uploadResult.url;
+        } catch (uploadError: any) {
+          throw new Error('头像上传失败: ' + (uploadError.message || '未知错误'));
+        }
+      }
+
+      await dispatch(updateProfile({ ...values, avatar: avatarUrl }) as any);
       message.success('个人资料已更新');
+      
+      setPendingAvatarFile(null);
+      setPreviewAvatarUrl(null);
     } catch (error: any) {
       console.error('更新个人资料失败:', error);
       message.error(typeof error === 'string' ? error : (error?.message || '更新失败'));
@@ -78,26 +103,23 @@ const ProfilePage: React.FC = () => {
   };
 
   /**
-   * 处理头像上传前的状态
+   * 处理头像选择
    */
   const beforeUpload = (file: File) => {
-    setAvatarLoading(true);
-    return true;
-  };
-
-  /**
-   * 处理头像上传
-   * @param info 上传状态信息
-   */
-  const handleAvatarUpload = (info: any) => {
-    if (info.file.status === 'done') {
-      setAvatarLoading(false);
-      message.success('头像上传成功');
-      dispatch(getProfile() as any);
-    } else if (info.file.status === 'error') {
-      setAvatarLoading(false);
-      message.error('头像上传失败');
+    const isJpgOrPng = file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/gif';
+    if (!isJpgOrPng) {
+      message.error('只能上传 JPG/PNG/GIF 文件!');
+      return Upload.LIST_IGNORE;
     }
+    const isLt5M = file.size / 1024 / 1024 < 5;
+    if (!isLt5M) {
+      message.error('图片必须小于 5MB!');
+      return Upload.LIST_IGNORE;
+    }
+    
+    setPendingAvatarFile(file);
+    setPreviewAvatarUrl(URL.createObjectURL(file));
+    return false; // 阻止自动上传
   };
 
   return (
@@ -113,9 +135,7 @@ const ProfilePage: React.FC = () => {
             <div className="avatar-section">
               <Upload 
                 showUploadList={false} 
-                action="/api/upload/avatar" 
                 beforeUpload={beforeUpload}
-                onChange={handleAvatarUpload}
                 disabled={avatarLoading}
                 openFileDialogOnClick={false}
               >
@@ -124,7 +144,7 @@ const ProfilePage: React.FC = () => {
                   onClick={handleAvatarClick}
                 >
                   <Spin spinning={avatarLoading} indicator={<LoadingOutlined style={{ fontSize: 24, color: 'white' }} spin />}>
-                    <Avatar size={120} icon={<UserOutlined />} src={user?.avatar} style={{ border: 'none' }} />
+                    <Avatar size={120} icon={<UserOutlined />} src={previewAvatarUrl || user?.avatar} style={{ border: 'none' }} />
                   </Spin>
                   {!avatarLoading && (
                     <div className="avatar-overlay">

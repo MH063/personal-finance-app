@@ -50,6 +50,12 @@ export class BackupLog {
   @Column({ name: 'is_success', default: true })
   isSuccess: boolean;
 
+  @Column({ name: 'is_restored', default: false })
+  isRestored: boolean;
+
+  @Column({ name: 'last_restored_at', type: 'timestamp', nullable: true })
+  lastRestoredAt: Date;
+
   @Column({ name: 'error_message', type: 'text', nullable: true })
   errorMessage: string;
 

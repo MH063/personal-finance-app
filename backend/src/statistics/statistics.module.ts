@@ -5,9 +5,10 @@ import { StatisticsService } from './statistics.service';
 import { Transaction } from '../entities/transaction.entity';
 import { Debt } from '../entities/debt.entity';
 import { Budget } from '../entities/budget.entity';
+import { Category } from '../entities/category.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Transaction, Debt, Budget])],
+  imports: [TypeOrmModule.forFeature([Transaction, Debt, Budget, Category])],
   controllers: [StatisticsController],
   providers: [StatisticsService],
   exports: [StatisticsService],

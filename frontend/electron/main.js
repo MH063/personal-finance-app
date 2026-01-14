@@ -1,5 +1,11 @@
-const { app, BrowserWindow, ipcMain, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, net, protocol, dialog } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+// 注册自定义协议以访问本地资源
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'local-resource', privileges: { bypassCSP: true, stream: true, secure: true, standard: true, supportFetchAPI: true } }
+]);
 
 // 开发环境下关闭安全警告
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
@@ -12,7 +18,7 @@ app.commandLine.appendSwitch('disable-blink-features', 'Autofill');
 // 降低日志级别以减少不必要的控制台干扰 (2: ERROR, 3: FATAL)
 app.commandLine.appendSwitch('log-level', '3');
 
-const isDev = process.env.NODE_ENV && process.env.NODE_ENV.trim() === 'development' || !process.env.NODE_ENV;
+const isDev = !app.isPackaged;
 
 let mainWindow;
 let splashWindow;
@@ -147,11 +153,173 @@ function registerIpcHandlers() {
   ipcMain.handle('close-window', () => {
     if (mainWindow) mainWindow.close();
   });
+
+  // 保存背景图片到本地
+  ipcMain.handle('save-background', async (event, { imageUrl, format }) => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const bgDir = path.join(userDataPath, 'backgrounds', 'default');
+      
+      // 确保目录存在
+      if (!fs.existsSync(bgDir)) {
+        fs.mkdirSync(bgDir, { recursive: true });
+      }
+
+      // 如果是本地文件路径（format='file'）
+      if (format === 'file') {
+        const ext = path.extname(imageUrl);
+        const fileName = `custom_bg${ext}`;
+        const targetPath = path.join(bgDir, fileName);
+        
+        fs.copyFileSync(imageUrl, targetPath);
+        
+        const configPath = path.join(userDataPath, 'background_config.json');
+        const config = {
+          currentBackground: targetPath,
+          lastUpdated: new Date().toISOString(),
+          isCustom: true
+        };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        return { success: true, path: targetPath };
+      }
+
+      const ext = format === 'png' ? 'png' : 'jpg';
+      const fileName = `default_bg.${ext}`;
+      const filePath = path.join(bgDir, fileName);
+
+      // 如果是 picsum URL，需要下载
+      if (imageUrl.startsWith('http')) {
+        const request = net.request(imageUrl);
+        return new Promise((resolve, reject) => {
+          request.on('response', (response) => {
+            const chunks = [];
+            response.on('data', (chunk) => chunks.push(chunk));
+            response.on('end', () => {
+              const buffer = Buffer.concat(chunks);
+              fs.writeFileSync(filePath, buffer);
+              
+              // 保存配置文件
+              const configPath = path.join(userDataPath, 'background_config.json');
+              const config = {
+                currentBackground: filePath,
+                lastUpdated: new Date().toISOString()
+              };
+              fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+              
+              resolve({ success: true, path: filePath });
+            });
+          });
+          request.on('error', (err) => {
+            console.error('[Main] Download error:', err);
+            reject(err);
+          });
+          request.end();
+        });
+      } else if (imageUrl.startsWith('data:')) {
+        // 处理 base64
+        const base64Data = imageUrl.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        fs.writeFileSync(filePath, buffer);
+        
+        const configPath = path.join(userDataPath, 'background_config.json');
+        const config = {
+          currentBackground: filePath,
+          lastUpdated: new Date().toISOString()
+        };
+        fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+        
+        return { success: true, path: filePath };
+      }
+      
+      return { success: false, error: 'Unsupported image source' };
+    } catch (error) {
+      console.error('[Main] Save background error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 获取背景图片配置
+  ipcMain.handle('get-background-config', async () => {
+    try {
+      const userDataPath = app.getPath('userData');
+      const configPath = path.join(userDataPath, 'background_config.json');
+      
+      if (fs.existsSync(configPath)) {
+        const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        // 检查文件是否还存在
+        if (config.currentBackground && fs.existsSync(config.currentBackground)) {
+          // 在 Electron 中，本地文件需要通过 file:// 协议或者自定义协议访问
+          // 这里返回路径，渲染进程会处理
+          return config;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('[Main] Get background config error:', error);
+      return null;
+    }
+  });
   
+  // 选择并上传本地背景图片
+  ipcMain.handle('select-background-file', async () => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [
+          { name: 'Images', extensions: ['jpg', 'png', 'jpeg', 'webp'] }
+        ]
+      });
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Cancelled' };
+      }
+
+      const sourcePath = result.filePaths[0];
+      // 仅返回路径，不立即保存
+      return { success: true, path: sourcePath };
+    } catch (error) {
+      console.error('[Main] Select background error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   console.log('[Main] IPC handlers registered.');
 }
 
 app.whenReady().then(() => {
+  // 注册 local-resource 协议
+  protocol.registerFileProtocol('local-resource', (request, callback) => {
+    try {
+      const parsed = new URL(request.url);
+      let decoded;
+      if (/^[a-zA-Z]$/.test(parsed.hostname)) {
+        const pathname = parsed.pathname || '';
+        const rest = pathname.startsWith('/') ? pathname.slice(1) : pathname;
+        if (!rest) return callback({ error: -6 });
+        decoded = `${parsed.hostname.toUpperCase()}:/${decodeURIComponent(rest)}`;
+      } else {
+        const combined = parsed.hostname ? `${parsed.hostname}${parsed.pathname}` : parsed.pathname;
+        decoded = decodeURIComponent(combined);
+      }
+      decoded = decoded.replace(/^\/([a-zA-Z]:[\\/])/, '$1');
+      decoded = decoded.replace(/\//g, path.sep);
+
+      if (!decoded || /^[a-zA-Z]:[\\\/]?$/.test(decoded)) {
+        return callback({ error: -6 });
+      }
+
+      const normalized = path.normalize(decoded);
+      if (!fs.existsSync(normalized)) {
+        return callback({ error: -6 });
+      }
+
+      return callback({ path: normalized });
+    } catch (error) {
+      console.error('Failed to handle protocol request', error);
+      return callback({ error: -6 }); // NET_ERROR(FILE_NOT_FOUND, -6)
+    }
+  });
+
   registerIpcHandlers();
   createSplashWindow();
   setTimeout(createMainWindow, 100);

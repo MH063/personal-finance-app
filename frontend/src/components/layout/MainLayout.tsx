@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Badge, Button, Space, Typography, Spin, Input, Tooltip } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography, Spin, Tooltip } from 'antd';
 import {
   DashboardOutlined,
   RiseOutlined,
@@ -13,7 +13,6 @@ import {
   SecurityScanOutlined,
   GlobalOutlined,
   LogoutOutlined,
-  SettingFilled,
   WalletOutlined,
   BookOutlined,
   TagsOutlined,
@@ -28,6 +27,7 @@ import { logout } from '../../store/slices/authSlice';
 import { fetchNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../store/slices/notificationSlice';
 import { useSafeBackground } from '../../hooks/useSafeBackground';
 import { collaborativeService } from '../../services/collaborativeService';
+import { cancelPendingRequests, silenceAuthErrors } from '../../services/api';
 import WindowControls from './WindowControls';
 import SyncMonitor from './SyncMonitor';
 import './MainLayout.css';
@@ -78,7 +78,7 @@ const MainLayout = () => {
     collaborativeService.on('settingsUpdate', handleUpdate);
 
     // 初始化时检查状态
-    // @ts-ignore - 访问私有 socket 仅用于状态展示
+    // @ts-expect-error - 访问私有 socket 仅用于状态展示
     if (collaborativeService.socket?.connected) {
       setSyncStatus('connected');
     }
@@ -103,8 +103,79 @@ const MainLayout = () => {
     return () => clearInterval(timer);
   }, [dispatch]);
 
+  // 管理背景图片状态
+  const [customBg, setCustomBg] = useState<string | null>(null);
+  const [isBgConfigLoaded, setIsBgConfigLoaded] = useState(false);
+
+  const toLocalResourceUrl = (filePath: string, version: string) => {
+    const raw = String(filePath || '').trim();
+    if (!raw) return null;
+    const posixPath = raw.replace(/\\/g, '/');
+    if (/^[a-zA-Z](:)?\/?$/.test(posixPath)) {
+      console.warn('[MainLayout] Invalid background path:', raw);
+      return null;
+    }
+    if (/^[a-zA-Z]:\//.test(posixPath)) {
+      const drive = posixPath[0].toLowerCase();
+      const rest = posixPath.slice(2);
+      const encodedRest = rest.split('/').map((seg) => encodeURIComponent(seg)).join('/');
+      const url = `local-resource://${drive}${encodedRest}?v=${encodeURIComponent(version)}`;
+      console.log('[MainLayout] Background URL:', url);
+      return url;
+    }
+
+    const encodedPath = posixPath.split('/').map((seg) => encodeURIComponent(seg)).join('/');
+    const url = `local-resource:///${encodedPath}?v=${encodeURIComponent(version)}`;
+    console.log('[MainLayout] Background URL:', url);
+    return url;
+  };
+
+  useEffect(() => {
+    const loadBackgroundConfig = async () => {
+      if (window.electronAPI?.getBackgroundConfig) {
+        try {
+          const config = await window.electronAPI.getBackgroundConfig();
+          if (config?.currentBackground) {
+            // 使用自定义协议加载本地文件
+            const version = config.lastUpdated || Date.now().toString();
+            setCustomBg(toLocalResourceUrl(config.currentBackground, version));
+          }
+        } catch (error) {
+          console.error('[MainLayout] Failed to load background config:', error);
+        } finally {
+          setIsBgConfigLoaded(true);
+        }
+      } else {
+        setIsBgConfigLoaded(true);
+      }
+    };
+    loadBackgroundConfig();
+  }, []);
+
+  useEffect(() => {
+    const handleBackgroundUpdated = async () => {
+      if (!window.electronAPI?.getBackgroundConfig) return;
+      try {
+        const config = await window.electronAPI.getBackgroundConfig();
+        console.log('[MainLayout] Background config updated:', config);
+        if (config?.currentBackground) {
+          const version = config.lastUpdated || Date.now().toString();
+          setCustomBg(toLocalResourceUrl(config.currentBackground, version));
+        } else {
+          setCustomBg(null);
+        }
+      } catch (error) {
+        console.error('[MainLayout] Failed to reload background config:', error);
+      }
+    };
+    window.addEventListener('app:background-updated', handleBackgroundUpdated);
+    return () => window.removeEventListener('app:background-updated', handleBackgroundUpdated);
+  }, []);
+
   // 安全加载全局背景图片
-  const pageBg = useSafeBackground('https://picsum.photos/1920/1080');
+  // 只有在配置加载完成后才决定使用哪个背景，避免闪烁
+  const bgSource = isBgConfigLoaded ? (customBg || 'https://picsum.photos/1920/1080') : null;
+  const pageBg = useSafeBackground(bgSource);
 
   // 使用稳定的种子生成头像，并通过 SafeBackground 处理
   const avatarSeed = user?.id || user?.username || 'default';
@@ -140,8 +211,11 @@ const MainLayout = () => {
   ];
 
   const handleLogout = () => {
+    silenceAuthErrors(2000);
+    cancelPendingRequests('User logout');
+    collaborativeService.disconnect();
+    navigate('/login', { replace: true });
     dispatch(logout() as unknown as UnknownAction);
-    navigate('/login');
   };
 
   const userMenuItems = [
@@ -181,7 +255,7 @@ const MainLayout = () => {
           onClick={() => handleNotificationClick(n)}
         >
           <div className="notification-item-header">
-            <Text strong type={n.priority === 'high' ? 'danger' : 'default'}>{n.title}</Text>
+            <Text strong type={n.priority === 'high' ? 'danger' : undefined}>{n.title}</Text>
             {!n.isRead && <Badge status="processing" size="small" />}
           </div>
           <div className="notification-item-content">
@@ -215,7 +289,7 @@ const MainLayout = () => {
   return (
     <Layout 
       className="main-layout"
-      style={{ '--page-bg-image': pageBg ? `url(${pageBg})` : 'none' } as React.CSSProperties}
+      style={{ '--page-bg-image': pageBg ? `url("${pageBg}")` : 'none' } as React.CSSProperties}
     >
       <Sider
         trigger={null}

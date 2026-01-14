@@ -6,7 +6,15 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, Like, FindOptionsWhere, In, Not } from 'typeorm';
+import {
+  Repository,
+  Between,
+  In,
+  Not,
+  OptimisticLockVersionMismatchError,
+  Raw,
+  FindOptionsWhere,
+} from 'typeorm';
 import { Transaction, TransactionType } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
 import { Ledger, LedgerMember } from '../entities/ledger.entity';
@@ -202,7 +210,7 @@ export class TransactionsService {
 
     const [data, total] = await this.transactionRepository.findAndCount({
       where,
-      relations: ['category'],
+      relations: ['category', 'ledger'],
       order: { [sortBy]: sortOrder },
       skip: (page - 1) * limit,
       take: limit,
@@ -280,9 +288,15 @@ export class TransactionsService {
 
     const oldData = { ...transaction };
 
+    // 乐观锁校验
+    if (updateDto.version !== undefined && transaction.version !== updateDto.version) {
+      throw new OptimisticLockVersionMismatchError('Transaction', updateDto.version, transaction.version);
+    }
+
     const changedFields: string[] = [];
     Object.keys(updateDto).forEach((key) => {
       if (
+        key !== 'version' &&
         updateDto[key as keyof UpdateTransactionDto] !== undefined &&
         updateDto[key as keyof UpdateTransactionDto] !== (transaction as any)[key]
       ) {
@@ -290,7 +304,9 @@ export class TransactionsService {
       }
     });
 
-    Object.assign(transaction, updateDto);
+    // 移除 version，防止 Object.assign 覆盖实体中的 version，让 TypeORM 自动管理
+    const { version, ...updateData } = updateDto;
+    Object.assign(transaction, updateData);
 
     if (updateDto.transactionDate) {
       transaction.transactionDate = new Date(updateDto.transactionDate);
@@ -432,6 +448,59 @@ export class TransactionsService {
     });
 
     return { updatedCount: result.affected || 0 };
+  }
+
+  /**
+   * 检查是否存在关联的交易记录
+   */
+  async existsLinkedTransaction(userId: string, criteria: { debtId?: string; paymentId?: string }): Promise<boolean> {
+    const { debtId, paymentId } = criteria;
+    if (!debtId && !paymentId) return false;
+
+    const where: any = { userId, isDeleted: false };
+    if (paymentId) {
+      where.metadata = Raw(alias => `${alias} @> :meta`, { meta: JSON.stringify({ paymentId }) });
+    } else if (debtId) {
+      // 仅匹配债务本身的交易（不含还款），通过判断 metadata 中是否存在 paymentId 来区分
+      // 使用 jsonb_exists 函数代替 ?? 操作符，避免 TypeORM/Postgres 的转义问题
+      where.metadata = Raw(alias => `${alias} @> :meta AND NOT (jsonb_exists(${alias}, 'paymentId'))`, { meta: JSON.stringify({ debtId }) });
+    }
+
+    const count = await this.transactionRepository.count({ where });
+    return count > 0;
+  }
+
+  /**
+   * 删除与债务或还款关联的交易记录
+   */
+  async removeLinkedTransactions(userId: string, criteria: { debtId?: string; paymentId?: string }): Promise<void> {
+    const { debtId, paymentId } = criteria;
+    if (!debtId && !paymentId) return;
+
+    this.logger.log(`删除关联交易: userId=${userId}, criteria=${JSON.stringify(criteria)}`);
+
+    const where: any = { userId, isDeleted: false };
+    
+    if (paymentId) {
+      // 这里的 Raw 语法取决于数据库类型，PostgreSQL 使用 @>
+      where.metadata = Raw(alias => `${alias} @> :meta`, { meta: JSON.stringify({ paymentId }) });
+    } else if (debtId) {
+      where.metadata = Raw(alias => `${alias} @> :meta`, { meta: JSON.stringify({ debtId }) });
+    }
+
+    const linkedTxs = await this.transactionRepository.find({ where });
+    
+    if (linkedTxs.length > 0) {
+      const ids = linkedTxs.map(tx => tx.id);
+      await this.transactionRepository.update(
+        { id: In(ids) },
+        { isDeleted: true, deletedAt: new Date() }
+      );
+      this.logger.log(`已软删除 ${linkedTxs.length} 条关联交易记录`);
+      
+      // 发送实时更新通知
+      this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_DELETED', { ids }, userId);
+    }
   }
 
   /**

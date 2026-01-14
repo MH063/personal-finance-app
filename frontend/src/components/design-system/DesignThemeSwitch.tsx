@@ -5,9 +5,6 @@
  */
 
 import React from 'react';
-import { Switch, Tooltip } from 'antd';
-import { MoonOutlined, SunOutlined } from '@ant-design/icons';
-import { useDesignSystem } from './DesignSystemContext';
 import './DesignThemeSwitch.css';
 
 interface DesignThemeSwitchProps {

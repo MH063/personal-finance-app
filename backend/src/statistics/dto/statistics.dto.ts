@@ -145,6 +145,19 @@ export interface OverviewData {
     usedBudget: number;
     remainingBudget: number;
     usagePercentage: number;
+    budgetUsageComparison?: number; // 与上期相比的预算使用率差异
+    budgets: {
+      id: string;
+      categoryId: string;
+      categoryName: string;
+      categoryColor: string;
+      amount: number;
+      usedAmount: number;
+      remainingAmount: number;
+      usagePercentage: number;
+      startDate: string;
+      endDate: string;
+    }[];
   } | null;
 }
 

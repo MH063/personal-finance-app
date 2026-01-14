@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, TreeRepository } from 'typeorm';
+import { Repository, TreeRepository, OptimisticLockVersionMismatchError } from 'typeorm';
 import { Category, CategoryType } from '../entities/category.entity';
 import { CreateCategoryDto, UpdateCategoryDto, CategoryQueryDto } from './dto/category.dto';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
@@ -144,7 +144,14 @@ export class CategoriesService {
       }
     }
 
-    Object.assign(category, updateCategoryDto);
+    // 乐观锁校验
+    if (updateCategoryDto.version !== undefined && category.version !== updateCategoryDto.version) {
+      throw new OptimisticLockVersionMismatchError('Category', updateCategoryDto.version, category.version);
+    }
+
+    // 移除 version，防止 Object.assign 覆盖实体中的 version，让 TypeORM 自动管理
+    const { version, ...updateData } = updateCategoryDto;
+    Object.assign(category, updateData);
     const updatedCategory = await this.categoryRepository.save(category);
     
     // 发送实时更新通知
@@ -303,7 +310,8 @@ export class CategoriesService {
         { name: '投资', type, color: '#722ED1', icon: 'investment', sortOrder: 2 },
         { name: '兼职', type, color: '#FA8C16', icon: 'parttime', sortOrder: 3 },
         { name: '礼金', type, color: '#EB2F96', icon: 'gift', sortOrder: 4 },
-        { name: '其他收入', type, color: '#8C8C8C', icon: 'other', sortOrder: 5 },
+        { name: '借入款', type, color: '#FAAD14', icon: 'borrow', sortOrder: 5 },
+        { name: '其他收入', type, color: '#8C8C8C', icon: 'other', sortOrder: 6 },
       ];
     }
 
@@ -317,7 +325,8 @@ export class CategoriesService {
       { name: '医疗', type, color: '#FF69B4', icon: 'medical', sortOrder: 6 },
       { name: '教育', type, color: '#98D8C8', icon: 'education', sortOrder: 7 },
       { name: '人情', type, color: '#F7DC6F', icon: 'social', sortOrder: 8 },
-      { name: '其他支出', type, color: '#8C8C8C', icon: 'other', sortOrder: 9 },
+      { name: '借出款', type, color: '#722ED1', icon: 'lend', sortOrder: 9 },
+      { name: '其他支出', type, color: '#8C8C8C', icon: 'other', sortOrder: 10 },
     ];
   }
 }

@@ -41,17 +41,17 @@ import { NetworkMonitorService } from './common/services/network-monitor.service
       {
         name: 'short',
         ttl: 1000,
-        limit: 10, // 每秒最多 10 个请求
+        limit: 20, // 每秒最多 20 个请求 (调高以防止开发环境下快速切换页面导致的偶发 429)
       },
       {
         name: 'medium',
         ttl: 60000,
-        limit: 120, // 每分钟最多 120 个请求 (略微提高以适配高并发测试后的正常使用)
+        limit: 150, // 每分钟最多 150 个请求
       },
       {
         name: 'long',
         ttl: 3600000,
-        limit: 2000, // 每小时最多 2000 个请求
+        limit: 3000, // 每小时最多 3000 个请求
       },
     ]),
     AuthModule,

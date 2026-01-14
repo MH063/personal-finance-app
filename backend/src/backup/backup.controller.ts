@@ -53,13 +53,18 @@ export class BackupController {
   async download(
     @Request() req: any,
     @Param('id', ParseUUIDPipe) id: string,
-    @Res() res: Response,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    const { filePath, fileName } = await this.backupService.downloadBackup(req.user.id, id);
+    const { filePath, fileName, fileSize, checksum } = await this.backupService.getBackupDownloadInfo(req.user.id, id);
+    
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.setHeader('Content-Type', 'application/json');
-    const fileStream = require('fs').createReadStream(filePath);
-    fileStream.pipe(res);
+    res.setHeader('Content-Length', fileSize.toString());
+    res.setHeader('X-Checksum', checksum || '');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, X-Checksum');
+
+    const file = require('fs').createReadStream(filePath);
+    return new StreamableFile(file);
   }
 
   @Post(':id/restore')

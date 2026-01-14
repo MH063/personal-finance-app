@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  VersionColumn,
   ManyToOne,
   OneToMany,
   JoinColumn,
@@ -34,10 +35,10 @@ export class Debt {
   @Column({ name: 'debtor_name', length: 100 })
   debtorName: string;
 
-  @Column({ name: 'original_amount', type: 'decimal', precision: 12, scale: 2 })
+  @Column({ name: 'original_amount', type: 'decimal', precision: 18, scale: 2 })
   originalAmount: number;
 
-  @Column({ name: 'remaining_amount', type: 'decimal', precision: 12, scale: 2, default: 0 })
+  @Column({ name: 'remaining_amount', type: 'decimal', precision: 18, scale: 2, default: 0 })
   remainingAmount: number;
 
   @Column({
@@ -82,6 +83,9 @@ export class Debt {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
+  @VersionColumn()
+  version: number;
+
   @Column({ name: 'user_id' })
   userId: string;
 
@@ -101,7 +105,6 @@ export class Debt {
     precision: 12,
     scale: 2,
     default: 0,
-    select: false,
   })
   totalPaid: number;
 

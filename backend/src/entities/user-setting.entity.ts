@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  VersionColumn,
   ManyToOne,
   JoinColumn,
   OneToOne,
@@ -82,6 +83,9 @@ export class UserSetting {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @VersionColumn({ default: 1 })
+  version: number;
 
   @Column({ name: 'user_id', unique: true })
   userId: string;

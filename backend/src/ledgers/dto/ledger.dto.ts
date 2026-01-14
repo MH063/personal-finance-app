@@ -1,4 +1,5 @@
-import { IsString, IsNotEmpty, IsOptional, IsEnum, IsUUID } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsEnum, IsUUID, IsNumber } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { LedgerType } from '../../entities/ledger.entity';
 
 export class CreateLedgerDto {
@@ -16,13 +17,20 @@ export class CreateLedgerDto {
 }
 
 export class UpdateLedgerDto {
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   name?: string;
 
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({ description: '版本号' })
+  @IsNumber()
+  @IsOptional()
+  version?: number;
 }
 
 export class AddMemberDto {

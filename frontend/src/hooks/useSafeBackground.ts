@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * 安全加载背景图片的 Hook
@@ -20,9 +20,8 @@ export const useSafeBackground = (imageUrl: string | null) => {
     let currentObjectUrl: string | null = null;
 
     const loadImage = async () => {
-      // 如果是 picsum.photos，且我们已经知道它可能有 CORS 问题或不稳定的 502，
-      // 且由于它是纯展示图片，可以直接跳过 fetch 过程
-      if (imageUrl.includes('picsum.photos')) {
+      // 如果是 picsum.photos 或本地资源，跳过 fetch 过程
+      if (imageUrl.includes('picsum.photos') || imageUrl.startsWith('local-resource://')) {
         setSafeUrl(imageUrl);
         return;
       }

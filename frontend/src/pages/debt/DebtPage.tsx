@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App as AntdApp, Row, Col, Progress, Popconfirm, Statistic, Typography } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, DollarOutlined, ArrowDownOutlined, ArrowUpOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { SyncOutlined, PlusOutlined, DeleteOutlined, EditOutlined, DollarOutlined, ArrowDownOutlined, ArrowUpOutlined, ClockCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
-import { fetchDebts, createDebt, updateDebt, deleteDebt, fetchDebtStatistics, repayDebt, Debt } from '../../store/slices/debtSlice';
+import { fetchDebts, createDebt, updateDebt, deleteDebt, fetchDebtStatistics, repayDebt, syncDebtsToTransactions, Debt } from '../../store/slices/debtSlice';
 import { collaborativeService } from '../../services/collaborativeService';
 import './DebtPage.css';
 
@@ -21,16 +21,46 @@ const DebtPage: React.FC = () => {
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null);
   const [selectedDebt, setSelectedDebt] = useState<Debt | null>(null);
-  const [filters] = useState({ debtType: '', status: '' });
+  const [filters, setFilters] = useState({ debtType: '', status: '' });
   const [form] = Form.useForm();
   const [paymentForm] = Form.useForm();
+
+  const [syncLoading, setSyncLoading] = useState(false);
 
   const dispatch = useDispatch<AppDispatch>();
   const { debts, statistics, loading: debtLoading } = useSelector((state: RootState) => state.debts);
 
-  const loadDebts = useCallback(() => {
-    dispatch(fetchDebts(filters) as any);
+  const loadDebts = useCallback((currentFilters = filters) => {
+    dispatch(fetchDebts(currentFilters) as any);
   }, [dispatch, filters]);
+
+  const handleSync = async () => {
+    setSyncLoading(true);
+    try {
+      const result = await dispatch(syncDebtsToTransactions() as any).unwrap();
+      message.success(`同步成功：补全了 ${result.debtsSynced} 笔债务流水和 ${result.paymentsSynced} 笔还款流水`);
+      loadDebts();
+    } catch (error: any) {
+      message.error(error || '同步失败');
+    } finally {
+      setSyncLoading(false);
+    }
+  };
+
+  const handleFilterChange = (key: string, value: any) => {
+    const newFilters = { ...filters, [key]: value || '' };
+    setFilters(newFilters);
+  };
+
+  const handleClearFilters = () => {
+    const defaultFilters = { debtType: '', status: '' };
+    setFilters(defaultFilters);
+    loadDebts(defaultFilters);
+  };
+
+  const handleExecuteFilter = () => {
+    loadDebts();
+  };
 
   useEffect(() => {
     loadDebts();
@@ -265,6 +295,16 @@ const DebtPage: React.FC = () => {
         </div>
         <div className="header-actions">
           <Button 
+            icon={<SyncOutlined spin={syncLoading} />} 
+            onClick={handleSync}
+            loading={syncLoading}
+            size="large"
+            className="sync-btn"
+            style={{ marginRight: 8 }}
+          >
+            同步历史数据
+          </Button>
+          <Button 
             type="primary" 
             icon={<PlusOutlined />} 
             onClick={handleAdd}
@@ -324,6 +364,55 @@ const DebtPage: React.FC = () => {
       </Row>
 
       <Card className="glass-card custom-table-card" variant="borderless">
+        <div className="filter-section" style={{ marginBottom: 20, padding: '0 4px' }}>
+          <Row gutter={16} align="bottom">
+            <Col xs={24} sm={8} md={6}>
+              <div className="filter-label" style={{ marginBottom: 8, fontSize: 13, color: 'var(--neutral-500)' }}>债务类型</div>
+              <Select 
+                placeholder="全部类型" 
+                style={{ width: '100%' }} 
+                value={filters.debtType || undefined}
+                onChange={(val) => handleFilterChange('debtType', val)}
+                size="large"
+              >
+                <Option value="borrow">借入</Option>
+                <Option value="lend">借出</Option>
+              </Select>
+            </Col>
+            <Col xs={24} sm={8} md={6}>
+              <div className="filter-label" style={{ marginBottom: 8, fontSize: 13, color: 'var(--neutral-500)' }}>还款状态</div>
+              <Select 
+                placeholder="全部状态" 
+                style={{ width: '100%' }} 
+                value={filters.status || undefined}
+                onChange={(val) => handleFilterChange('status', val)}
+                size="large"
+              >
+                <Option value="pending">待还/待收</Option>
+                <Option value="paid">已结清</Option>
+                <Option value="overdue">已逾期</Option>
+              </Select>
+            </Col>
+            <Col xs={24} sm={8} md={6}>
+              <Space style={{ width: '100%' }}>
+                <Button 
+                  type="primary" 
+                  onClick={handleExecuteFilter}
+                  size="large"
+                  style={{ flex: 1 }}
+                >
+                  查询
+                </Button>
+                <Button 
+                  onClick={handleClearFilters}
+                  size="large"
+                  icon={<ReloadOutlined />}
+                  title="重置筛选"
+                />
+              </Space>
+            </Col>
+          </Row>
+        </div>
         <Table 
           columns={columns} 
           dataSource={debts} 
@@ -347,6 +436,9 @@ const DebtPage: React.FC = () => {
         width={600} 
         destroyOnHidden
         className="custom-modal"
+        centered
+        maskClosable={true}
+        keyboard={true}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit} className="modern-form">
           <Row gutter={16}>
@@ -364,7 +456,16 @@ const DebtPage: React.FC = () => {
           </Row>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="originalAmount" label="金额" rules={[{ required: true }]}><InputNumber min={0.01} precision={2} style={{ width: '100%' }} prefix="¥" /></Form.Item>
+              <Form.Item 
+                name="originalAmount" 
+                label="金额" 
+                rules={[
+                  { required: true, message: '请输入金额' },
+                  { type: 'number', max: 999999999999, message: '金额不能超过 999,999,999,999' }
+                ]}
+              >
+                <InputNumber min={0.01} precision={2} style={{ width: '100%' }} prefix="¥" />
+              </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="interestRate" label="利率（%）"><InputNumber min={0} max={100} precision={2} style={{ width: '100%' }} /></Form.Item>
@@ -394,17 +495,30 @@ const DebtPage: React.FC = () => {
         title="还款记录" 
         open={paymentModalVisible} 
         onCancel={() => setPaymentModalVisible(false)} 
+        confirmLoading={paymentLoading}
         footer={null} 
         width={500} 
         destroyOnHidden
         className="custom-modal"
+        centered
+        maskClosable={true}
+        keyboard={true}
       >
         <Form form={paymentForm} layout="vertical" onFinish={handlePaymentSubmit} className="modern-form">
           <div className="payment-info-card">
             <div className="info-label">还款对象: {selectedDebt?.debtorName}</div>
             <div className="info-amount">待还金额: <span>¥{Number(selectedDebt?.remainingAmount || 0).toFixed(2)}</span></div>
           </div>
-          <Form.Item name="amount" label="本次还款金额" rules={[{ required: true }]}><InputNumber min={0.01} max={Number(selectedDebt?.remainingAmount) || 999999} precision={2} style={{ width: '100%' }} prefix="¥" /></Form.Item>
+          <Form.Item 
+            name="amount" 
+            label="本次还款金额" 
+            rules={[
+              { required: true, message: '请输入还款金额' },
+              { type: 'number', max: 999999999999, message: '金额超出限制' }
+            ]}
+          >
+            <InputNumber min={0.01} max={Number(selectedDebt?.remainingAmount) || 999999} precision={2} style={{ width: '100%' }} prefix="¥" />
+          </Form.Item>
           <Form.Item name="paymentDate" label="还款日期" rules={[{ required: true }]}><DatePicker style={{ width: '100%' }} /></Form.Item>
           <Form.Item name="note" label="备注"><TextArea rows={2} placeholder="添加备注..." /></Form.Item>
           <div className="modal-footer">

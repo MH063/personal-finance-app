@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Row, Col, Select, DatePicker, Button, Statistic, Typography, Space, App as AntdApp, Tag, Progress, List } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, DownloadOutlined, AccountBookOutlined } from '@ant-design/icons';
+import { ArrowUpOutlined, ArrowDownOutlined, DownloadOutlined, AccountBookOutlined, ReloadOutlined } from '@ant-design/icons';
 import SafeChart from '../../components/common/SafeChart';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
@@ -30,7 +30,6 @@ const StatisticsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { overview, health } = useSelector((state: RootState) => state.statistics);
-  const { healthAnalysis, forecast } = useSelector((state: RootState) => state.ai);
   const { message } = AntdApp.useApp();
 
   // 采样背景亮度以动态调整文字颜色
@@ -74,7 +73,7 @@ const StatisticsPage: React.FC = () => {
     ? '0 1px 1px rgba(255, 255, 255, 0.5)' 
     : '0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4)';
 
-  const refreshData = () => {
+  const refreshData = React.useCallback(() => {
     console.log('[Statistics] 正在刷新数据...');
     const query: any = { timeRange };
     if (timeRange === 'custom') {
@@ -103,7 +102,7 @@ const StatisticsPage: React.FC = () => {
     aiService.getHealthAnalysis().then(res => {
       if (res) setAiData(res);
     });
-  };
+  }, [customRange, dispatch, timeRange]);
 
   useEffect(() => {
     refreshData();
@@ -127,7 +126,7 @@ const StatisticsPage: React.FC = () => {
       collaborativeService.off('ledgerUpdate', handleUpdate);
       collaborativeService.off('globalUpdate', handleUpdate);
     };
-  }, [dispatch, timeRange, customRange]);
+  }, [refreshData]);
 
   const handleQuickAdd = (type: 'income' | 'expense') => {
     if (quickAddLoading) return;
@@ -297,6 +296,15 @@ const StatisticsPage: React.FC = () => {
     }
   };
 
+  /**
+   * 重置筛选条件
+   */
+  const handleResetFilters = () => {
+    console.log('[StatisticsPage] 重置筛选条件');
+    setTimeRange('last6months');
+    setCustomRange(null);
+  };
+
   return (
     <div className="statistics-page">
       <div className="page-header-section">
@@ -381,6 +389,13 @@ const StatisticsPage: React.FC = () => {
                 className="custom-range-picker"
               />
             )}
+            <Button 
+              onClick={handleResetFilters}
+              size="large"
+              icon={<ReloadOutlined />}
+              title="重置筛选"
+              className="filter-reset-btn"
+            />
             <Button 
               icon={<DownloadOutlined />} 
               size="large" 

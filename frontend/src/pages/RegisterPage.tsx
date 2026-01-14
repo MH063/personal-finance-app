@@ -14,9 +14,11 @@ const RegisterPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  // 安全加载背景图片
-  const pageBg = useSafeBackground('https://picsum.photos/1920/1080?random=3');
-  const panelBg = useSafeBackground('https://picsum.photos/800/1200?random=4');
+  const [pageSeed] = useState(() => Math.floor(Math.random() * 1_000_000));
+  const [panelSeed] = useState(() => Math.floor(Math.random() * 1_000_000));
+
+  const pageBg = useSafeBackground(`https://picsum.photos/1920/1080?random=${pageSeed}`);
+  const panelBg = useSafeBackground(`https://picsum.photos/800/1200?random=${panelSeed}`);
 
   const onFinish = async (values: { username: string; email: string; password: string; fullName?: string }) => {
     setLoading(true);

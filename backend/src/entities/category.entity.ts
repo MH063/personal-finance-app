@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  VersionColumn,
   ManyToOne,
   OneToMany,
   JoinColumn,
@@ -51,6 +52,9 @@ export class Category {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @VersionColumn()
+  version: number;
 
   @Column({ name: 'user_id', nullable: true })
   userId: string;

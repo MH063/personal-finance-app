@@ -3,6 +3,8 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
+  VersionColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
@@ -14,7 +16,7 @@ export class DebtPayment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'decimal', precision: 12, scale: 2 })
+  @Column({ type: 'decimal', precision: 18, scale: 2 })
   amount: number;
 
   @Column({ name: 'payment_date', type: 'date' })
@@ -25,6 +27,12 @@ export class DebtPayment {
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
+
+  @VersionColumn({ default: 1 })
+  version: number;
 
   @Column({ name: 'debt_id' })
   debtId: string;

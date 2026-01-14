@@ -102,9 +102,13 @@ export const offlineSyncService = {
         if (!exists) continue;
 
         try {
+          console.log(`[OfflineSync] 正在同步项: ${item.action} ${item.entity} (ID: ${item.id})`);
           await this.processSyncItem(item);
           // 同步成功，从队列中移除
-          if (item.id) await db.syncQueue.delete(item.id);
+          if (item.id) {
+            await db.syncQueue.delete(item.id);
+            console.log(`[OfflineSync] 同步成功并移除项: ${item.id}`);
+          }
         } catch (error: any) {
         // 处理 IndexedDB 约束错误 (虽然上面改用了 put，但防御性处理同步队列本身的 ID 问题)
         if (error.name === 'ConstraintError' || error.message?.includes('ConstraintError')) {
@@ -123,7 +127,16 @@ export const offlineSyncService = {
           if (item.action === 'DELETE') {
             console.log(`[OfflineSync] 同步项 (ID: ${item.id}, DELETE ${item.entity}) 在服务器上已不存在或无权限，视为同步成功`);
           } else {
-            console.warn(`[OfflineSync] 同步项失败 (ID: ${item.id})，状态码 ${status} (${errorMessage})，将其从队列移除`);
+            if (status === 404 && item.entity === 'DEBT') {
+              try {
+                await db.debts.delete(item.entityId);
+                console.warn(`[OfflineSync] 债务不存在，已清理本地债务并移除同步项: debtId=${item.entityId}, queueId=${item.id}`);
+              } catch (e) {
+                console.warn(`[OfflineSync] 清理本地债务失败: debtId=${item.entityId}, queueId=${item.id}`, e);
+              }
+            } else {
+              console.warn(`[OfflineSync] 同步项失败 (ID: ${item.id})，状态码 ${status} (${errorMessage})，将其从队列移除`);
+            }
           }
           if (item.id) await db.syncQueue.delete(item.id);
           continue; 
@@ -219,8 +232,15 @@ export const offlineSyncService = {
       'totalAmount',
       'paymentCount',
       'totalPaid',
+      'usedAmount',
+      'usedBudget',
+      'usagePercentage',
       'remainingAmount', // CREATE 时通常不允许，UPDATE 时部分允许，这里先移除，特定逻辑再处理
       'status', // 同上
+      'debtType', // 债务类型通常不可更改
+      'originalAmount', // 原始金额通常不可更改
+      'paidPercentage', // 计算字段
+      'isOverdue', // 计算字段
       'category', // 移除嵌套的对象，只保留 categoryId
       'ledger', // 移除嵌套的对象，只保留 ledgerId
       'tags', // 移除标签对象列表（如果后端 DTO 不支持直接发送对象数组）
@@ -254,13 +274,36 @@ export const offlineSyncService = {
       case 'CREATE': {
         const tempId = data?.id;
         const createData = this.cleanPayload(data);
+        
+        // 针对特定实体的特殊处理
+        if (entity === 'DEBT') {
+          // 债务创建时允许传递 ID，以保持离线 ID 一致性
+          createData.id = tempId;
+          // 债务创建时必须包含类型和原始金额，cleanPayload 默认移除了它们
+          if (data.debtType) createData.debtType = data.debtType;
+          if (data.originalAmount !== undefined) createData.originalAmount = data.originalAmount;
+        } else if (entity === 'BUDGET') {
+          // Budget CREATE 需要 categoryId，但 cleanPayload 默认会保留它（因为它不在 systemFields 中）
+          // 但是 Budget CREATE 不允许 status
+          delete createData.status;
+        }
+
         const response = await api.post(endpoint, createData, {
-          headers: { 'X-Silent-Error': 'true' }
+          headers: { 
+            'X-Silent-Error': 'true',
+            'X-Sync-Action': 'CREATE',
+            'X-Entity-ID': tempId
+          }
         });
         
         // 同步成功后，用服务器返回的真实数据更新本地数据库
-        if (response.data && tempId) {
-          const serverData = response.data;
+        // 注意：后端返回结构是 { success: true, data: { ... } }
+        const result = response.data;
+        const serverData = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+          ? result.data 
+          : result;
+
+        if (serverData && tempId) {
           // 1. 删除本地的临时记录
           const table = this.getTableForEntity(entity);
           if (table) {
@@ -298,68 +341,124 @@ export const offlineSyncService = {
           // Debt UPDATE 允许 remainingAmount 和 status
           if (data.remainingAmount !== undefined) updateData.remainingAmount = data.remainingAmount;
           if (data.status !== undefined) updateData.status = data.status;
+        } else if (entity === 'BUDGET') {
+          // 预算更新不允许 categoryId，后端 DTO 只有 amount, startDate, endDate, status
+          delete updateData.categoryId;
+          
+          // 同时也允许 status，因为 cleanPayload 默认移除了它
+          if (data.status !== undefined) updateData.status = data.status;
         }
 
         // 默认使用 PUT，BUDGET 使用 PATCH
         const method = entity === 'BUDGET' ? 'patch' : 'put';
         await (api as any)[method](`${endpoint}/${entityId}`, updateData, {
-          headers: { 'X-Silent-Error': 'true' }
+          headers: { 
+            'X-Silent-Error': 'true',
+            'X-Sync-Action': 'UPDATE',
+            'X-Entity-ID': entityId
+          }
         });
         break;
       }
       case 'DELETE':
-        await api.delete(`${endpoint}/${entityId}`, {
-          headers: { 'X-Silent-Error': 'true' },
-          validateStatus: (status) => (status >= 200 && status < 300) || status === 404 || status === 403
-        });
+        try {
+          await api.delete(`${endpoint}/${entityId}`, {
+            headers: { 
+              'X-Silent-Error': 'true',
+              'X-Sync-Action': 'DELETE',
+              'X-Entity-ID': entityId
+            },
+            validateStatus: (status) => (status >= 200 && status < 300) || status === 404 || status === 403
+          });
+        } catch (e) {
+          // 已经在 validateStatus 中处理了 404/403，通常不会走到这里，
+          // 但为了彻底静默浏览器控制台的红字报错（如果是网络层面的 404），
+          // 这里的 try-catch 是最后的保障。
+        }
         break;
     }
   },
 
   /**
-   * 从服务器同步最新的数据到本地缓存
+   * 刷新本地所有缓存数据
    */
   async refreshLocalCache(): Promise<void> {
     if (!this.isOnline() || !this.isAuthenticated()) return;
 
     try {
+      console.log('[OfflineSync] 正在刷新本地缓存...');
+      
       // 使用静默模式请求，避免初始化时的 401 报错干扰用户
       const config = { headers: { 'X-Silent-Error': 'true' } };
 
-      // 同步账本
-      const ledgersRes = await api.get('/ledgers', config);
-      if (ledgersRes.data && Array.isArray(ledgersRes.data)) {
-        await db.ledgers.bulkPut(ledgersRes.data);
-      }
-
-      // 同步交易记录 (简单起见，同步最近的，限制为 100 条以符合后端校验)
-      const txRes = await api.get('/transactions?limit=100', config);
-      if (txRes.data) {
-        // 交易记录返回的是分页结构 { data: Transaction[], total: number, ... } 或者直接是数组
-        const transactions = txRes.data.data || txRes.data;
-        if (Array.isArray(transactions)) {
-          await db.transactions.bulkPut(transactions);
+      // 内部帮助函数：从响应中提取数组数据
+      const extractArray = (res: any) => {
+        const result = res.data;
+        if (!result) return [];
+        const innerData = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+          ? result.data 
+          : result;
+        
+        if (Array.isArray(innerData)) return innerData;
+        if (innerData && typeof innerData === 'object' && 'data' in innerData && Array.isArray(innerData.data)) {
+          return innerData.data; // 处理分页结构 { data: [], total: ... }
         }
-      }
-      
-      // 同步债务和预算
-      const debtsRes = await api.get('/debts', config);
-      if (debtsRes.data && Array.isArray(debtsRes.data)) {
-        await db.debts.bulkPut(debtsRes.data);
-      }
-      
-      const budgetsRes = await api.get('/budgets', config);
-      if (budgetsRes.data && Array.isArray(budgetsRes.data)) {
-        await db.budgets.bulkPut(budgetsRes.data);
+        return [];
+      };
+
+      // 1. 同步分类
+      const categories = extractArray(await api.get('/categories', config));
+      if (categories.length > 0) {
+        await db.categories.clear();
+        await db.categories.bulkPut(categories);
       }
 
-      // 同步分类
-      const categoriesRes = await api.get('/categories', config);
-      if (categoriesRes.data && Array.isArray(categoriesRes.data)) {
-        await db.categories.bulkPut(categoriesRes.data);
+      // 2. 同步账本
+      const ledgers = extractArray(await api.get('/ledgers', config));
+      if (ledgers.length > 0) {
+        await db.ledgers.clear();
+        await db.ledgers.bulkPut(ledgers);
+      }
+
+      // 3. 同步预算
+      const budgets = extractArray(await api.get('/budgets', config));
+      if (budgets.length > 0) {
+        await db.budgets.clear();
+        await db.budgets.bulkPut(budgets);
+      }
+
+      // 4. 同步债务
+      const debts = extractArray(await api.get('/debts', config));
+      const serverDebtIds = new Set<string>((debts || []).map((d: any) => d?.id).filter(Boolean));
+      const pendingDebtCreates = await db.syncQueue
+        .where('entity')
+        .equals('DEBT')
+        .filter(i => i.action === 'CREATE')
+        .toArray();
+      const pendingDebtCreateIds = new Set(pendingDebtCreates.map(i => i.entityId));
+
+      const localDebts = await db.debts.toArray();
+      const staleDebtIds = localDebts
+        .map((d: any) => d?.id)
+        .filter((id: any) => !!id && !serverDebtIds.has(id) && !pendingDebtCreateIds.has(id));
+
+      if (staleDebtIds.length > 0) {
+        console.warn(`[OfflineSync] 检测到 ${staleDebtIds.length} 条服务器不存在的本地债务，已清理以避免脏数据`);
+        await db.debts.bulkDelete(staleDebtIds);
+      }
+
+      if (debts.length > 0) {
+        await db.debts.bulkPut(debts);
+      }
+
+      // 5. 同步交易记录 (只获取最近的)
+      const transactions = extractArray(await api.get('/transactions', { ...config, params: { limit: 100 } }));
+      if (transactions.length > 0) {
+        // 对于交易，我们可能不想清除全部，而是合并
+        await db.transactions.bulkPut(transactions);
       }
       
-      console.log('[OfflineSync] 本地缓存已更新');
+      console.log('[OfflineSync] 本地缓存刷新完成');
     } catch (error: any) {
       // 只有在非 401 错误时才打印错误，401 由 api.ts 统一处理跳转
       if (error.response?.status !== 401) {
@@ -387,7 +486,7 @@ export const offlineSyncService = {
     }
 
     // 处理每组操作
-    for (const [key, group] of entityMap.entries()) {
+    for (const [, group] of entityMap.entries()) {
       if (group.length === 1) {
         result.push(group[0]);
         continue;

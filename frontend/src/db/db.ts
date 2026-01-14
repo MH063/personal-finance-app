@@ -1,7 +1,7 @@
 import Dexie, { Table } from 'dexie';
-import { Transaction } from '../services/transactionService';
-import { Ledger } from '../services/ledgerService';
-import { Category } from '../services/categoryService';
+import type { Transaction } from '../services/transactionService';
+import type { Ledger } from '../services/ledgerService';
+import type { Category } from '../services/categoryService';
 
 /**
  * 同步队列项接口

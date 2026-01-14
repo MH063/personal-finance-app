@@ -15,10 +15,10 @@ import { Type } from 'class-transformer';
 import { TransactionType, PaymentMethod } from '../../entities/transaction.entity';
 
 export class CreateTransactionDto {
-  @ApiProperty({ example: 150.5, description: '交易金额（精确到分）' })
+  @ApiProperty({ example: 100, description: '金额' })
   @IsNumber()
   @Min(0.01)
-  @Max(9999999999.99)
+  @Max(999999999999.99)
   amount: number;
 
   @ApiProperty({ enum: TransactionType, example: TransactionType.EXPENSE, description: '交易类型' })
@@ -66,7 +66,7 @@ export class UpdateTransactionDto {
   @ApiPropertyOptional({ example: 200.0 })
   @IsNumber()
   @Min(0.01)
-  @Max(9999999999.99)
+  @Max(999999999999999.99)
   @IsOptional()
   amount?: number;
 
@@ -111,6 +111,11 @@ export class UpdateTransactionDto {
   @IsObject()
   @IsOptional()
   metadata?: Record<string, any>;
+
+  @ApiPropertyOptional({ description: '版本号' })
+  @IsNumber()
+  @IsOptional()
+  version?: number;
 }
 
 export class TransactionQueryDto {

@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, MoreThan, IsNull, In } from 'typeorm';
+import { Repository, LessThan, MoreThan, IsNull, In, OptimisticLockVersionMismatchError } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Debt, DebtType, DebtStatus } from '../entities/debt.entity';
 import { DebtPayment } from '../entities/debt-payment.entity';
@@ -8,6 +8,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType, NotificationPriority } from '../entities/notification.entity';
 import { CreateDebtDto, UpdateDebtDto, CreatePaymentDto, DebtQueryDto } from './dto/debt.dto';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
+import { TransactionsService } from '../transactions/transactions.service';
+import { CategoriesService } from '../categories/categories.service';
+import { TransactionType, PaymentMethod } from '../entities/transaction.entity';
+import { CategoryType } from '../entities/category.entity';
 
 export interface DebtStatistics {
   totalDebts: number;
@@ -37,7 +41,42 @@ export class DebtsService {
     private readonly paymentRepository: Repository<DebtPayment>,
     private readonly notificationsService: NotificationsService,
     private readonly ledgerGateway: LedgerGateway,
+    @Inject(forwardRef(() => TransactionsService))
+    private readonly transactionsService: TransactionsService,
+    private readonly categoriesService: CategoriesService,
   ) {}
+
+  /**
+   * 获取或创建债务专项分类
+   */
+  private async getOrCreateDebtCategory(userId: string, debtType: DebtType) {
+    const categoryName = debtType === DebtType.BORROW ? '借入款' : '借出款';
+    const categoryType = debtType === DebtType.BORROW ? CategoryType.INCOME : CategoryType.EXPENSE;
+
+    const categories = await this.categoriesService.findAll(userId, { type: categoryType });
+    let category = categories.find(c => c.name === categoryName);
+
+    if (!category) {
+      this.logger.log(`为用户 ${userId} 创建缺失的债务分类: ${categoryName}`);
+      const color = debtType === DebtType.BORROW ? '#FAAD14' : '#722ED1';
+      const icon = debtType === DebtType.BORROW ? 'borrow' : 'lend';
+      
+      try {
+        category = await this.categoriesService.create(userId, {
+          name: categoryName,
+          type: categoryType,
+          color,
+          icon,
+          sortOrder: 99 // 放在后面
+        });
+      } catch (err: any) {
+        this.logger.error(`创建分类失败: ${err.message}`);
+        category = categories.find(c => c.name.includes('其他')) || categories[0];
+      }
+    }
+
+    return category;
+  }
 
   /**
    * 创建债务记录
@@ -49,6 +88,7 @@ export class DebtsService {
 
     const debt = this.debtRepository.create({
       ...createDto,
+      id: createDto.id, // 如果前端提供了 ID (离线同步场景)，则使用提供的 ID
       userId,
       originalAmount: createDto.originalAmount,
       remainingAmount: createDto.originalAmount,
@@ -57,6 +97,29 @@ export class DebtsService {
 
     const savedDebt = await this.debtRepository.save(debt);
     this.logger.log(`债务创建成功: ${savedDebt.id}`);
+
+    // --- 联动交易流水 ---
+    try {
+      const category = await this.getOrCreateDebtCategory(userId, createDto.debtType);
+      const txType = createDto.debtType === DebtType.BORROW ? TransactionType.INCOME : TransactionType.EXPENSE;
+      
+      await this.transactionsService.create(userId, {
+        amount: createDto.originalAmount,
+        type: txType,
+        categoryId: category?.id,
+        transactionDate: new Date().toISOString(),
+        description: `[债务关联] ${createDto.debtType === DebtType.BORROW ? '借入' : '借出'}：${createDto.debtorName}${createDto.description ? ' - ' + createDto.description : ''}`,
+        paymentMethod: PaymentMethod.OTHER,
+        metadata: {
+          debtId: savedDebt.id,
+          isDebtLink: true
+        }
+      });
+      this.logger.log(`已自动生成债务关联交易流水: DebtID=${savedDebt.id}`);
+    } catch (txError: any) {
+      this.logger.error(`生成债务关联交易流水失败: ${txError.message}`);
+      // 联动失败不应影响债务主记录的创建，仅记录日志
+    }
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'DEBT_CREATED', savedDebt, userId);
@@ -144,7 +207,14 @@ export class DebtsService {
       (updateDto as any).paidDate = new Date();
     }
 
-    Object.assign(debt, updateDto);
+    // 乐观锁校验
+    if (updateDto.version !== undefined && debt.version !== updateDto.version) {
+      throw new OptimisticLockVersionMismatchError('Debt', updateDto.version, debt.version);
+    }
+
+    // 移除 version，防止 Object.assign 覆盖实体中的 version，让 TypeORM 自动管理
+    const { version, ...updateData } = updateDto;
+    Object.assign(debt, updateData);
     const updatedDebt = await this.debtRepository.save(debt);
 
     // 发送实时更新通知
@@ -169,6 +239,13 @@ export class DebtsService {
 
     await this.debtRepository.remove(debt);
     this.logger.log(`债务删除成功: ${id}`);
+
+    // --- 联动删除交易流水 ---
+    try {
+      await this.transactionsService.removeLinkedTransactions(userId, { debtId: id });
+    } catch (txError: any) {
+      this.logger.error(`删除关联交易流水失败: ${txError.message}`);
+    }
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'DEBT_DELETED', { id }, userId);
@@ -213,9 +290,37 @@ export class DebtsService {
     }
 
     debt.totalPaid = Number(debt.totalPaid) + paymentDto.amount;
+    debt.paymentCount = (debt.paymentCount || 0) + 1;
     await this.debtRepository.save(debt);
 
     this.logger.log(`还款记录添加成功: ${savedPayment.id}`);
+
+    // --- 联动交易流水 ---
+    try {
+      // 还款时的交易类型与借入/借出相反
+      // 借入(BORROW)还款 -> 支出(EXPENSE)
+      // 借出(LEND)收款 -> 收入(INCOME)
+      const oppositeType = debt.debtType === DebtType.BORROW ? DebtType.LEND : DebtType.BORROW;
+      const category = await this.getOrCreateDebtCategory(userId, oppositeType);
+      const txType = debt.debtType === DebtType.BORROW ? TransactionType.EXPENSE : TransactionType.INCOME;
+
+      await this.transactionsService.create(userId, {
+        amount: paymentDto.amount,
+        type: txType,
+        categoryId: category?.id,
+        transactionDate: new Date(paymentDto.paymentDate).toISOString(),
+        description: `[债务关联] ${debt.debtType === DebtType.BORROW ? '偿还' : '收回'}债务：${debt.debtorName}${paymentDto.note ? ' - ' + paymentDto.note : ''}`,
+        paymentMethod: PaymentMethod.OTHER,
+        metadata: {
+          debtId: debt.id,
+          paymentId: savedPayment.id,
+          isDebtLink: true
+        }
+      });
+      this.logger.log(`已自动生成债务还款关联交易流水: PaymentID=${savedPayment.id}`);
+    } catch (txError: any) {
+      this.logger.error(`生成债务还款关联交易流水失败: ${txError.message}`);
+    }
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'DEBT_PAYMENT_ADDED', { debtId, payment: savedPayment }, userId);
@@ -242,6 +347,7 @@ export class DebtsService {
     if (debt) {
       debt.remainingAmount = Number(debt.remainingAmount) + payment.amount;
       debt.totalPaid = Number(debt.totalPaid) - payment.amount;
+      debt.paymentCount = Math.max(0, (debt.paymentCount || 0) - 1);
 
       if (debt.status === DebtStatus.PAID) {
         debt.status = DebtStatus.PARTIAL;
@@ -259,8 +365,91 @@ export class DebtsService {
     await this.paymentRepository.remove(payment);
     this.logger.log(`还款记录删除成功: ${paymentId}`);
 
+    // --- 联动删除关联交易流水 ---
+    try {
+      await this.transactionsService.removeLinkedTransactions(userId, { paymentId });
+    } catch (txError: any) {
+      this.logger.error(`删除还款关联交易流水失败: ${txError.message}`);
+    }
+
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'DEBT_PAYMENT_DELETED', { debtId, paymentId }, userId);
+  }
+
+  /**
+   * 同步所有债务及还款记录到交易流水
+   */
+  async syncAllToTransactions(userId: string): Promise<{ debtsSynced: number; paymentsSynced: number }> {
+    this.logger.log(`用户 ${userId} 触发全量债务交易同步`);
+    
+    const debts = await this.debtRepository.find({
+      where: { userId },
+      relations: ['payments']
+    });
+
+    let debtsSynced = 0;
+    let paymentsSynced = 0;
+
+    for (const debt of debts) {
+      // 1. 同步债务本身
+      const debtExists = await this.transactionsService.existsLinkedTransaction(userId, { debtId: debt.id });
+      if (!debtExists) {
+        try {
+          const category = await this.getOrCreateDebtCategory(userId, debt.debtType);
+          const txType = debt.debtType === DebtType.BORROW ? TransactionType.INCOME : TransactionType.EXPENSE;
+          
+          await this.transactionsService.create(userId, {
+            amount: Number(debt.originalAmount),
+            type: txType,
+            categoryId: category?.id,
+            transactionDate: debt.createdAt.toISOString(),
+            description: `[债务同步] ${debt.debtType === DebtType.BORROW ? '借入' : '借出'}：${debt.debtorName}${debt.description ? ' - ' + debt.description : ''}`,
+            paymentMethod: PaymentMethod.OTHER,
+            metadata: {
+              debtId: debt.id,
+              isDebtLink: true
+            }
+          });
+          debtsSynced++;
+        } catch (err: any) {
+          this.logger.error(`同步债务 ${debt.id} 失败: ${err.message}`);
+        }
+      }
+
+      // 2. 同步还款记录
+      if (debt.payments && debt.payments.length > 0) {
+        for (const payment of debt.payments) {
+          const paymentExists = await this.transactionsService.existsLinkedTransaction(userId, { paymentId: payment.id });
+          if (!paymentExists) {
+            try {
+              const oppositeType = debt.debtType === DebtType.BORROW ? DebtType.LEND : DebtType.BORROW;
+              const category = await this.getOrCreateDebtCategory(userId, oppositeType);
+              const txType = debt.debtType === DebtType.BORROW ? TransactionType.EXPENSE : TransactionType.INCOME;
+
+              await this.transactionsService.create(userId, {
+                amount: Number(payment.amount),
+                type: txType,
+                categoryId: category?.id,
+                transactionDate: payment.paymentDate.toISOString(),
+                description: `[还款同步] ${debt.debtType === DebtType.BORROW ? '偿还' : '收回'}债务：${debt.debtorName}${payment.note ? ' - ' + payment.note : ''}`,
+                paymentMethod: PaymentMethod.OTHER,
+                metadata: {
+                  debtId: debt.id,
+                  paymentId: payment.id,
+                  isDebtLink: true
+                }
+              });
+              paymentsSynced++;
+            } catch (err: any) {
+              this.logger.error(`同步还款 ${payment.id} 失败: ${err.message}`);
+            }
+          }
+        }
+      }
+    }
+
+    this.logger.log(`同步完成: 债务=${debtsSynced}, 还款=${paymentsSynced}`);
+    return { debtsSynced, paymentsSynced };
   }
 
   /**

@@ -35,12 +35,16 @@ const ExpensePage: React.FC = () => {
     };
 
     collaborativeService.on('ledgerUpdate', handleUpdate);
-  collaborativeService.on('globalUpdate', handleUpdate);
+    collaborativeService.on('globalUpdate', handleUpdate);
+    collaborativeService.on('budgetUpdate', handleUpdate);
+    collaborativeService.on('transactionUpdate', handleUpdate);
 
-  return () => {
-    collaborativeService.off('ledgerUpdate', handleUpdate);
-    collaborativeService.off('globalUpdate', handleUpdate);
-  };
+    return () => {
+      collaborativeService.off('ledgerUpdate', handleUpdate);
+      collaborativeService.off('globalUpdate', handleUpdate);
+      collaborativeService.off('budgetUpdate', handleUpdate);
+      collaborativeService.off('transactionUpdate', handleUpdate);
+    };
   }, [dispatch]);
 
   const handleAdd = async () => {

@@ -16,7 +16,6 @@ import {
   Empty, 
   Tag,
   Popconfirm,
-  Tooltip,
   Statistic
 } from 'antd';
 import { 
@@ -25,7 +24,6 @@ import {
   DeleteOutlined, 
   InfoCircleOutlined,
   WalletOutlined,
-  PieChartOutlined,
   CalendarOutlined
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -49,7 +47,7 @@ const { RangePicker } = DatePicker;
 const BudgetPage: React.FC = () => {
   const { message } = AntdApp.useApp();
   const dispatch = useDispatch<AppDispatch>();
-  const { budgets, loading } = useSelector((state: RootState) => state.budgets);
+  const { budgets } = useSelector((state: RootState) => state.budgets);
   const { categories } = useSelector((state: RootState) => state.categories);
   
   const [modalVisible, setModalVisible] = useState(false);
@@ -60,15 +58,20 @@ const BudgetPage: React.FC = () => {
 
   useEffect(() => {
     dispatch(fetchBudgets());
-    dispatch(fetchCategories({ type: 'expense' }));
+    dispatch(fetchCategories('expense'));
 
     // 监听更新
     const handleUpdate = (data: any) => {
       console.log('[BudgetPage] 监听到实时更新:', data);
-      // 预算、分类更新或重连同步时刷新
-      if (data.type?.includes('BUDGET') || data.type?.includes('CATEGORY') || data.type === 'RECONNECTED_SYNC') {
+      // 预算、分类、交易更新或重连同步时刷新
+      if (
+        data.type?.includes('BUDGET') || 
+        data.type?.includes('CATEGORY') || 
+        data.type?.includes('TRANSACTION') || 
+        data.type === 'RECONNECTED_SYNC'
+      ) {
         dispatch(fetchBudgets());
-        dispatch(fetchCategories({ type: 'expense' }));
+        dispatch(fetchCategories('expense'));
       }
     };
 
@@ -119,18 +122,20 @@ const BudgetPage: React.FC = () => {
     try {
       const values = await form.validateFields();
       setSubmitLoading(true);
-      const data = {
-        categoryId: values.categoryId,
+      const data: any = {
         amount: values.amount,
         startDate: values.dateRange[0].format('YYYY-MM-DD'),
-        endDate: values.dateRange[1].format('YYYY-MM-DD'),
-        status: values.status || BudgetStatus.ACTIVE
+        endDate: values.dateRange[1].format('YYYY-MM-DD')
       };
 
       if (editingBudget) {
+        // 更新预算时，通常不允许修改分类，但允许修改状态
+        data.status = values.status || BudgetStatus.ACTIVE;
         await dispatch(updateBudget({ id: editingBudget.id, data })).unwrap();
         message.success('预算已更新');
       } else {
+        // 创建预算时需要分类 ID，但不允许状态字段
+        data.categoryId = values.categoryId;
         await dispatch(createBudget(data)).unwrap();
         message.success('预算已创建');
       }
@@ -284,8 +289,9 @@ const BudgetPage: React.FC = () => {
         </div>
       )}
 
+      {/* 创建/编辑预算 Modal */}
       <Modal
-        title={editingBudget ? '编辑预算' : '新增预算'}
+        title={editingBudget ? '编辑预算' : '创建新预算'}
         open={modalVisible}
         onOk={handleModalOk}
         onCancel={() => setModalVisible(false)}
@@ -293,6 +299,10 @@ const BudgetPage: React.FC = () => {
         cancelText="取消"
         confirmLoading={submitLoading}
         destroyOnHidden
+        className="custom-modal"
+        centered
+        maskClosable={true}
+        keyboard={true}
       >
         <Form form={form} layout="vertical" initialValues={{ status: BudgetStatus.ACTIVE }}>
           <Form.Item
@@ -300,8 +310,8 @@ const BudgetPage: React.FC = () => {
             label="支出分类"
             rules={[{ required: true, message: '请选择分类' }]}
           >
-            <Select placeholder="选择预算适用的支出分类">
-              {categories.map(cat => (
+            <Select placeholder="选择预算适用的支出分类" disabled={!!editingBudget}>
+              {categories.filter(cat => cat && cat.id && cat.type === 'expense').map(cat => (
                 <Option key={cat.id} value={cat.id}>{cat.name}</Option>
               ))}
             </Select>
@@ -310,7 +320,10 @@ const BudgetPage: React.FC = () => {
           <Form.Item
             name="amount"
             label="预算金额"
-            rules={[{ required: true, message: '请输入预算金额' }]}
+            rules={[
+              { required: true, message: '请输入预算金额' },
+              { type: 'number', max: 999999999999, message: '金额不能超过 999,999,999,999' }
+            ]}
           >
             <InputNumber
               style={{ width: '100%' }}

@@ -11,9 +11,9 @@ interface CategoryState {
 
 export const fetchCategories = createAsyncThunk(
   'categories/fetchAll',
-  async (type: 'income' | 'expense' | undefined = undefined, { rejectWithValue }) => {
+  async (params: 'income' | 'expense' | { type?: 'income' | 'expense' } | undefined = undefined, { rejectWithValue }) => {
     try {
-      const data = await categoryService.getCategories(type);
+      const data = await categoryService.getCategories(params as any);
       return data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '获取分类失败');

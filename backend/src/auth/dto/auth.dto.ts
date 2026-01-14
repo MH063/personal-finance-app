@@ -80,6 +80,11 @@ export class UpdateProfileDto {
   @MaxLength(100)
   @IsOptional()
   email?: string;
+
+  @ApiPropertyOptional({ description: '头像 URL' })
+  @IsString()
+  @IsOptional()
+  avatar?: string;
 }
 
 export class AssignDefaultCategoriesDto {

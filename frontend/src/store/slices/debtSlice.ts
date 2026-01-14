@@ -2,6 +2,15 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import debtService, { Debt } from '../../services/debtService';
 import { collaborativeService } from '../../services/collaborativeService';
 
+const dedupeDebts = (items: Debt[]) => {
+  const map = new Map<string, Debt>();
+  for (const item of items || []) {
+    if (!item?.id) continue;
+    map.set(item.id, item);
+  }
+  return Array.from(map.values());
+};
+
 interface DebtState {
   debts: Debt[];
   statistics: {
@@ -25,7 +34,7 @@ export const fetchDebts = createAsyncThunk(
       const data = await debtService.getDebts(params);
       return data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || '获取债务列表失败');
+      return rejectWithValue(error.message || '获取债务列表失败');
     }
   }
 );
@@ -37,7 +46,7 @@ export const fetchDebtStatistics = createAsyncThunk(
       const data = await debtService.getDebtStatistics();
       return data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || '获取债务统计失败');
+      return rejectWithValue(error.message || '获取债务统计失败');
     }
   }
 );
@@ -51,7 +60,7 @@ export const createDebt = createAsyncThunk(
       collaborativeService.emit('ledgerUpdate', { type: 'debt_created', id: dataResult.id });
       return dataResult;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || '创建债务失败');
+      return rejectWithValue(error.message || '创建债务失败');
     }
   }
 );
@@ -65,7 +74,7 @@ export const updateDebt = createAsyncThunk(
       collaborativeService.emit('ledgerUpdate', { type: 'debt_updated', id: dataResult.id });
       return dataResult;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || '更新债务失败');
+      return rejectWithValue(error.message || '更新债务失败');
     }
   }
 );
@@ -79,7 +88,19 @@ export const deleteDebt = createAsyncThunk(
       collaborativeService.emit('ledgerUpdate', { type: 'debt_deleted', id });
       return id;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || '删除债务失败');
+      return rejectWithValue(error.message || '删除债务失败');
+    }
+  }
+);
+
+export const syncDebtsToTransactions = createAsyncThunk(
+  'debts/syncToTransactions',
+  async (_, { rejectWithValue }) => {
+    try {
+      const data = await debtService.syncDebtsToTransactions();
+      return data;
+    } catch (error: any) {
+      return rejectWithValue(error.message || '同步债务失败');
     }
   }
 );
@@ -93,7 +114,7 @@ export const repayDebt = createAsyncThunk(
       collaborativeService.emit('ledgerUpdate', { type: 'debt_repaid', id });
       return data;
     } catch (error: any) {
-      return rejectWithValue(error.response?.data?.message || '记录还款失败');
+      return rejectWithValue(error.message || '记录还款失败');
     }
   }
 );
@@ -130,7 +151,7 @@ const debtSlice = createSlice({
       })
       .addCase(fetchDebts.fulfilled, (state, action) => {
         state.loading = false;
-        state.debts = action.payload;
+        state.debts = dedupeDebts(action.payload || []);
       })
       .addCase(fetchDebts.rejected, (state, action) => {
         state.loading = false;
@@ -140,7 +161,12 @@ const debtSlice = createSlice({
         state.statistics = action.payload;
       })
       .addCase(createDebt.fulfilled, (state, action) => {
-        state.debts.unshift(action.payload);
+        const index = state.debts.findIndex((d) => d.id === action.payload.id);
+        if (index !== -1) {
+          state.debts[index] = action.payload;
+        } else {
+          state.debts.unshift(action.payload);
+        }
       })
       .addCase(updateDebt.fulfilled, (state, action) => {
         const index = state.debts.findIndex((d) => d.id === action.payload.id);

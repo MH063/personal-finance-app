@@ -15,6 +15,11 @@ import { Type } from 'class-transformer';
 import { DebtType, DebtStatus } from '../../entities/debt.entity';
 
 export class CreateDebtDto {
+  @ApiPropertyOptional({ example: 'a99b5cb7-7944-40fb-b2c2-a9df9c34e49c', description: '债务ID（可选，离线同步时使用）' })
+  @IsUUID()
+  @IsOptional()
+  id?: string;
+
   @ApiProperty({ example: '张三', description: '债务人名称' })
   @IsString()
   @MaxLength(100)
@@ -23,7 +28,7 @@ export class CreateDebtDto {
   @ApiProperty({ example: 10000, description: '原始金额' })
   @IsNumber()
   @Min(0.01)
-  @Max(9999999999.99)
+  @Max(999999999999.99)
   originalAmount: number;
 
   @ApiProperty({
@@ -73,7 +78,7 @@ export class UpdateDebtDto {
   @ApiPropertyOptional({ example: 8000 })
   @IsNumber()
   @Min(0)
-  @Max(9999999999.99)
+  @Max(999999999999999.99)
   @IsOptional()
   remainingAmount?: number;
 
@@ -109,13 +114,18 @@ export class UpdateDebtDto {
   @IsBoolean()
   @IsOptional()
   isReminderEnabled?: boolean;
+
+  @ApiPropertyOptional({ description: '版本号' })
+  @IsNumber()
+  @IsOptional()
+  version?: number;
 }
 
 export class CreatePaymentDto {
-  @ApiProperty({ example: 2000, description: '还款金额' })
+  @ApiProperty({ example: 1000, description: '本次还款金额' })
   @IsNumber()
   @Min(0.01)
-  @Max(9999999999.99)
+  @Max(999999999999.99)
   amount: number;
 
   @ApiProperty({ example: '2025-01-10', description: '还款日期' })

@@ -1,24 +1,7 @@
-/**
- * Design System Context
- * 
- * 提供设计令牌和主题管理功能
- */
-
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import designTokens from '../../assets/design-tokens.json';
 import { getBestTextColor, getOptimalTextShadow } from '../../utils/colorUtils';
-
-type ThemeMode = 'light' | 'dark';
-
-interface DesignSystemContextType {
-  theme: ThemeMode;
-  setTheme: (theme: ThemeMode) => void;
-  toggleTheme: () => void;
-  tokens: typeof designTokens;
-  isDark: boolean;
-}
-
-const DesignSystemContext = createContext<DesignSystemContextType | undefined>(undefined);
+import DesignSystemContext, { ThemeMode } from './DesignSystemContext';
 
 interface DesignSystemProviderProps {
   children: React.ReactNode;
@@ -77,13 +60,3 @@ export function DesignSystemProvider({
     </DesignSystemContext.Provider>
   );
 }
-
-export function useDesignSystem() {
-  const context = useContext(DesignSystemContext);
-  if (!context) {
-    throw new Error('useDesignSystem must be used within DesignSystemProvider');
-  }
-  return context;
-}
-
-export default DesignSystemContext;

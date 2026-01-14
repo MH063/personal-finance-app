@@ -41,6 +41,9 @@ export class User {
   @Column({ name: 'full_name', length: 100, nullable: true })
   fullName: string;
 
+  @Column({ length: 255, nullable: true })
+  avatar: string;
+
   @Column({
     type: 'enum',
     enum: UserStatus,

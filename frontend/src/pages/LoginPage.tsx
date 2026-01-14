@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Form, Input, Button, App as AntdApp } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
@@ -14,9 +14,11 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
-  // 安全加载背景图片
-  const pageBg = useSafeBackground('https://picsum.photos/1920/1080?random=1');
-  const panelBg = useSafeBackground('https://picsum.photos/900/1200?random=2');
+  const [pageSeed] = useState(() => Math.floor(Math.random() * 1_000_000));
+  const [panelSeed] = useState(() => Math.floor(Math.random() * 1_000_000));
+
+  const pageBg = useSafeBackground(`https://picsum.photos/1920/1080?random=${pageSeed}`);
+  const panelBg = useSafeBackground(`https://picsum.photos/900/1200?random=${panelSeed}`);
 
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);

@@ -3,6 +3,18 @@ import { db } from '../db/db';
 import { offlineSyncService } from './offlineSyncService';
 import { v4 as uuidv4 } from 'uuid';
 
+export interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export interface Ledger {
+  id: string;
+  name: string;
+  color?: string;
+}
+
 export interface Transaction {
   id: string;
   amount: number;
@@ -13,13 +25,11 @@ export interface Transaction {
   transactionDate: string;
   categoryId: string;
   ledgerId?: string;
-  category?: {
-    id: string;
-    name: string;
-    color: string;
-  };
+  category?: Category;
+  ledger?: Ledger;
   createdAt: string;
   updatedAt: string;
+  version?: number;
 }
 
 export interface PaginatedTransactions {
@@ -126,8 +136,8 @@ export const transactionService = {
 
     // 3. 如果在线，触发同步
     if (offlineSyncService.isOnline()) {
-      offlineSyncService.syncPendingChanges().catch(() => {});
-    }
+        await offlineSyncService.syncPendingChanges().catch(() => {});
+      }
 
     return newTransaction;
   },
@@ -157,13 +167,13 @@ export const transactionService = {
       action: 'UPDATE',
       entity: 'TRANSACTION',
       entityId: id,
-      data,
+      data: { ...data, version: current?.version }, // 包含版本号以支持乐观锁
       timestamp: Date.now(),
     });
 
     // 3. 如果在线，触发同步
     if (offlineSyncService.isOnline()) {
-      offlineSyncService.syncPendingChanges().catch(() => {});
+      await offlineSyncService.syncPendingChanges().catch(() => {});
     }
 
     return updatedData;
@@ -191,7 +201,7 @@ export const transactionService = {
 
     // 3. 如果在线，触发同步
     if (offlineSyncService.isOnline()) {
-      offlineSyncService.syncPendingChanges().catch(() => {});
+      await offlineSyncService.syncPendingChanges().catch(() => {});
     }
 
     return { id };
@@ -220,7 +230,7 @@ export const transactionService = {
         await db.syncQueue.where('entityId').anyOf(ids).delete();
       } catch (err) {
         console.warn('后端批量删除同步失败，将依赖队列重试');
-        offlineSyncService.syncPendingChanges().catch(() => {});
+        await offlineSyncService.syncPendingChanges().catch(() => {});
       }
     }
 

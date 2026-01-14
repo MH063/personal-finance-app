@@ -63,10 +63,26 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
   color: rgba(255, 255, 255, 0.85) !important;
   padding: 16px 24px !important;
+  transition: all 0.3s ease;
+}
+
+/* 彻底解决可能的黑条问题：强制所有层级背景透明 */
+.glass-table .ant-table-tbody > tr {
+  background: transparent !important;
 }
 
 .glass-table .ant-table-tbody > tr:hover > td {
-  background: rgba(255, 255, 255, 0.05) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* 确保表格无数据时的样式 */
+.glass-table .ant-table-placeholder {
+  background: transparent !important;
+  border: none !important;
+}
+
+.glass-table .ant-table-placeholder .ant-empty-description {
+  color: rgba(255, 255, 255, 0.45) !important;
 }
 
 /* 按钮样式调整 */

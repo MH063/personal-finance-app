@@ -57,6 +57,13 @@ export class DebtsController {
     return this.debtsService.getReminders(req.user.id);
   }
 
+  @Post('sync-transactions')
+  @ApiOperation({ summary: '同步历史债务数据到交易流水' })
+  @ApiResponse({ status: 200, description: '同步成功' })
+  async syncTransactions(@Request() req: any) {
+    return this.debtsService.syncAllToTransactions(req.user.id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: '获取债务详情（包含还款记录）' })
   @ApiResponse({ status: 200, description: '获取成功' })

@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
 import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App as AntdApp, Row, Col, Popconfirm } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
 import { fetchTransactions, createTransaction, updateTransaction, deleteTransaction, batchDeleteTransactions } from '../../store/slices/transactionSlice';
-import { fetchCategories, createCategory, Category } from '../../store/slices/categorySlice';
+import { fetchCategories, createCategory } from '../../store/slices/categorySlice';
 import { fetchLedgers } from '../../store/slices/ledgerSlice';
 import { aiService } from '../../services/aiService';
 import { collaborativeService } from '../../services/collaborativeService';
@@ -105,6 +105,23 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     }
   };
 
+  /**
+   * 清除筛选条件并刷新数据
+   */
+  const handleClearFilters = useCallback(async () => {
+    console.log(`[TransactionManager] 清除所有筛选条件`);
+    const defaultFilters = { categoryId: '', ledgerId: '', startDate: '', endDate: '' };
+    setFilters(defaultFilters);
+    
+    // 触发刷新操作
+    setFilterLoading(true);
+    try {
+      await dispatch(fetchTransactions({ type, ...defaultFilters, page: 1 }) as any);
+    } finally {
+      setFilterLoading(false);
+    }
+  }, [dispatch, type]);
+
   const handleAdd = useCallback(() => {
     if (loading) return;
     console.log(`[TransactionManager] 打开添加弹窗`);
@@ -146,7 +163,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     } finally {
       setDeleteLoading(null);
     }
-  }, [dispatch, filters, message, type, onSuccess]);
+  }, [dispatch, filters, message, type, onSuccess, deleteLoading]);
 
   const handleBatchDelete = useCallback(async () => {
     if (selectedRowKeys.length === 0 || batchDeleteLoading) return;
@@ -320,12 +337,12 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     },
     {
       title: '账本',
-      dataIndex: 'ledgerId',
       key: 'ledger',
       width: 120,
-      render: (ledgerId: string) => {
-        const ledger = ledgers.find(l => l.id === ledgerId);
-        return ledger ? <Tag color="purple">{ledger.name}</Tag> : <Tag>默认账本</Tag>;
+      render: (_: any, record: Transaction) => {
+        // 优先使用后端返回的关联对象，否则尝试从本地 ledgers 列表匹配
+        const ledgerName = record.ledger?.name || ledgers.find(l => l.id === record.ledgerId)?.name || '默认账本';
+        return <Tag color="purple">{ledgerName}</Tag>;
       }
     },
     { 
@@ -386,7 +403,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         );
       },
     },
-  ], [deleteLoading, handleDelete, handleEdit, ledgers, type]);
+  ], [deleteLoading, handleDelete, handleEdit, ledgers, type, user?.id]);
 
   return (
     <div className={`transaction-manager ${type}-manager`}>
@@ -442,13 +459,14 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
               <Select 
                 placeholder="全部分类" 
                 style={{ width: '100%' }} 
-                allowClear
                 value={filters.categoryId || undefined}
-                onChange={(val) => setFilters({ ...filters, categoryId: val || '' })}
+                onChange={(val) => {
+                  setFilters({ ...filters, categoryId: val || '' });
+                }}
                 size="large"
                 suffixIcon={<PlusOutlined rotate={45} />}
               >
-                {filteredCategories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
+                {filteredCategories.filter(c => c && c.id).map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
               </Select>
             </Col>
             <Col xs={24} sm={12} md={8}>
@@ -456,12 +474,13 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
               <Select 
                 placeholder="全部账本" 
                 style={{ width: '100%' }} 
-                allowClear
                 value={filters.ledgerId || undefined}
-                onChange={(val) => setFilters({ ...filters, ledgerId: val || '' })}
+                onChange={(val) => {
+                  setFilters({ ...filters, ledgerId: val || '' });
+                }}
                 size="large"
               >
-                {ledgers.map(l => <Option key={l.id} value={l.id}>{l.name}</Option>)}
+                {ledgers.filter(l => l && l.id).map(l => <Option key={l.id} value={l.id}>{l.name}</Option>)}
               </Select>
             </Col>
             <Col xs={24} sm={24} md={8}>
@@ -469,26 +488,38 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
               <DatePicker.RangePicker 
                 style={{ width: '100%' }}
                 size="large"
-                onChange={(dates) => setFilters({ 
-                  ...filters, 
-                  startDate: dates ? dates[0]?.startOf('day').toISOString() || '' : '', 
-                  endDate: dates ? dates[1]?.endOf('day').toISOString() || '' : '' 
-                })}
+                value={(filters.startDate && filters.endDate) ? [dayjs(filters.startDate), dayjs(filters.endDate)] : null}
+                onChange={(dates) => {
+                  setFilters({ 
+                    ...filters, 
+                    startDate: dates ? dates[0]?.startOf('day').toISOString() || '' : '', 
+                    endDate: dates ? dates[1]?.endOf('day').toISOString() || '' : '' 
+                  });
+                }}
                 placeholder={['开始日期', '结束日期']}
               />
             </Col>
             <Col xs={24} sm={24} md={6}>
               <div className="filter-label">&nbsp;</div>
-              <Button 
-                type="primary" 
-                onClick={handleFilter} 
-                block 
-                size="large"
-                loading={filterLoading}
-                className="filter-submit-btn"
-              >
-                执行筛选
-              </Button>
+              <Space style={{ width: '100%' }}>
+                <Button 
+                  type="primary" 
+                  onClick={handleFilter} 
+                  style={{ flex: 1 }}
+                  size="large"
+                  loading={filterLoading}
+                  className="filter-submit-btn"
+                >
+                  执行筛选
+                </Button>
+                <Button 
+                  onClick={handleClearFilters}
+                  size="large"
+                  icon={<ReloadOutlined />}
+                  title="重置筛选"
+                  className="filter-reset-btn"
+                />
+              </Space>
             </Col>
           </Row>
         </div>
@@ -533,7 +564,10 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         confirmLoading={loading}
         destroyOnHidden
         className="custom-modal"
-        width={520}
+        width={600}
+        centered
+        maskClosable={true}
+        keyboard={true}
         okButtonProps={{ 
           style: { backgroundColor: themeColor, borderColor: themeColor },
           size: 'large',
@@ -564,14 +598,14 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
                     </>
                   )}
                 >
-                  {filteredCategories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
+                  {filteredCategories.filter(c => c && c.id).map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
                 </Select>
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="ledgerId" label="账本" rules={[{ required: true, message: '请选择账本' }]}>
                 <Select placeholder="选择账本" size="large">
-                  {ledgers.map(l => <Option key={l.id} value={l.id}>{l.name}</Option>)}
+                  {ledgers.filter(l => l && l.id).map(l => <Option key={l.id} value={l.id}>{l.name}</Option>)}
                 </Select>
               </Form.Item>
             </Col>
@@ -584,7 +618,14 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
             </Col>
           </Row>
 
-          <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}>
+          <Form.Item 
+            name="amount" 
+            label="金额" 
+            rules={[
+              { required: true, message: '请输入金额' },
+              { type: 'number', max: 999999999999, message: '金额不能超过 999,999,999,999' }
+            ]}
+          >
             <InputNumber 
               style={{ width: '100%' }} 
               min={0.01} 
@@ -608,7 +649,8 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
           <Form.Item name="description" label="备注">
             <TextArea 
               rows={3} 
-              placeholder="添加备注信息..." 
+              placeholder={predicting ? "AI 正在分析您的描述..." : "添加备注信息..."}
+              disabled={predicting}
               showCount 
               maxLength={200} 
               onBlur={handleDescriptionBlur}
@@ -626,6 +668,9 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         destroyOnHidden
         className="custom-modal"
         width={400}
+        centered
+        maskClosable={true}
+        keyboard={true}
       >
         <Form form={categoryForm} layout="vertical" onFinish={handleCategorySubmit}>
           <Form.Item 

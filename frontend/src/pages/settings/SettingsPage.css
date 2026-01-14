@@ -166,7 +166,8 @@
 
 .settings-section .ant-select-arrow {
   color: rgba(255, 255, 255, 0.7) !important;
-  position: relative;
+  right: 12px !important;
+  /* position: relative; 删除此行以恢复 Ant Design 默认的 absolute 定位 */
   z-index: var(--z-content);
 }
 

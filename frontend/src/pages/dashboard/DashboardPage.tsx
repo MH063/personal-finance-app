@@ -14,52 +14,61 @@ import { RootState } from '../../store';
 import { fetchOverview, fetchTrend, fetchCategoryStats, fetchFinancialHealth, fetchDebtOverview } from '../../store/slices/statisticsSlice';
 import { fetchTransactions } from '../../store/slices/transactionSlice';
 import { fetchDebtStatistics } from '../../store/slices/debtSlice';
+import { fetchCategories } from '../../store/slices/categorySlice';
 import { fetchAiHealthAnalysis, fetchAiForecast } from '../../store/slices/aiSlice';
 import { collaborativeService } from '../../services/collaborativeService';
+import BudgetVisualizationCard from '../../components/business/BudgetVisualizationCard';
 import './DashboardPage.css';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [navLoading, setNavLoading] = useState<string | null>(null);
-  const { overview, chartData, health } = useSelector((state: RootState) => state.statistics);
+  const [budgetRange, setBudgetRange] = useState('month');
+  const { overview, chartData } = useSelector((state: RootState) => state.statistics);
   const { transactions } = useSelector((state: RootState) => state.transactions);
   const { statistics: debtStats } = useSelector((state: RootState) => state.debts);
+  const { categories } = useSelector((state: RootState) => state.categories);
   const { healthAnalysis, forecast } = useSelector((state: RootState) => state.ai);
 
-  const refreshData = () => {
-    console.log('[Dashboard] 正在刷新数据...');
-    dispatch(fetchOverview({ timeRange: 'month' }) as any);
+  const refreshData = React.useCallback((range: string = 'month') => {
+    console.log(`[Dashboard] 正在刷新数据 (范围: ${range})...`);
+    dispatch(fetchOverview({ timeRange: range }) as any);
     dispatch(fetchTrend({ timeRange: 'last6months' }) as any);
-    dispatch(fetchCategoryStats({ timeRange: 'month' }) as any);
-    dispatch(fetchFinancialHealth('month') as any);
+    dispatch(fetchCategoryStats({ timeRange: range }) as any);
+    dispatch(fetchFinancialHealth(range) as any);
     dispatch(fetchDebtOverview() as any);
     dispatch(fetchTransactions({ limit: 5 }) as any);
     dispatch(fetchDebtStatistics() as any);
+    dispatch(fetchCategories() as any);
     dispatch(fetchAiHealthAnalysis() as any);
     dispatch(fetchAiForecast() as any);
-  };
+  }, [dispatch]);
 
   useEffect(() => {
-    refreshData();
+    refreshData(budgetRange);
 
     // 监听更新
     const handleUpdate = (data: any) => {
       console.log('[Dashboard] 监听到实时更新:', data);
       // 只要有任何更新，或者重连成功，都刷新概览数据
-      refreshData();
+      refreshData(budgetRange);
     };
 
     collaborativeService.on('ledgerUpdate', handleUpdate);
     collaborativeService.on('globalUpdate', handleUpdate);
+    collaborativeService.on('budgetUpdate', handleUpdate);
+    collaborativeService.on('transactionUpdate', handleUpdate);
 
     return () => {
       collaborativeService.off('ledgerUpdate', handleUpdate);
       collaborativeService.off('globalUpdate', handleUpdate);
+      collaborativeService.off('budgetUpdate', handleUpdate);
+      collaborativeService.off('transactionUpdate', handleUpdate);
     };
-  }, [dispatch]);
+  }, [budgetRange, refreshData]);
 
   const handleNav = (path: string) => {
     if (navLoading) return;
@@ -252,7 +261,7 @@ const DashboardPage: React.FC = () => {
             />
             <div className="card-footer">
               <Tag color={(overview?.incomeComparison || 0) >= 0 ? "success" : "error"}>
-                较上月 {(overview?.incomeComparison || 0) >= 0 ? '+' : ''}{overview?.incomeComparison || 0}%
+                较上月 {(overview?.incomeComparison || 0) >= 0 ? '+' : ''}{(Math.round((overview?.incomeComparison || 0) * 100) / 100).toFixed(2)}%
               </Tag>
             </div>
           </Card>
@@ -269,10 +278,8 @@ const DashboardPage: React.FC = () => {
               prefix="¥" 
             />
             <div className="card-footer">
-              <Tag color={overview?.budgetInfo ? (overview.budgetInfo.usagePercentage > 90 ? "error" : "warning") : "processing"}>
-                {overview?.budgetInfo 
-                  ? `预算剩余 ¥${overview.budgetInfo.remainingBudget.toFixed(2)}` 
-                  : "暂无预算设置"}
+              <Tag color={(overview?.expenseComparison || 0) <= 0 ? "success" : "error"}>
+                较上月 {(overview?.expenseComparison || 0) >= 0 ? '+' : ''}{(Math.round((overview?.expenseComparison || 0) * 100) / 100).toFixed(2)}%
               </Tag>
             </div>
           </Card>
@@ -314,6 +321,17 @@ const DashboardPage: React.FC = () => {
               <Text type="secondary">最近更新: {new Date().toLocaleDateString()}</Text>
             </div>
           </Card>
+        </Col>
+      </Row>
+      
+      <Row gutter={[24, 24]}>
+        <Col span={24}>
+          <BudgetVisualizationCard 
+            budgetInfo={overview?.budgetInfo} 
+            categories={categories}
+            lastUpdated={new Date().toLocaleTimeString()}
+            onRangeChange={(range) => setBudgetRange(range)}
+          />
         </Col>
       </Row>
 

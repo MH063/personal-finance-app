@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsOptional,
   Min,
+  Max,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetStatus } from '../../entities/budget.entity';
@@ -17,6 +18,7 @@ export class CreateBudgetDto {
   @ApiProperty({ description: '预算金额', minimum: 0 })
   @IsNumber()
   @Min(0)
+  @Max(999999999999.99)
   amount: number;
 
   @ApiProperty({ description: '开始日期', example: '2024-01-01' })
@@ -33,6 +35,7 @@ export class UpdateBudgetDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
+  @Max(999999999999.99)
   amount?: number;
 
   @ApiPropertyOptional({ description: '开始日期' })
@@ -49,6 +52,11 @@ export class UpdateBudgetDto {
   @IsOptional()
   @IsEnum(BudgetStatus)
   status?: BudgetStatus;
+
+  @ApiPropertyOptional({ description: '版本号' })
+  @IsNumber()
+  @IsOptional()
+  version?: number;
 }
 
 export class BudgetResponseDto {

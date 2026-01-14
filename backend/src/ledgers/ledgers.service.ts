@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, OptimisticLockVersionMismatchError } from 'typeorm';
 import { Ledger, LedgerType, LedgerMember } from '../entities/ledger.entity';
 import { Transaction } from '../entities/transaction.entity';
 import { CreateLedgerDto, UpdateLedgerDto, AddMemberDto } from './dto/ledger.dto';
@@ -9,6 +9,8 @@ import { LedgerGateway } from './ledger.gateway';
 
 @Injectable()
 export class LedgersService {
+  private readonly logger = new Logger(LedgersService.name);
+
   constructor(
     @InjectRepository(Ledger)
     private readonly ledgerRepository: Repository<Ledger>,
@@ -105,7 +107,15 @@ export class LedgersService {
     // 只有所有者和管理员可以修改账本信息
     await this.checkPermission(id, userId, ['owner', 'admin']);
 
-    Object.assign(ledger, updateLedgerDto);
+    // 乐观锁校验
+    if (updateLedgerDto.version !== undefined && ledger.version !== updateLedgerDto.version) {
+      throw new OptimisticLockVersionMismatchError('Ledger', updateLedgerDto.version, ledger.version);
+    }
+
+    // 移除 version，防止 Object.assign 覆盖实体中的 version，让 TypeORM 自动管理
+    const { version, ...updateData } = updateLedgerDto;
+    Object.assign(ledger, updateData);
+    
     const updatedLedger = await this.ledgerRepository.save(ledger);
     
     // 发送实时更新通知

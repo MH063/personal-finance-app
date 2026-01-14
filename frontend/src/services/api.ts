@@ -20,6 +20,23 @@ const getApiUrl = () => {
 };
 
 const API_URL = getApiUrl();
+let isRefreshingToken = false;
+let refreshTokenPromise: Promise<string | null> | null = null;
+let isHandlingAuthFailure = false;
+let authSilenceUntil = 0;
+
+const pendingControllers = new Set<AbortController>();
+
+export const silenceAuthErrors = (ms: number = 1500) => {
+  authSilenceUntil = Math.max(authSilenceUntil, Date.now() + ms);
+};
+
+export const cancelPendingRequests = (reason: string = 'Request cancelled') => {
+  pendingControllers.forEach((controller) => {
+    controller.abort(reason);
+  });
+  pendingControllers.clear();
+};
 
 const api = axios.create({
   baseURL: API_URL,
@@ -56,6 +73,19 @@ api.interceptors.request.use(
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    const shouldSilence = Date.now() < authSilenceUntil;
+    if (shouldSilence) {
+      config.headers = config.headers || {};
+      config.headers['X-Silent-Error'] = 'true';
+    }
+
+    if (!config.signal) {
+      const controller = new AbortController();
+      (config as any)._abortController = controller;
+      config.signal = controller.signal;
+      pendingControllers.add(controller);
     }
 
     // 过滤掉值为 undefined, null 或空字符串的查询参数
@@ -107,6 +137,8 @@ api.interceptors.response.use(
       if (!isSilent) {
         console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data.data);
       }
+      const controller = (response.config as any)?._abortController as AbortController | undefined;
+      if (controller) pendingControllers.delete(controller);
       return {
         ...response,
         data: response.data.data !== undefined ? response.data.data : response.data
@@ -116,6 +148,8 @@ api.interceptors.response.use(
     if (!isSilent) {
       console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data);
     }
+    const controller = (response.config as any)?._abortController as AbortController | undefined;
+    if (controller) pendingControllers.delete(controller);
     return response;
   },
   async (error) => {
@@ -124,21 +158,102 @@ api.interceptors.response.use(
       store.dispatch(stopLoading());
     }
 
-    // 处理 401 Token 过期（排除登录接口本身）
-    if (error.response?.status === 401 && !error.config.url?.includes('/auth/login')) {
-      const isSilent = error.config?.headers?.['X-Silent-Error'] === 'true';
-      
-      // 如果不是静默请求，则执行跳转
-      if (!isSilent) {
+    const originalConfig = error.config || {};
+    const requestUrl: string = originalConfig.url || '';
+    const isAuthRequest = requestUrl.includes('/auth/login') || requestUrl.includes('/auth/refresh');
+    const controller = (originalConfig as any)?._abortController as AbortController | undefined;
+    if (controller) pendingControllers.delete(controller);
+    const isCanceled = error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError';
+    if (isCanceled) {
+      return Promise.reject(error);
+    }
+    const isAuthSuppressedByTime = Date.now() < authSilenceUntil;
+    const isPublicPath = window.location.pathname === '/login' || window.location.pathname === '/register';
+    const isLoggedOut = !localStorage.getItem('accessToken') && !localStorage.getItem('refreshToken');
+
+    if (error.response?.status === 401 && !isAuthRequest) {
+      const silent401 =
+        originalConfig?.headers?.['X-Silent-Error'] === 'true' ||
+        isAuthSuppressedByTime ||
+        isPublicPath ||
+        isLoggedOut;
+      const storedRefreshToken = localStorage.getItem('refreshToken');
+
+      console.log(`[API] 401 Detected for ${requestUrl}. Silent: ${silent401}, HasRefreshToken: ${!!storedRefreshToken}, Retry: ${originalConfig._retry}`);
+
+      if (!originalConfig._retry && storedRefreshToken && typeof storedRefreshToken === 'string') {
+        originalConfig._retry = true;
+
+        if (!refreshTokenPromise) {
+          console.log('[API] Initiating Token Refresh...');
+          refreshTokenPromise = (async () => {
+            if (isRefreshingToken) {
+                console.log('[API] Token Refresh already in progress, waiting...');
+                return null;
+            }
+            isRefreshingToken = true;
+            try {
+              const response = await axios.post(
+                `${API_URL}/auth/refresh`,
+                { refreshToken: storedRefreshToken },
+                { headers: { 'Content-Type': 'application/json' } }
+              );
+
+              console.log('[API] Token Refresh Response:', response.status);
+              const payload = response?.data?.data ?? response?.data;
+              
+              // 兼容 payload.tokens.accessToken 或直接 payload.accessToken
+              const newAccessToken = payload?.tokens?.accessToken || payload?.accessToken;
+              const newRefreshToken = payload?.tokens?.refreshToken || payload?.refreshToken;
+
+              if (newAccessToken) {
+                console.log('[API] New Access Token received');
+                localStorage.setItem('accessToken', newAccessToken);
+              }
+              if (newRefreshToken) {
+                console.log('[API] New Refresh Token received');
+                localStorage.setItem('refreshToken', newRefreshToken);
+              }
+
+              return newAccessToken || null;
+            } catch (refreshError) {
+              console.error('[API] Token Refresh Failed:', refreshError);
+              return null;
+            } finally {
+              isRefreshingToken = false;
+              refreshTokenPromise = null;
+            }
+          })();
+        } else {
+             console.log('[API] Reusing existing Refresh Promise');
+        }
+
+        const newToken = await refreshTokenPromise;
+        if (newToken) {
+          console.log(`[API] Retrying original request ${requestUrl} with new token`);
+          originalConfig.headers = originalConfig.headers || {};
+          originalConfig.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalConfig);
+        } else {
+            console.warn('[API] Refresh failed or returned no token, proceeding to logout');
+        }
+      } else {
+          console.log('[API] No refresh token available or already retried.');
+      }
+
+      if (!isHandlingAuthFailure && !silent401) {
+        isHandlingAuthFailure = true;
         console.warn('[API] 认证失效，跳转登录页');
+        cancelPendingRequests('Auth invalidated');
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
-      } else {
-        console.warn('[API] 后台请求认证失效，静默跳过跳转');
+        setTimeout(() => {
+          isHandlingAuthFailure = false;
+        }, 1500);
       }
     }
 
@@ -152,13 +267,24 @@ api.interceptors.response.use(
     
     // 检查是否需要静默处理错误（不打印到控制台）
     const isSilent = error.config?.headers?.['X-Silent-Error'] === 'true';
-    if (!isSilent) {
+    const syncAction = error.config?.headers?.['X-Sync-Action'];
+    const entityId = error.config?.headers?.['X-Entity-ID'];
+
+    const shouldSkipConsoleError =
+      error.response?.status === 401 && (isPublicPath || isLoggedOut || isAuthSuppressedByTime);
+
+    if (!isSilent && !shouldSkipConsoleError) {
       console.error(`[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}:`, errorMessage);
+    } else if (syncAction) {
+      // 如果是同步请求且开启了静默错误，我们在控制台打印更友好的调试信息，而不是红色的 Error
+      console.warn(`[Sync Warning] ${syncAction} 失败 (ID: ${entityId}):`, errorMessage);
     }
     
     // 将格式化后的错误信息附加到 error 对象上，以便下游使用
     if (error && typeof error === 'object') {
       error.formattedMessage = errorMessage;
+      // 同时覆盖原有的 message，确保 UI 层捕获到的是友好的中文提示
+      error.message = errorMessage;
     }
     
     return Promise.reject(error);

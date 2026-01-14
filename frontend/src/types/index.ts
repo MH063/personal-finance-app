@@ -28,6 +28,7 @@ export interface Budget {
   usagePercentage: number;
   createdAt: string;
   updatedAt: string;
+  version?: number;
 }
 
 export interface CreateBudgetDto {
@@ -42,4 +43,5 @@ export interface UpdateBudgetDto {
   startDate?: string;
   endDate?: string;
   status?: BudgetStatus;
+  version?: number;
 }

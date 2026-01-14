@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, In, TreeRepository } from 'typeorm';
 import {
   subDays,
   subMonths,
@@ -15,7 +15,8 @@ import {
 } from 'date-fns';
 import { Transaction, TransactionType } from '../entities/transaction.entity';
 import { Debt, DebtType, DebtStatus } from '../entities/debt.entity';
-import { Budget } from '../entities/budget.entity';
+import { Budget, BudgetStatus } from '../entities/budget.entity';
+import { Category } from '../entities/category.entity';
 import {
   StatisticsQueryDto,
   ChartQueryDto,
@@ -38,6 +39,8 @@ export class StatisticsService {
     private readonly debtRepository: Repository<Debt>,
     @InjectRepository(Budget)
     private readonly budgetRepository: Repository<Budget>,
+    @InjectRepository(Category)
+    private readonly categoryRepository: TreeRepository<Category>,
   ) {}
 
   /**
@@ -46,15 +49,20 @@ export class StatisticsService {
   async getOverview(userId: string, query: StatisticsQueryDto): Promise<OverviewData> {
     const range = await this.resolveDateRange(userId, query);
     const { startDate, endDate } = range;
+    
+    // 使用格式化的日期字符串，确保与数据库中的 DATE 类型匹配
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const endDateStr = format(endDate, 'yyyy-MM-dd');
+
     const type = (query as any).type;
     const categoryId = (query as any).categoryId;
 
-    this.logger.log(`获取概览数据: ${userId}, ${startDate} - ${endDate}`);
+    this.logger.log(`获取概览数据: ${userId}, ${startDateStr} - ${endDateStr}`);
 
     const whereConditions: any = {
       userId,
       isDeleted: false,
-      transactionDate: Between(startDate, endDate),
+      transactionDate: Between(startDateStr, endDateStr),
     };
 
     if (type) {
@@ -204,38 +212,103 @@ export class StatisticsService {
       ? Number((((totalExpense - prevTotalExpense) / prevTotalExpense) * 100).toFixed(2))
       : totalExpense > 0 ? 100 : 0;
 
-    // --- 获取预算信息 ---
+    // 4. 获取预算进度
     const budgets = await this.budgetRepository.find({
       where: {
         userId,
-        startDate: LessThanOrEqual(endDate),
-        endDate: MoreThanOrEqual(startDate),
+        startDate: LessThanOrEqual(endDateStr) as any,
+        endDate: MoreThanOrEqual(startDateStr) as any,
+        status: BudgetStatus.ACTIVE,
       },
     });
 
+    // 获取上期预算以进行对比
+    const prevBudgets = await this.budgetRepository.find({
+      where: {
+        userId,
+        startDate: LessThanOrEqual(format(prevEndDate, 'yyyy-MM-dd')) as any,
+        endDate: MoreThanOrEqual(format(prevStartDate, 'yyyy-MM-dd')) as any,
+        status: BudgetStatus.ACTIVE,
+      },
+    });
+
+    console.log(`[StatisticsService] 找到 ${budgets.length} 个活跃预算, 上期 ${prevBudgets.length} 个`);
+
     let budgetInfo = null;
     if (budgets.length > 0) {
-      const totalBudget = budgets.reduce((sum, b) => sum + Number(b.amount), 0);
-      // 这里简化处理：预算使用额通常在前端通过分类匹配计算更准，
-      // 但在概览中，我们计算本期内这些预算对应分类的总支出
-      const budgetCategoryIds = budgets.map(b => b.categoryId).filter(id => !!id);
-      
-      let usedBudget = 0;
-      if (budgetCategoryIds.length > 0) {
-        usedBudget = transactions
-          .filter(t => t.type === TransactionType.EXPENSE && budgetCategoryIds.includes(t.categoryId))
-          .reduce((sum, t) => sum + Number(t.amount), 0);
-      } else {
-        // 如果没有指定分类，则视为总支出预算
-        usedBudget = totalExpense;
-      }
+      // 找到最近到期或使用率最高的预算
+      const budgetDetails = await Promise.all(
+        budgets.map(async (budget) => {
+          try {
+            const category = await this.categoryRepository.findOne({ where: { id: budget.categoryId } });
+            if (category) {
+              const descendants = await this.categoryRepository.findDescendants(category);
+              const categoryIds = [category.id, ...descendants.map(d => d.id)];
+              
+              const categoryTransactions = transactions.filter(t => 
+                t.type === TransactionType.EXPENSE && 
+                categoryIds.includes(t.categoryId)
+              );
+              
+              const categoryUsed = categoryTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+              const budgetAmount = Number(budget.amount);
+              
+              console.log(`[StatisticsService] 预算 ${category.name}: 已用 ${categoryUsed}, 总额 ${budgetAmount}, 类别数 ${categoryIds.length}, 相关交易数 ${categoryTransactions.length}`);
+              
+              return {
+                ...budget,
+                categoryName: category.name,
+                categoryColor: category.color,
+                usedAmount: categoryUsed,
+                usagePercentage: budgetAmount > 0 ? (categoryUsed / budgetAmount) * 100 : 0,
+              };
+            }
+          } catch (err) {
+            console.error(`[StatisticsService] 计算预算 ${budget.id} 进度失败:`, err);
+          }
+          return null;
+        }),
+      );
 
-      budgetInfo = {
-        totalBudget,
-        usedBudget,
-        remainingBudget: Math.max(0, totalBudget - usedBudget),
-        usagePercentage: totalBudget > 0 ? Number(((usedBudget / totalBudget) * 100).toFixed(2)) : 0,
-      };
+      const activeBudgets = budgetDetails.filter((b) => b !== null);
+      if (activeBudgets.length > 0) {
+        // 计算总预算汇总
+        const totalBudget = activeBudgets.reduce((sum, b) => sum + Number(b!.amount), 0);
+        const usedBudget = activeBudgets.reduce((sum, b) => sum + (b as any).usedAmount, 0);
+        const usagePercentage = totalBudget > 0 ? (usedBudget / totalBudget) * 100 : 0;
+
+        // 计算上期使用率
+        let prevUsagePercentage = 0;
+        if (prevBudgets.length > 0) {
+          const prevTotalBudget = prevBudgets.reduce((sum, b) => sum + Number(b.amount), 0);
+          const prevUsedBudget = prevTotalExpense; // 简化处理：上期总支出作为上期预算已用（如果上期也有预算的话）
+          prevUsagePercentage = prevTotalBudget > 0 ? (prevUsedBudget / prevTotalBudget) * 100 : 0;
+        }
+        
+        budgetInfo = {
+          totalBudget,
+          usedBudget,
+          remainingBudget: Math.max(0, totalBudget - usedBudget),
+          usagePercentage: Math.min(100, usagePercentage),
+          budgetUsageComparison: prevUsagePercentage > 0 ? Number((usagePercentage - prevUsagePercentage).toFixed(2)) : 0,
+          budgets: activeBudgets.map(b => ({
+            id: b!.id,
+            categoryId: b!.categoryId,
+            categoryName: (b as any).categoryName,
+            categoryColor: (b as any).categoryColor || '#1890ff',
+            amount: Number(b!.amount),
+            usedAmount: (b as any).usedAmount,
+            remainingAmount: Math.max(0, Number(b!.amount) - (b as any).usedAmount),
+            usagePercentage: Number(b!.amount) > 0 ? Math.min(100, ((b as any).usedAmount / Number(b!.amount)) * 100) : 0,
+            startDate: format(new Date(b!.startDate), 'yyyy-MM-dd'),
+            endDate: format(new Date(b!.endDate), 'yyyy-MM-dd'),
+          })).sort((a, b) => b.usagePercentage - a.usagePercentage), // 按使用率排序
+        };
+      } else {
+        console.log(`[StatisticsService] 活跃预算列表为空（可能分类已删除或计算出错）`);
+      }
+    } else {
+      console.log(`[StatisticsService] 未找到在范围 [${startDateStr}, ${endDateStr}] 内的活跃预算`);
     }
 
     return {

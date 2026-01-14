@@ -1,4 +1,5 @@
 import api from './api';
+import { sha256 } from '../utils/crypto';
 
 const backupService = {
   /**
@@ -27,12 +28,59 @@ const backupService = {
   },
 
   /**
-   * 下载备份文件
+   * 下载备份文件并监控进度
    */
-  downloadBackup: async (id: string) => {
-    // 确保路径匹配后端: /backup/:id/download
-    const response = await api.get(`/backup/${id}/download`, { responseType: 'blob' });
-    return response;
+  downloadBackup: async (
+    id: string, 
+    onProgress?: (progressEvent: any) => void,
+    cancelToken?: any
+  ) => {
+    return api.get(`/backup/${id}/download`, {
+      responseType: 'blob',
+      onDownloadProgress: onProgress,
+      cancelToken: cancelToken,
+      // 增加超时时间处理大文件
+      timeout: 300000, // 5分钟
+    });
+  },
+
+  /**
+   * 校验文件完整性
+   */
+  verifyFileIntegrity: async (blob: Blob, expectedSize: number, expectedChecksum: string): Promise<boolean> => {
+    try {
+      if (!(blob instanceof Blob)) {
+        console.error('[Backup] 错误: 输入数据不是 Blob 类型', typeof blob);
+        return false;
+      }
+      
+      console.log(`[Backup] 校验开始: Blob 大小=${blob.size}, 预期大小=${expectedSize}`);
+      
+      // 1. 验证文件大小
+      if (blob.size !== expectedSize) {
+        console.error(`[Backup] 文件大小校验失败: 期望 ${expectedSize}, 实际 ${blob.size}`);
+        return false;
+      }
+
+      // 2. 检查校验和
+      if (!expectedChecksum) {
+        console.warn('[Backup] 未提供校验和，跳过完整性校验');
+        return true;
+      }
+
+      // 3. 计算 SHA-256 校验和
+      const arrayBuffer = await blob.arrayBuffer();
+      const hashHex = await sha256(arrayBuffer);
+      
+      const isValid = hashHex === expectedChecksum.toLowerCase();
+      if (!isValid) {
+        console.error(`[Backup] 校验和校验失败: 期望 ${expectedChecksum}, 实际 ${hashHex}`);
+      }
+      return isValid;
+    } catch (error) {
+      console.error('[Backup] 校验过程中出错:', error);
+      return false;
+    }
   },
 
   /**
@@ -40,7 +88,11 @@ const backupService = {
    */
   restoreBackup: async (id: string, password?: string) => {
     // 确保路径匹配后端: /backup/:id/restore
-    const response = await api.post<any>(`/backup/${id}/restore`, { password });
+    // 后端 RestoreBackupDto 要求请求体中包含 backupId 字段
+    const response = await api.post<any>(`/backup/${id}/restore`, { 
+      backupId: id,
+      password 
+    });
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段
     return (result && typeof result === 'object' && 'success' in result && 'data' in result) 

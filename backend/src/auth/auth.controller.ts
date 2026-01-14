@@ -9,8 +9,22 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
+  Res,
+  Param,
+  NotFoundException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { existsSync, mkdirSync } from 'fs';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import {
   RegisterDto,
@@ -101,5 +115,58 @@ export class AuthController {
   @ApiResponse({ status: 200, description: '注销成功' })
   async deleteAccount(@Request() req: any, @Body('password') password: string) {
     return this.authService.deleteAccount(req.user.id, password);
+  }
+
+  @Post('upload-avatar')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('file', {
+    storage: diskStorage({
+      destination: (req, file, cb) => {
+        const dir = './uploads/avatars';
+        if (!existsSync(dir)) {
+          mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        const randomName = uuidv4();
+        cb(null, `${randomName}${extname(file.originalname)}`);
+      },
+    }),
+  }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '上传用户头像' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  async uploadAvatar(@UploadedFile(
+    new ParseFilePipe({
+      validators: [
+        new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 5 }), // 5MB
+        new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif)$/ }),
+      ],
+    }),
+  ) file: Express.Multer.File, @Request() req: any) {
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    return {
+      url: `${baseUrl}/auth/avatar/${file.filename}`,
+      filename: file.filename,
+    };
+  }
+
+  @Get('avatar/:filename')
+  @ApiOperation({ summary: '获取头像图片' })
+  async getAvatar(@Param('filename') filename: string, @Res() res: Response) {
+    const filePath = join(process.cwd(), 'uploads', 'avatars', filename);
+    if (!existsSync(filePath)) {
+      throw new NotFoundException('头像文件不存在');
+    }
+    return res.sendFile(filePath);
   }
 }

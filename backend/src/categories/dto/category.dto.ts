@@ -73,6 +73,11 @@ export class UpdateCategoryDto {
   @IsNumber()
   @IsOptional()
   sortOrder?: number;
+
+  @ApiPropertyOptional({ description: '版本号' })
+  @IsNumber()
+  @IsOptional()
+  version?: number;
 }
 
 export class CategoryQueryDto {
