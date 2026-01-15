@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Switch, Divider, Typography, Button, App as AntdApp, Spin } from 'antd';
+import { Card, Switch, Divider, Typography, Button, App as AntdApp, Spin, InputNumber, Checkbox } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState, AppDispatch } from '@store/index';
@@ -39,10 +39,10 @@ const NotificationPage: React.FC = () => {
     }
   };
 
-  const handleToggle = (key: string, checked: boolean) => {
+  const handleToggle = (key: string, value: any) => {
     setLocalSettings((prev: any) => ({
       ...prev,
-      [key]: checked,
+      [key]: value,
     }));
   };
 
@@ -75,6 +75,28 @@ const NotificationPage: React.FC = () => {
                 onChange={(checked) => handleToggle('debtReminder', checked)} 
               />
             </div>
+            
+            {localSettings?.debtReminder && (
+              <div style={{ padding: '0 0 20px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                 <div style={{ display: 'flex', alignItems: 'center' }}>
+                   <Text style={{ color: 'rgba(255,255,255,0.85)', marginRight: '10px', fontSize: '14px' }}>提前提醒天数:</Text>
+                   <InputNumber 
+                     min={1} 
+                     max={30} 
+                     value={localSettings?.reminderAdvanceDays || 3}
+                     onChange={(val) => handleToggle('reminderAdvanceDays', val)}
+                     style={{ width: 80 }}
+                   />
+                   <Text style={{ color: 'rgba(255,255,255,0.65)', marginLeft: '10px', fontSize: '14px' }}>天</Text>
+                 </div>
+                 
+                 <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <Text style={{ color: 'rgba(255,255,255,0.85)', marginRight: '10px', fontSize: '14px' }}>提醒方式:</Text>
+                    <Checkbox checked disabled style={{ color: 'rgba(255,255,255,0.65)' }}>站内信 (系统默认)</Checkbox>
+                 </div>
+              </div>
+            )}
+
             <Divider />
             <div className="setting-item">
               <div>

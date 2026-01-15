@@ -5,7 +5,6 @@ import {
   Patch,
   Delete,
   Param,
-  Body,
   Query,
   UseGuards,
   Request,
@@ -33,10 +32,7 @@ export class NotificationsController {
   @Patch(':id/read')
   @ApiOperation({ summary: '标记通知为已读' })
   @ApiResponse({ status: 200, description: '更新成功' })
-  async markAsRead(
-    @Request() req: any,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  async markAsRead(@Request() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.notificationsService.markAsRead(req.user.id, id);
   }
 
@@ -50,10 +46,7 @@ export class NotificationsController {
   @Delete(':id')
   @ApiOperation({ summary: '删除通知' })
   @ApiResponse({ status: 200, description: '删除成功' })
-  async deleteNotification(
-    @Request() req: any,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
+  async deleteNotification(@Request() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.notificationsService.deleteNotification(req.user.id, id);
   }
 

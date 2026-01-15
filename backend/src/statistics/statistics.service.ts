@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, In, TreeRepository } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, TreeRepository } from 'typeorm';
 import {
   subDays,
   subMonths,
@@ -20,8 +20,6 @@ import { Category } from '../entities/category.entity';
 import {
   StatisticsQueryDto,
   ChartQueryDto,
-  HealthQueryDto,
-  ExportReportDto,
   OverviewData,
   MonthlyTrend,
   CategoryBreakdown,
@@ -49,7 +47,7 @@ export class StatisticsService {
   async getOverview(userId: string, query: StatisticsQueryDto): Promise<OverviewData> {
     const range = await this.resolveDateRange(userId, query);
     const { startDate, endDate } = range;
-    
+
     // 使用格式化的日期字符串，确保与数据库中的 DATE 类型匹配
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
@@ -91,7 +89,7 @@ export class StatisticsService {
 
     // 初始化日期范围内的所有月份，确保趋势图完整
     const allMonths = eachMonthOfInterval({ start: startDate, end: endDate });
-    allMonths.forEach(date => {
+    allMonths.forEach((date) => {
       const monthKey = format(date, 'yyyy-MM');
       monthlyData.set(monthKey, { income: 0, expense: 0, count: 0 });
     });
@@ -151,23 +149,25 @@ export class StatisticsService {
 
     // 计算主要收入源
     const incomeCategories = Array.from(categoryMap.values())
-      .filter(c => c.type === TransactionType.INCOME)
+      .filter((c) => c.type === TransactionType.INCOME)
       .sort((a, b) => b.amount - a.amount);
-    
+
     const topIncomeCategory = incomeCategories.length > 0 ? incomeCategories[0].name : '无';
-    const topIncomeCategoryPercentage = (totalIncome > 0 && incomeCategories.length > 0) 
-      ? Number(((incomeCategories[0].amount / totalIncome) * 100).toFixed(2)) 
-      : 0;
+    const topIncomeCategoryPercentage =
+      totalIncome > 0 && incomeCategories.length > 0
+        ? Number(((incomeCategories[0].amount / totalIncome) * 100).toFixed(2))
+        : 0;
 
     // 计算最大开支项
     const expenseCategories = Array.from(categoryMap.values())
-      .filter(c => c.type === TransactionType.EXPENSE)
+      .filter((c) => c.type === TransactionType.EXPENSE)
       .sort((a, b) => b.amount - a.amount);
-    
+
     const topExpenseCategory = expenseCategories.length > 0 ? expenseCategories[0].name : '无';
-    const topExpenseCategoryPercentage = (totalExpense > 0 && expenseCategories.length > 0) 
-      ? Number(((expenseCategories[0].amount / totalExpense) * 100).toFixed(2)) 
-      : 0;
+    const topExpenseCategoryPercentage =
+      totalExpense > 0 && expenseCategories.length > 0
+        ? Number(((expenseCategories[0].amount / totalExpense) * 100).toFixed(2))
+        : 0;
 
     const monthlyTrends: MonthlyTrend[] = Array.from(monthlyData.entries())
       .map(([month, data]) => ({
@@ -204,13 +204,19 @@ export class StatisticsService {
       else prevTotalExpense += Number(t.amount);
     }
 
-    const incomeComparison = prevTotalIncome > 0 
-      ? Number((((totalIncome - prevTotalIncome) / prevTotalIncome) * 100).toFixed(2))
-      : totalIncome > 0 ? 100 : 0;
-    
-    const expenseComparison = prevTotalExpense > 0 
-      ? Number((((totalExpense - prevTotalExpense) / prevTotalExpense) * 100).toFixed(2))
-      : totalExpense > 0 ? 100 : 0;
+    const incomeComparison =
+      prevTotalIncome > 0
+        ? Number((((totalIncome - prevTotalIncome) / prevTotalIncome) * 100).toFixed(2))
+        : totalIncome > 0
+          ? 100
+          : 0;
+
+    const expenseComparison =
+      prevTotalExpense > 0
+        ? Number((((totalExpense - prevTotalExpense) / prevTotalExpense) * 100).toFixed(2))
+        : totalExpense > 0
+          ? 100
+          : 0;
 
     // 4. 获取预算进度
     const budgets = await this.budgetRepository.find({
@@ -232,7 +238,9 @@ export class StatisticsService {
       },
     });
 
-    console.log(`[StatisticsService] 找到 ${budgets.length} 个活跃预算, 上期 ${prevBudgets.length} 个`);
+    console.log(
+      `[StatisticsService] 找到 ${budgets.length} 个活跃预算, 上期 ${prevBudgets.length} 个`,
+    );
 
     let budgetInfo = null;
     if (budgets.length > 0) {
@@ -240,21 +248,27 @@ export class StatisticsService {
       const budgetDetails = await Promise.all(
         budgets.map(async (budget) => {
           try {
-            const category = await this.categoryRepository.findOne({ where: { id: budget.categoryId } });
+            const category = await this.categoryRepository.findOne({
+              where: { id: budget.categoryId },
+            });
             if (category) {
               const descendants = await this.categoryRepository.findDescendants(category);
-              const categoryIds = [category.id, ...descendants.map(d => d.id)];
-              
-              const categoryTransactions = transactions.filter(t => 
-                t.type === TransactionType.EXPENSE && 
-                categoryIds.includes(t.categoryId)
+              const categoryIds = [category.id, ...descendants.map((d) => d.id)];
+
+              const categoryTransactions = transactions.filter(
+                (t) => t.type === TransactionType.EXPENSE && categoryIds.includes(t.categoryId),
               );
-              
-              const categoryUsed = categoryTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
+
+              const categoryUsed = categoryTransactions.reduce(
+                (sum, t) => sum + Number(t.amount),
+                0,
+              );
               const budgetAmount = Number(budget.amount);
-              
-              console.log(`[StatisticsService] 预算 ${category.name}: 已用 ${categoryUsed}, 总额 ${budgetAmount}, 类别数 ${categoryIds.length}, 相关交易数 ${categoryTransactions.length}`);
-              
+
+              console.log(
+                `[StatisticsService] 预算 ${category.name}: 已用 ${categoryUsed}, 总额 ${budgetAmount}, 类别数 ${categoryIds.length}, 相关交易数 ${categoryTransactions.length}`,
+              );
+
               return {
                 ...budget,
                 categoryName: category.name,
@@ -284,25 +298,33 @@ export class StatisticsService {
           const prevUsedBudget = prevTotalExpense; // 简化处理：上期总支出作为上期预算已用（如果上期也有预算的话）
           prevUsagePercentage = prevTotalBudget > 0 ? (prevUsedBudget / prevTotalBudget) * 100 : 0;
         }
-        
+
         budgetInfo = {
           totalBudget,
           usedBudget,
           remainingBudget: Math.max(0, totalBudget - usedBudget),
           usagePercentage: Math.min(100, usagePercentage),
-          budgetUsageComparison: prevUsagePercentage > 0 ? Number((usagePercentage - prevUsagePercentage).toFixed(2)) : 0,
-          budgets: activeBudgets.map(b => ({
-            id: b!.id,
-            categoryId: b!.categoryId,
-            categoryName: (b as any).categoryName,
-            categoryColor: (b as any).categoryColor || '#1890ff',
-            amount: Number(b!.amount),
-            usedAmount: (b as any).usedAmount,
-            remainingAmount: Math.max(0, Number(b!.amount) - (b as any).usedAmount),
-            usagePercentage: Number(b!.amount) > 0 ? Math.min(100, ((b as any).usedAmount / Number(b!.amount)) * 100) : 0,
-            startDate: format(new Date(b!.startDate), 'yyyy-MM-dd'),
-            endDate: format(new Date(b!.endDate), 'yyyy-MM-dd'),
-          })).sort((a, b) => b.usagePercentage - a.usagePercentage), // 按使用率排序
+          budgetUsageComparison:
+            prevUsagePercentage > 0
+              ? Number((usagePercentage - prevUsagePercentage).toFixed(2))
+              : 0,
+          budgets: activeBudgets
+            .map((b) => ({
+              id: b!.id,
+              categoryId: b!.categoryId,
+              categoryName: (b as any).categoryName,
+              categoryColor: (b as any).categoryColor || '#1890ff',
+              amount: Number(b!.amount),
+              usedAmount: (b as any).usedAmount,
+              remainingAmount: Math.max(0, Number(b!.amount) - (b as any).usedAmount),
+              usagePercentage:
+                Number(b!.amount) > 0
+                  ? Math.min(100, ((b as any).usedAmount / Number(b!.amount)) * 100)
+                  : 0,
+              startDate: format(new Date(b!.startDate), 'yyyy-MM-dd'),
+              endDate: format(new Date(b!.endDate), 'yyyy-MM-dd'),
+            }))
+            .sort((a, b) => b.usagePercentage - a.usagePercentage), // 按使用率排序
         };
       } else {
         console.log(`[StatisticsService] 活跃预算列表为空（可能分类已删除或计算出错）`);

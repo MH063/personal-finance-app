@@ -8,10 +8,7 @@ import { Category } from '../entities/category.entity';
 import { LedgersModule } from '../ledgers/ledgers.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Budget, Transaction, Category]),
-    LedgersModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Budget, Transaction, Category]), LedgersModule],
   controllers: [BudgetsController],
   providers: [BudgetsService],
   exports: [BudgetsService],

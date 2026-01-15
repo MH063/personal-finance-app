@@ -72,7 +72,9 @@ export class LedgersController {
   @Delete(':id')
   @ApiOperation({ summary: '删除账本' })
   async remove(@Param('id') id: string, @Request() req: any) {
-    console.log(`[LedgersController] Received DELETE request for ledger ID: ${id} by user: ${req.user.id}`);
+    console.log(
+      `[LedgersController] Received DELETE request for ledger ID: ${id} by user: ${req.user.id}`,
+    );
     return this.ledgersService.remove(id, req.user.id);
   }
 }

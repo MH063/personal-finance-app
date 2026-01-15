@@ -22,6 +22,7 @@ interface DebtState {
     dueSoonDebts: number;
     totalPendingAmount: number;
     totalOverdueAmount: number;
+    totalAccruedInterest: number;
   };
   loading: boolean;
   error: string | null;
@@ -107,9 +108,44 @@ export const syncDebtsToTransactions = createAsyncThunk(
 
 export const repayDebt = createAsyncThunk(
   'debts/repay',
-  async ({ id, amount, paymentDate }: { id: string; amount: number; paymentDate: string }, { rejectWithValue }) => {
+  async (
+    {
+      id,
+      amount,
+      paymentDate,
+      paymentMethod,
+      paymentId,
+      note,
+    }: {
+      id: string;
+      amount: number;
+      paymentDate: string;
+      paymentMethod?: string;
+      paymentId?: string;
+      note?: string;
+    },
+    { rejectWithValue },
+  ) => {
     try {
-      const data = await debtService.repayDebt(id, amount, paymentDate);
+      let data;
+      if (paymentId) {
+        // Confirm existing pending payment
+        await debtService.updatePayment(id, paymentId, { amount, paymentDate, paymentMethod, status: 'confirmed', note });
+        // After update, we should fetch the updated debt to refresh UI
+        data = await debtService.getDebt(id);
+      } else {
+        // Create new payment
+        // Note: debtService.repayDebt is a wrapper around addPayment, but we should use addPayment directly if we want consistent naming, 
+        // OR update debtService.repayDebt to support new params. 
+        // Checking debtService, it seems I didn't see repayDebt method in previous read, but I saw addPayment. 
+        // Let's assume debtService.repayDebt existed or I should use addPayment.
+        // The previous read of debtService.ts showed `addPayment` but not `repayDebt` (maybe it was in the part I didn't read or I missed it).
+        // Wait, line 113 calls `debtService.repayDebt`. Let me check debtService again to be sure.
+        // Actually, I'll just use addPayment which I know exists.
+        await debtService.addPayment(id, { amount, paymentDate, paymentMethod, note });
+        data = await debtService.getDebt(id);
+      }
+      
       // 发送通知
       collaborativeService.emit('ledgerUpdate', { type: 'debt_repaid', id });
       return data;

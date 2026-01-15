@@ -83,19 +83,14 @@ const notificationSlice = createSlice({
       .addCase(fetchNotifications.fulfilled, (state, action: PayloadAction<any>) => {
         console.log('fetchNotifications.fulfilled payload:', action.payload);
         state.loading = false;
-        if (action.payload) {
-          state.notifications = action.payload.items || [];
-          state.total = action.payload.total || 0;
-          state.unreadCount = action.payload.unreadCount || 0;
-        } else {
-          console.error('fetchNotifications.fulfilled: payload is undefined');
-          state.notifications = [];
-          state.total = 0;
-          state.unreadCount = 0;
-        }
+        const payload = action.payload || {};
+        state.notifications = payload.items || [];
+        state.total = payload.total || 0;
+        state.unreadCount = payload.unreadCount || 0;
       })
       .addCase(fetchNotifications.rejected, (state, action) => {
         state.loading = false;
+        console.error('fetchNotifications.rejected:', action.payload || action.error);
         state.error = action.payload as string;
       })
       // Mark as read

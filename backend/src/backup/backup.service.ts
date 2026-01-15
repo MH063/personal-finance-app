@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -86,6 +86,54 @@ export class BackupService {
 
     if (!fs.existsSync(this.backupPath)) {
       fs.mkdirSync(this.backupPath, { recursive: true });
+    }
+  }
+
+  private toLocalDateOnly(input: unknown): Date {
+    if (input instanceof Date) {
+      if (Number.isNaN(input.getTime())) {
+        throw new BadRequestException('还款日期格式不正确');
+      }
+      return new Date(input.getFullYear(), input.getMonth(), input.getDate());
+    }
+
+    if (typeof input !== 'string') {
+      throw new BadRequestException('还款日期格式不正确');
+    }
+
+    const trimmed = input.trim();
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+    if (match) {
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      const day = Number(match[3]);
+      const date = new Date(year, month - 1, day);
+      if (Number.isNaN(date.getTime())) {
+        throw new BadRequestException('还款日期格式不正确');
+      }
+      return date;
+    }
+
+    const date = new Date(trimmed);
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('还款日期格式不正确');
+    }
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
+  private assertDebtPaymentDateNotFuture(
+    userId: string,
+    sourcePaymentId: string,
+    input: unknown,
+  ): void {
+    const paymentDate = this.toLocalDateOnly(input);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (paymentDate.getTime() > today.getTime()) {
+      this.logger.warn(
+        `拒绝恢复未来还款日期: userId=${userId}, sourcePaymentId=${sourcePaymentId}, paymentDate=${paymentDate.toISOString()}`,
+      );
+      throw new BadRequestException('还款日期不能超过当前时间');
     }
   }
 
@@ -189,7 +237,9 @@ export class BackupService {
     // 调试日志：校验磁盘文件的哈希值
     const fileBuffer = fs.readFileSync(backupLog.filePath);
     const currentHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-    this.logger.debug(`[Backup] 下载请求: ID=${backupId}, 数据库哈希=${backupLog.checksum}, 磁盘实际哈希=${currentHash}, 大小=${fileBuffer.length}`);
+    this.logger.debug(
+      `[Backup] 下载请求: ID=${backupId}, 数据库哈希=${backupLog.checksum}, 磁盘实际哈希=${currentHash}, 大小=${fileBuffer.length}`,
+    );
 
     return {
       filePath: backupLog.filePath,
@@ -207,31 +257,47 @@ export class BackupService {
    */
   private async processRestore(userId: string, backupData: BackupData): Promise<number> {
     let totalItemsInBackup = 0;
-    
+
     // 计算备份文件中的总记录数（所有模块之和）
     if (backupData.data) {
-      const { 
-        ledgers, ledgerMembers, categories, debts, 
-        debtPayments, transactions, budgets, 
-        userSettings, transactionLogs 
+      const {
+        ledgers,
+        ledgerMembers,
+        categories,
+        debts,
+        debtPayments,
+        transactions,
+        budgets,
+        userSettings,
+        transactionLogs,
       } = backupData.data;
 
-      totalItemsInBackup = 
-        (ledgers?.length || 0) + 
-        (ledgerMembers?.length || 0) + 
-        (categories?.length || 0) + 
-        (debts?.length || 0) + 
-        (debtPayments?.length || 0) + 
-        (transactions?.length || 0) + 
-        (budgets?.length || 0) + 
-        (userSettings?.length || 0) + 
+      totalItemsInBackup =
+        (ledgers?.length || 0) +
+        (ledgerMembers?.length || 0) +
+        (categories?.length || 0) +
+        (debts?.length || 0) +
+        (debtPayments?.length || 0) +
+        (transactions?.length || 0) +
+        (budgets?.length || 0) +
+        (userSettings?.length || 0) +
         (transactionLogs?.length || 0);
     }
 
     this.logger.log(`备份文件包含总记录数: ${totalItemsInBackup}`);
 
+    if (backupData.data?.debtPayments && backupData.data.debtPayments.length > 0) {
+      for (const payment of backupData.data.debtPayments) {
+        this.assertDebtPaymentDateNotFuture(
+          userId,
+          (payment as any)?.id || 'unknown',
+          (payment as any)?.paymentDate,
+        );
+      }
+    }
+
     let restoredCount = 0;
-    
+
     // ID 映射表，用于解决新生成的 ID 与原 ID 之间的引用关系
     const idMap = {
       categories: new Map<string, string>(), // oldId -> newId
@@ -246,7 +312,7 @@ export class BackupService {
         try {
           // 先检查该账本是否已经存在（根据名称和用户 ID）
           let targetLedger = await this.ledgerRepository.findOne({
-            where: { name: ledger.name, ownerId: userId }
+            where: { name: ledger.name, ownerId: userId },
           });
 
           if (!targetLedger) {
@@ -254,8 +320,13 @@ export class BackupService {
             idMap.ledgers.set(ledger.id, newId);
 
             // 清理关联对象，只保留基本属性
-            const { members, transactions, owner, ...ledgerData } = ledger as any;
-            
+            const {
+              members: _members,
+              transactions: _transactions,
+              owner: _owner,
+              ...ledgerData
+            } = ledger as any;
+
             targetLedger = await this.ledgerRepository.save({
               ...ledgerData,
               id: newId,
@@ -265,7 +336,9 @@ export class BackupService {
           } else {
             // 如果已存在同名账本，建立映射关系，避免重复创建
             idMap.ledgers.set(ledger.id, targetLedger.id);
-            this.logger.log(`账本 "${ledger.name}" 已存在，跳过创建并使用现有 ID: ${targetLedger.id}`);
+            this.logger.log(
+              `账本 "${ledger.name}" 已存在，跳过创建并使用现有 ID: ${targetLedger.id}`,
+            );
             restoredCount++; // 即使已存在也计入“已处理”或“已包含”的记录数
           }
         } catch (e: any) {
@@ -281,12 +354,12 @@ export class BackupService {
         try {
           const newLedgerId = idMap.ledgers.get(member.ledgerId);
           if (newLedgerId) {
-            const { user, ledger, ...memberData } = member as any;
+            const { user: _user, ledger: _ledger, ...memberData } = member as any;
             await this.ledgerMemberRepository.save({
               ...memberData,
               id: uuidv4(),
               ledgerId: newLedgerId,
-              userId: userId, 
+              userId: userId,
             });
             restoredCount++;
           }
@@ -304,14 +377,20 @@ export class BackupService {
         try {
           // 先检查分类是否已存在
           let targetCategory = await this.categoryRepository.findOne({
-            where: { name: cat.name, userId, type: cat.type }
+            where: { name: cat.name, userId, type: cat.type },
           });
 
           if (!targetCategory) {
             const newId = uuidv4();
             idMap.categories.set(cat.id, newId);
-            
-            const { parent, children, transactions, user, ...catData } = cat as any;
+
+            const {
+              parent: _parent,
+              children: _children,
+              transactions: _transactions,
+              user: _user,
+              ...catData
+            } = cat as any;
 
             targetCategory = await this.categoryRepository.save({
               ...catData,
@@ -322,7 +401,9 @@ export class BackupService {
             restoredCount++;
           } else {
             idMap.categories.set(cat.id, targetCategory.id);
-            this.logger.log(`分类 "${cat.name}" (${cat.type}) 已存在，使用现有 ID: ${targetCategory.id}`);
+            this.logger.log(
+              `分类 "${cat.name}" (${cat.type}) 已存在，使用现有 ID: ${targetCategory.id}`,
+            );
             restoredCount++; // 计入总数
           }
         } catch (e: any) {
@@ -336,7 +417,7 @@ export class BackupService {
           if (cat.parent && cat.parent.id) {
             const newId = idMap.categories.get(cat.id);
             const newParentId = idMap.categories.get(cat.parent.id);
-            
+
             if (newId && newParentId) {
               await this.categoryRepository.update(newId, {
                 parent: { id: newParentId },
@@ -358,7 +439,7 @@ export class BackupService {
           const newId = uuidv4();
           idMap.debts.set(oldId, newId);
 
-          const { payments, user, ...debtData } = debt as any;
+          const { payments: _payments, user: _user, ...debtData } = debt as any;
 
           await this.debtRepository.save({
             ...debtData,
@@ -379,11 +460,18 @@ export class BackupService {
         try {
           const newDebtId = idMap.debts.get(payment.debtId);
           if (newDebtId) {
-            const { debt, ...paymentData } = payment as any;
+            const { debt: _debt, ...paymentData } = payment as any;
+            this.assertDebtPaymentDateNotFuture(
+              userId,
+              payment?.id || 'unknown',
+              paymentData.paymentDate,
+            );
             await this.debtPaymentRepository.save({
               ...paymentData,
               id: uuidv4(),
               debtId: newDebtId,
+              userId: userId,
+              paymentDate: new Date(paymentData.paymentDate),
             });
             restoredCount++;
           }
@@ -397,15 +485,17 @@ export class BackupService {
     if (backupData.data.transactions) {
       this.logger.log(`开始恢复交易记录，总计: ${backupData.data.transactions.length}`);
       for (const tx of backupData.data.transactions) {
-        const { category, ledger, user, ...txData } = tx as any;
-        
+        const { category: _category, ledger: _ledger, user: _user, ...txData } = tx as any;
+
         // 映射外键 ID
         let newCategoryId = null;
         const oldCategoryId = tx.category?.id || txData.categoryId;
         if (oldCategoryId && idMap.categories.has(oldCategoryId)) {
           newCategoryId = idMap.categories.get(oldCategoryId);
         } else if (oldCategoryId) {
-          this.logger.warn(`交易记录 ${txData.id || 'unknown'} 引用了未知的分类 ID: ${oldCategoryId}`);
+          this.logger.warn(
+            `交易记录 ${txData.id || 'unknown'} 引用了未知的分类 ID: ${oldCategoryId}`,
+          );
         }
 
         let newLedgerId = null;
@@ -415,20 +505,22 @@ export class BackupService {
         } else if (oldLedgerId) {
           // 如果映射表中没有，尝试直接从数据库查一下同名账本
           if (tx.ledger?.name) {
-             const existingLedger = await this.ledgerRepository.findOne({
-               where: { name: tx.ledger.name, ownerId: userId }
-             });
-             if (existingLedger) {
-               newLedgerId = existingLedger.id;
-               idMap.ledgers.set(oldLedgerId, newLedgerId);
-             }
+            const existingLedger = await this.ledgerRepository.findOne({
+              where: { name: tx.ledger.name, ownerId: userId },
+            });
+            if (existingLedger) {
+              newLedgerId = existingLedger.id;
+              idMap.ledgers.set(oldLedgerId, newLedgerId);
+            }
           }
-          
+
           if (!newLedgerId) {
-            this.logger.warn(`交易记录 ${txData.id || 'unknown'} 引用了未知的账本 ID: ${oldLedgerId}`);
+            this.logger.warn(
+              `交易记录 ${txData.id || 'unknown'} 引用了未知的账本 ID: ${oldLedgerId}`,
+            );
           }
         }
-        
+
         try {
           await this.transactionRepository.save({
             ...txData,
@@ -449,8 +541,8 @@ export class BackupService {
     if (backupData.data.budgets) {
       this.logger.log(`开始恢复预算记录，总计: ${backupData.data.budgets.length}`);
       for (const budget of backupData.data.budgets) {
-        const { category, user, ...budgetData } = budget as any;
-        
+        const { category: _category, user: _user, ...budgetData } = budget as any;
+
         let newCategoryId = null;
         const oldCategoryId = budget.category?.id || budgetData.categoryId;
         if (oldCategoryId && idMap.categories.has(oldCategoryId)) {
@@ -479,11 +571,11 @@ export class BackupService {
         try {
           // 查找是否已有设置，有则更新，无则创建
           const existingSetting = await this.userSettingRepository.findOne({
-            where: { userId }
+            where: { userId },
           });
-          
-          const { user, ...settingData } = setting as any;
-          
+
+          const { user: _user, ...settingData } = setting as any;
+
           if (existingSetting) {
             await this.userSettingRepository.update(existingSetting.id, {
               ...settingData,
@@ -491,12 +583,12 @@ export class BackupService {
             });
             this.logger.log(`用户设置已更新: ${existingSetting.id}`);
           } else {
-             await this.userSettingRepository.save({
-               ...settingData,
-               id: uuidv4(),
-               userId: userId,
-             });
-             this.logger.log(`用户设置已创建`);
+            await this.userSettingRepository.save({
+              ...settingData,
+              id: uuidv4(),
+              userId: userId,
+            });
+            this.logger.log(`用户设置已创建`);
           }
           restoredCount++;
         } catch (e: any) {
@@ -510,7 +602,7 @@ export class BackupService {
       this.logger.log(`开始恢复操作日志，总计: ${backupData.data.transactionLogs.length}`);
       for (const log of backupData.data.transactionLogs) {
         try {
-          const { user, ...logData } = log as any;
+          const { user: _user, ...logData } = log as any;
           await this.transactionLogRepository.save({
             ...logData,
             id: uuidv4(),
@@ -565,17 +657,17 @@ export class BackupService {
         } else {
           backupData = JSON.parse(fileContent);
         }
-      } catch (error: any) {
+      } catch (_error: any) {
         throw new BadRequestException('备份文件解析失败，可能是密码错误或文件损坏');
       }
 
       const restoredCount = await this.processRestore(userId, backupData);
-      
+
       // 更新备份记录状态
       backupLog.isRestored = true;
       backupLog.lastRestoredAt = new Date();
       await this.backupLogRepository.save(backupLog);
-      
+
       this.logger.log(`备份恢复完成: 恢复 ${restoredCount} 条记录`);
       return { restoredCount };
     } finally {
@@ -586,7 +678,11 @@ export class BackupService {
   /**
    * 上传并恢复备份
    */
-  async uploadAndRestore(userId: string, file: any, password?: string): Promise<{ restoredCount: number }> {
+  async uploadAndRestore(
+    userId: string,
+    file: any,
+    password?: string,
+  ): Promise<{ restoredCount: number }> {
     if (this.restoreLocks.has(userId)) {
       throw new BadRequestException('数据恢复正在进行中，请勿重复操作');
     }
@@ -597,25 +693,27 @@ export class BackupService {
 
       const startTime = Date.now();
       const fileContent = file.buffer.toString('utf8');
-      
+
       // 计算上传文件的校验和，用于防重复检测
       const buffer = Buffer.from(fileContent, 'utf8');
       const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
       const endTime = Date.now();
       this.logger.log(`[Performance] 后端文件指纹计算耗时: ${endTime - startTime}ms`);
-      
+
       // 检查是否存在相同校验和且已成功恢复的备份记录
       const existingBackup = await this.backupLogRepository.findOne({
-        where: { 
-          userId, 
-          checksum, 
+        where: {
+          userId,
+          checksum,
           isSuccess: true,
-          isRestored: true 
-        }
+          isRestored: true,
+        },
       });
 
       if (existingBackup) {
-        this.logger.warn(`检测到重复的备份文件上传 (Checksum: ${checksum})，该备份已在 ${existingBackup.lastRestoredAt} 恢复过`);
+        this.logger.warn(
+          `检测到重复的备份文件上传 (Checksum: ${checksum})，该备份已在 ${existingBackup.lastRestoredAt} 恢复过`,
+        );
         throw new BadRequestException('该备份数据已在系统中，无需重复恢复');
       }
 
@@ -625,11 +723,11 @@ export class BackupService {
         // 尝试解析 JSON，如果失败则可能是加密的
         try {
           backupData = JSON.parse(fileContent);
-        } catch (e) {
+        } catch (_e) {
           const decrypted = this.decryptData(fileContent, password);
           backupData = JSON.parse(decrypted);
         }
-      } catch (error: any) {
+      } catch (_error: any) {
         throw new BadRequestException('备份文件解析失败，可能是文件损坏或加密格式不正确');
       }
 
@@ -653,21 +751,27 @@ export class BackupService {
         // 重新统计备份文件中的真实记录数
         let totalItemsInBackup = 0;
         if (backupData.data) {
-          const { 
-            ledgers, ledgerMembers, categories, debts, 
-            debtPayments, transactions, budgets, 
-            userSettings, transactionLogs 
+          const {
+            ledgers,
+            ledgerMembers,
+            categories,
+            debts,
+            debtPayments,
+            transactions,
+            budgets,
+            userSettings,
+            transactionLogs,
           } = backupData.data;
 
-          totalItemsInBackup = 
-            (ledgers?.length || 0) + 
-            (ledgerMembers?.length || 0) + 
-            (categories?.length || 0) + 
-            (debts?.length || 0) + 
-            (debtPayments?.length || 0) + 
-            (transactions?.length || 0) + 
-            (budgets?.length || 0) + 
-            (userSettings?.length || 0) + 
+          totalItemsInBackup =
+            (ledgers?.length || 0) +
+            (ledgerMembers?.length || 0) +
+            (categories?.length || 0) +
+            (debts?.length || 0) +
+            (debtPayments?.length || 0) +
+            (transactions?.length || 0) +
+            (budgets?.length || 0) +
+            (userSettings?.length || 0) +
             (transactionLogs?.length || 0);
         }
 
@@ -775,7 +879,7 @@ export class BackupService {
 
       // 获取相关的账本成员
       if (data.data.ledgers.length > 0) {
-        const ledgerIds = data.data.ledgers.map((l) => l.id).filter(id => !!id);
+        const ledgerIds = data.data.ledgers.map((l) => l.id).filter((id) => !!id);
         this.logger.log(`账本 ID 列表: ${JSON.stringify(ledgerIds)}`);
         // 使用 QueryBuilder 确保查询语法正确
         data.data.ledgerMembers = await this.ledgerMemberRepository
@@ -816,7 +920,7 @@ export class BackupService {
 
       // 获取相关的还款记录
       if (data.data.debts.length > 0) {
-        const debtIds = data.data.debts.map((d) => d.id).filter(id => !!id);
+        const debtIds = data.data.debts.map((d) => d.id).filter((id) => !!id);
         this.logger.log(`债务 ID 列表: ${JSON.stringify(debtIds)}`);
         // 使用 QueryBuilder 确保查询语法正确
         data.data.debtPayments = await this.debtPaymentRepository
@@ -863,11 +967,11 @@ export class BackupService {
 
     const json = JSON.stringify(data, null, 2);
     const content = encrypt ? this.encryptData(json) : json;
-    
+
     // 明确使用 Buffer 以确保哈希和写入磁盘的内容完全一致（处理多字节字符）
     const buffer = Buffer.from(content, 'utf8');
     const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
-    
+
     fs.writeFileSync(filePath, buffer);
     const stats = fs.statSync(filePath);
 
@@ -907,7 +1011,7 @@ export class BackupService {
   /**
    * 解密数据
    */
-  private decryptData(encryptedData: string, password?: string): string {
+  private decryptData(encryptedData: string, _password?: string): string {
     const [ivHex, encrypted] = encryptedData.split(':');
     const iv = Buffer.from(ivHex, 'hex');
     const key = crypto.scryptSync(this.encryptionKey, 'salt', 32);

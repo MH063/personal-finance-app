@@ -47,10 +47,10 @@ export class SettingsService {
 
     Object.assign(settings, dto);
     const savedSettings = await this.userSettingRepository.save(settings);
-    
+
     // 发送实时更新通知
     this.ledgerGateway.notifySettingsUpdate(userId, savedSettings);
-    
+
     return savedSettings;
   }
 }

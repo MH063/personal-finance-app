@@ -4,7 +4,6 @@ import {
   Body,
   Get,
   Put,
-  Delete,
   UseGuards,
   Request,
   HttpCode,
@@ -24,7 +23,14 @@ import { extname, join } from 'path';
 import { Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { existsSync, mkdirSync } from 'fs';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import {
   RegisterDto,
@@ -120,21 +126,23 @@ export class AuthController {
   @Post('upload-avatar')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @UseInterceptors(FileInterceptor('file', {
-    storage: diskStorage({
-      destination: (req, file, cb) => {
-        const dir = './uploads/avatars';
-        if (!existsSync(dir)) {
-          mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
-      },
-      filename: (req, file, cb) => {
-        const randomName = uuidv4();
-        cb(null, `${randomName}${extname(file.originalname)}`);
-      },
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, file, cb) => {
+          const dir = './uploads/avatars';
+          if (!existsSync(dir)) {
+            mkdirSync(dir, { recursive: true });
+          }
+          cb(null, dir);
+        },
+        filename: (req, file, cb) => {
+          const randomName = uuidv4();
+          cb(null, `${randomName}${extname(file.originalname)}`);
+        },
+      }),
     }),
-  }))
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: '上传用户头像' })
   @ApiBody({
@@ -145,14 +153,18 @@ export class AuthController {
       },
     },
   })
-  async uploadAvatar(@UploadedFile(
-    new ParseFilePipe({
-      validators: [
-        new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 5 }), // 5MB
-        new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif)$/ }),
-      ],
-    }),
-  ) file: Express.Multer.File, @Request() req: any) {
+  async uploadAvatar(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 1024 * 1024 * 5 }), // 5MB
+          new FileTypeValidator({ fileType: /(jpg|jpeg|png|gif)$/ }),
+        ],
+      }),
+    )
+    file: Express.Multer.File,
+    @Request() req: any,
+  ) {
     const baseUrl = `${req.protocol}://${req.get('host')}`;
     return {
       url: `${baseUrl}/auth/avatar/${file.filename}`,

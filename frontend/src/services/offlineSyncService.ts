@@ -74,6 +74,7 @@ export const offlineSyncService = {
     if (!this.isOnline() || this.isSyncing || !this.isAuthenticated()) return;
 
     this.isSyncing = true;
+    let needsRefreshLocalCache = false;
     try {
       // 1. 获取所有挂起的变更
       let pendingItems = await db.syncQueue.orderBy('timestamp').toArray();
@@ -109,6 +110,9 @@ export const offlineSyncService = {
             await db.syncQueue.delete(item.id);
             console.log(`[OfflineSync] 同步成功并移除项: ${item.id}`);
           }
+          if (item.entity === 'DEBT') {
+            needsRefreshLocalCache = true;
+          }
         } catch (error: any) {
         // 处理 IndexedDB 约束错误 (虽然上面改用了 put，但防御性处理同步队列本身的 ID 问题)
         if (error.name === 'ConstraintError' || error.message?.includes('ConstraintError')) {
@@ -138,6 +142,9 @@ export const offlineSyncService = {
               console.warn(`[OfflineSync] 同步项失败 (ID: ${item.id})，状态码 ${status} (${errorMessage})，将其从队列移除`);
             }
           }
+          if (item.entity === 'DEBT') {
+            needsRefreshLocalCache = true;
+          }
           if (item.id) await db.syncQueue.delete(item.id);
           continue; 
         }
@@ -153,6 +160,32 @@ export const offlineSyncService = {
         // 如果是 400 (请求错误)，尝试修复或跳过
         if (status === 400) {
           console.warn(`[OfflineSync] 检测到 400 错误，尝试自动处理...`);
+
+          if (item.entity === 'DEBT' && item.action === 'UPDATE') {
+            try {
+              const debtRes = await api.get<any>(`/debts/${item.entityId}`, {
+                headers: { 'X-Silent-Error': 'true' },
+              });
+              const serverDebt = debtRes?.data;
+              if (serverDebt && typeof serverDebt === 'object' && !Array.isArray(serverDebt) && serverDebt.id) {
+                await db.debts.put(serverDebt);
+                console.warn('[OfflineSync] 债务更新被拒绝，已回滚本地为服务器数据:', {
+                  debtId: item.entityId,
+                  message: errorMessage,
+                });
+                needsRefreshLocalCache = true;
+              }
+            } catch (rollbackError: any) {
+              console.warn('[OfflineSync] 债务更新被拒绝，回滚本地数据失败:', {
+                debtId: item.entityId,
+                message: rollbackError?.message,
+              });
+            }
+
+            console.error(`[OfflineSync] 无法自动修复的 400 错误，从队列移除以避免阻塞同步:`, errorMessage);
+            if (item.id) await db.syncQueue.delete(item.id);
+            continue;
+          }
           
           // 针对交易记录缺失 type 或类型不匹配的特殊处理
           if (item.entity === 'TRANSACTION' && item.action === 'CREATE') {
@@ -193,6 +226,13 @@ export const offlineSyncService = {
     }
     } finally {
       this.isSyncing = false;
+      if (needsRefreshLocalCache) {
+        try {
+          await this.refreshLocalCache();
+        } catch (e) {
+          console.warn('[OfflineSync] 同步完成后刷新本地缓存失败', e);
+        }
+      }
     }
   },
 
@@ -338,9 +378,10 @@ export const offlineSyncService = {
         
         // 针对特定实体的特殊处理
         if (entity === 'DEBT') {
-          // Debt UPDATE 允许 remainingAmount 和 status
+          // Debt UPDATE 允许 remainingAmount、status、originalAmount
           if (data.remainingAmount !== undefined) updateData.remainingAmount = data.remainingAmount;
           if (data.status !== undefined) updateData.status = data.status;
+          if (data.originalAmount !== undefined) updateData.originalAmount = data.originalAmount;
         } else if (entity === 'BUDGET') {
           // 预算更新不允许 categoryId，后端 DTO 只有 amount, startDate, endDate, status
           delete updateData.categoryId;
@@ -351,13 +392,22 @@ export const offlineSyncService = {
 
         // 默认使用 PUT，BUDGET 使用 PATCH
         const method = entity === 'BUDGET' ? 'patch' : 'put';
-        await (api as any)[method](`${endpoint}/${entityId}`, updateData, {
+        console.log('[OfflineSync] 同步更新请求:', { entity, entityId, method, updateData });
+        const response = await (api as any)[method](`${endpoint}/${entityId}`, updateData, {
           headers: { 
             'X-Silent-Error': 'true',
             'X-Sync-Action': 'UPDATE',
             'X-Entity-ID': entityId
           }
         });
+
+        if (entity === 'DEBT') {
+          const serverData = response?.data;
+          if (serverData && typeof serverData === 'object' && !Array.isArray(serverData) && serverData.id) {
+            console.log('[OfflineSync] 债务更新成功，回写本地:', { id: serverData.id, originalAmount: (serverData as any).originalAmount });
+            await db.debts.put(serverData);
+          }
+        }
         break;
       }
       case 'DELETE':

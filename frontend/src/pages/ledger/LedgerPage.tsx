@@ -317,7 +317,7 @@ const LedgerPage: React.FC = () => {
         onOk={() => form.submit()}
         onCancel={() => setModalVisible(false)}
         confirmLoading={submitLoading}
-        destroyOnClose
+        destroyOnHidden
         className="custom-modal"
         centered
         maskClosable={true}
@@ -346,7 +346,7 @@ const LedgerPage: React.FC = () => {
         onCancel={() => setMemberModalVisible(false)}
         footer={null}
         width={600}
-        destroyOnClose
+        destroyOnHidden
         className="custom-modal"
         centered
         maskClosable={true}

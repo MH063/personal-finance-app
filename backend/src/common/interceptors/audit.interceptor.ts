@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Logger } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -48,7 +42,7 @@ export class AuditInterceptor implements NestInterceptor {
             action,
             entityType: entityInfo.type,
             entityId: data?.id || body?.id || entityInfo.id || 'unknown',
-            newData: method !== 'DELETE' ? (data || undefined) : undefined,
+            newData: method !== 'DELETE' ? data || undefined : undefined,
             oldData: undefined, // 在拦截器中获取旧数据较复杂，通常在 Service 层处理，这里记录关键操作
             ipAddress: ip,
             userAgent: headers['user-agent'],

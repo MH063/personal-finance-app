@@ -48,7 +48,11 @@ export class StatisticsController {
   @Get('export')
   @ApiOperation({ summary: '导出报表' })
   @ApiResponse({ status: 200, description: '导出成功' })
-  async exportReport(@Request() req: any, @Query() query: ExportReportDto, @Res() res: Response) {
+  async exportReport(
+    @Request() _req: any,
+    @Query() _query: ExportReportDto,
+    @Res() _res: Response,
+  ) {
     return;
   }
 }

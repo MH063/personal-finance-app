@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Notification, NotificationType, NotificationPriority } from '../entities/notification.entity';
+import { Notification } from '../entities/notification.entity';
 import { CreateNotificationDto, NotificationQueryDto } from './dto/notification.dto';
 
 @Injectable()
@@ -18,7 +18,7 @@ export class NotificationsService {
    */
   async getNotifications(userId: string, query: NotificationQueryDto) {
     const { isRead, limit = 20, offset = 0 } = query;
-    
+
     const where: any = { userId };
     if (isRead !== undefined) {
       where.isRead = isRead;
@@ -78,10 +78,7 @@ export class NotificationsService {
    * @param userId 用户ID
    */
   async markAllAsRead(userId: string) {
-    await this.notificationRepository.update(
-      { userId, isRead: false },
-      { isRead: true },
-    );
+    await this.notificationRepository.update({ userId, isRead: false }, { isRead: true });
     return { success: true };
   }
 

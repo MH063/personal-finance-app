@@ -10,6 +10,12 @@ import {
 } from 'typeorm';
 import { Debt } from './debt.entity';
 import { User } from './user.entity';
+import { PaymentMethod } from './transaction.entity';
+
+export enum PaymentStatus {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+}
 
 @Entity('debt_payments')
 export class DebtPayment {
@@ -24,6 +30,21 @@ export class DebtPayment {
 
   @Column({ length: 255, nullable: true })
   note: string;
+
+  @Column({
+    name: 'payment_method',
+    type: 'enum',
+    enum: PaymentMethod,
+    default: PaymentMethod.OTHER,
+  })
+  paymentMethod: PaymentMethod;
+
+  @Column({
+    type: 'enum',
+    enum: PaymentStatus,
+    default: PaymentStatus.CONFIRMED,
+  })
+  status: PaymentStatus;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

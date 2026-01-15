@@ -3,6 +3,13 @@ import { db } from '../db/db';
 import { offlineSyncService } from './offlineSyncService';
 import { v4 as uuidv4 } from 'uuid';
 
+export type RepaymentType =
+  | 'equal_loan_payments'
+  | 'equal_principal_payments'
+  | 'interest_first'
+  | 'one_time_payment'
+  | 'custom';
+
 export interface Debt {
   id: string;
   debtorName: string;
@@ -11,15 +18,76 @@ export interface Debt {
   remainingAmount: number;
   paidPercentage?: number;
   interestRate?: number;
+  accumulatedInterest?: number;
+  loanDate?: string;
   dueDate?: string;
   status: 'pending' | 'partial' | 'paid' | 'overdue';
   description?: string;
   createdAt: string;
   isOverdue?: boolean;
   version?: number;
+  paymentMethod?: 'cash' | 'alipay' | 'wechat' | 'bank_card' | 'other';
+  repaymentType?: RepaymentType;
+  repaymentDay?: number;
+  repaymentDayAdjustment?: 'none' | 'workday';
+  isReminderEnabled?: boolean;
+  reminderDate?: string;
+  payments?: DebtPayment[];
+}
+
+export interface DebtPayment {
+  id: string;
+  debtId: string;
+  amount: number;
+  paymentDate: string;
+  paymentMethod?: string;
+  note?: string;
+  status: 'pending' | 'confirmed';
 }
 
 const debtService = {
+  sanitizeDebtUpdatePayload: (data: Partial<Debt>, version?: number) => {
+    const {
+      debtorName,
+      originalAmount,
+      remainingAmount,
+      loanDate,
+      dueDate,
+      status,
+      description,
+      paymentMethod,
+      repaymentType,
+      interestRate,
+      repaymentDay,
+      repaymentDayAdjustment,
+      isReminderEnabled,
+      reminderDate,
+    } = data || {};
+
+    const payload: any = {
+      debtorName,
+      originalAmount,
+      remainingAmount,
+      loanDate,
+      dueDate,
+      status,
+      description,
+      paymentMethod,
+      repaymentType,
+      interestRate,
+      repaymentDay,
+      repaymentDayAdjustment,
+      isReminderEnabled,
+      reminderDate,
+      version,
+    };
+
+    Object.keys(payload).forEach((key) => {
+      if (payload[key] === undefined) delete payload[key];
+    });
+
+    return payload;
+  },
   /**
    * 获取所有债务
    */
@@ -176,6 +244,39 @@ const debtService = {
   updateDebt: async (id: string, data: Partial<Debt>) => {
     // 获取当前记录
     const current = await db.debts.get(id);
+    console.log('[DebtService] 更新债务(本地先写):', { id, data, version: current?.version });
+
+    if (offlineSyncService.isOnline()) {
+      const payload = debtService.sanitizeDebtUpdatePayload(data, current?.version);
+      try {
+        console.log('[DebtService] 在线更新债务(请求后端):', { id, payload });
+        const response = await api.put<any>(`/debts/${id}`, payload, {
+          headers: {
+            'X-Silent-Error': 'true',
+            'X-Sync-Action': 'UPDATE',
+            'X-Entity-ID': id,
+          },
+        });
+        const updatedFromServer = response.data;
+
+        if (updatedFromServer && typeof updatedFromServer === 'object' && !Array.isArray(updatedFromServer)) {
+          await db.debts.put(updatedFromServer);
+        }
+
+        await db.syncQueue.where('[entity+entityId+action]').equals(['DEBT', id, 'UPDATE']).delete();
+        console.log('[DebtService] 在线更新成功(已回写本地):', { id, updatedFromServer });
+        return updatedFromServer as Debt;
+      } catch (error: any) {
+        const message = error?.response?.data?.message || error?.message || '更新债务失败';
+        console.error('[DebtService] 在线更新失败:', {
+          id,
+          message,
+          status: error?.response?.status,
+          details: error?.response?.data,
+        });
+        throw new Error(message);
+      }
+    }
 
     // 1. 更新本地
     await db.debts.update(id, data);
@@ -188,13 +289,17 @@ const debtService = {
       data: { ...data, version: current?.version }, // 包含版本号以支持乐观锁
       timestamp: Date.now(),
     });
+    console.log('[DebtService] 已加入同步队列(UPDATE DEBT):', { id, data });
 
     // 3. 触发同步
     if (offlineSyncService.isOnline()) {
       await offlineSyncService.syncPendingChanges().catch(() => {});
     }
 
-    return { id, ...data };
+    // 4. 获取并返回完整的更新后债务数据
+    const updatedDebt = await db.debts.get(id);
+    console.log('[DebtService] 更新债务完成(返回本地最新):', { id, updatedDebt });
+    return updatedDebt as Debt;
   },
 
   /**
@@ -225,7 +330,7 @@ const debtService = {
    * 债务还款/收款
    * 注意：此操作涉及较复杂的业务逻辑，暂不完全支持离线
    */
-  repayDebt: async (id: string, amount: number, paymentDate: string) => {
+  repayDebt: async (id: string, amount: number, paymentDate: string, paymentMethod?: string) => {
     // 在发起还款请求前，先确保该债务已经同步到服务器
     if (offlineSyncService.isOnline()) {
       // 检查同步队列中是否有该债务的创建操作
@@ -257,8 +362,12 @@ const debtService = {
     }
 
     try {
-      console.log(`[DebtService] 正在为债务 ${id} 发起还款: ${amount}`);
-      const response = await api.post<any>(`/debts/${id}/payments`, { amount, paymentDate });
+      console.log(`[DebtService] 正在为债务 ${id} 发起还款: ${amount}, 方式: ${paymentMethod}`);
+      const response = await api.post<any>(`/debts/${id}/payments`, { 
+        amount, 
+        paymentDate,
+        paymentMethod: paymentMethod || 'other'
+      });
       
       // 注意：后端 addPayment 返回的是 DebtPayment 对象，或者是封装后的响应
       // 我们需要重新获取最新的债务详情来更新本地缓存
@@ -275,6 +384,9 @@ const debtService = {
         
         console.log(`[DebtService] 还款成功，已更新本地债务数据: ${id}`);
         await db.debts.put(updatedDebt);
+        if (offlineSyncService.isOnline()) {
+          await offlineSyncService.refreshLocalCache().catch(() => {});
+        }
         return updatedDebt;
       }
       
@@ -315,6 +427,25 @@ const debtService = {
     return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
       ? result.data 
       : result;
+  },
+
+  addPayment: async (debtId: string, data: any) => {
+    if (offlineSyncService.isOnline()) {
+      const response = await api.post<any>(`/debts/${debtId}/payments`, data);
+      return response.data;
+    }
+    throw new Error('离线状态无法添加还款');
+  },
+
+  /**
+   * 更新还款记录 (确认还款)
+   */
+  updatePayment: async (debtId: string, paymentId: string, data: any) => {
+    if (offlineSyncService.isOnline()) {
+      const response = await api.put<any>(`/debts/${debtId}/payments/${paymentId}`, data);
+      return response.data;
+    }
+    throw new Error('离线状态无法更新还款');
   },
 };
 

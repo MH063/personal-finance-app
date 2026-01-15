@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
-import { getLocalIPs, getPrimaryIP, maskIP, maskIPInString } from '../utils/ip.util';
+import { getLocalIPs, getPrimaryIP, maskIP } from '../utils/ip.util';
 
 /**
  * 网络监控服务
@@ -36,13 +36,13 @@ export class NetworkMonitorService implements OnModuleInit {
 
       if (v4Changed || v6Changed) {
         this.logger.warn('检测到本机网络接口 IP 地址发生变化！');
-        
+
         if (v4Changed) {
           const oldV4 = this.lastIPs.v4.map(maskIP).join(', ');
           const newV4 = currentIPs.v4.map(maskIP).join(', ');
           this.logger.log(`IPv4 变更: [${oldV4}] -> [${newV4}]`);
         }
-        
+
         if (v6Changed) {
           const oldV6 = this.lastIPs.v6.map(maskIP).join(', ');
           const newV6 = currentIPs.v6.map(maskIP).join(', ');
@@ -50,9 +50,11 @@ export class NetworkMonitorService implements OnModuleInit {
         }
 
         if (this.primaryIP !== currentPrimaryIP) {
-          this.logger.warn(`主 IP 已从 ${maskIP(this.primaryIP)} 变更为 ${maskIP(currentPrimaryIP)}`);
+          this.logger.warn(
+            `主 IP 已从 ${maskIP(this.primaryIP)} 变更为 ${maskIP(currentPrimaryIP)}`,
+          );
           this.primaryIP = currentPrimaryIP;
-          
+
           // 这里可以触发进一步的通知逻辑，例如发送邮件或更新外部服务
           this.notifyIPChange(currentPrimaryIP);
         }

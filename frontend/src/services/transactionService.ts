@@ -53,50 +53,65 @@ export interface TransactionQuery {
 
 export const transactionService = {
   getTransactions: async (query: TransactionQuery = {}) => {
-    // 始终尝试先从本地数据库读取
-    let localData = await db.transactions.toArray();
-    
-    // 应用筛选逻辑 (如果离线或为了快速响应)
-    if (query.type) localData = localData.filter(t => t.type === query.type);
-    if (query.categoryId) localData = localData.filter(t => t.categoryId === query.categoryId);
-    if (query.ledgerId) localData = localData.filter(t => t.ledgerId === query.ledgerId);
-    if (query.startDate) localData = localData.filter(t => t.transactionDate >= query.startDate);
-    if (query.endDate) localData = localData.filter(t => t.transactionDate <= query.endDate);
-    
-    // 排序：按日期降序
-    localData.sort((a, b) => b.transactionDate.localeCompare(a.transactionDate));
-
     // 分页
     const page = query.page || 1;
     const limit = query.limit || 10;
     const offset = (page - 1) * limit;
-    const paginatedData = localData.slice(offset, offset + limit);
+
+    const applyLocalFilters = (items: Transaction[]) => {
+      let data = items;
+      if (query.type) data = data.filter(t => t.type === query.type);
+      if (query.categoryId) data = data.filter(t => t.categoryId === query.categoryId);
+      if (query.ledgerId) data = data.filter(t => t.ledgerId === query.ledgerId);
+      if (query.startDate) data = data.filter(t => t.transactionDate >= query.startDate);
+      if (query.endDate) data = data.filter(t => t.transactionDate <= query.endDate);
+      data.sort((a, b) => b.transactionDate.localeCompare(a.transactionDate));
+      return data;
+    };
+
+    const extractTxArray = (payload: any) => {
+      if (!payload) return [];
+      if (Array.isArray(payload)) return payload;
+      if (payload && typeof payload === 'object' && Array.isArray((payload as any).data)) return (payload as any).data;
+      return [];
+    };
+
+    const localData = applyLocalFilters(await db.transactions.toArray());
 
     // 如果在线，静默刷新本地缓存
     if (offlineSyncService.isOnline()) {
-      const params = new URLSearchParams();
-      Object.entries(query).forEach(([key, value]) => {
-        if (value !== undefined && value !== null && value !== '') {
-          params.append(key, String(value));
+      const fetchRemoteAndUpsert = async () => {
+        const response = await api.get<any>('/transactions', { params: query });
+        const payload = response.data;
+        const txData = extractTxArray(payload);
+        if (txData.length > 0) {
+          await db.transactions.bulkPut(txData);
         }
-      });
-      
-      api.get<any>(`/transactions?${params}`).then(response => {
-        const result = response.data;
-        const data = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-          ? result.data 
-          : result;
-        
-        if (data) {
-          // 处理双层嵌套 { data: [], total: 0 } 或直接是数组 []
-          const txData = Array.isArray(data) ? data : (data.data || []);
-          if (Array.isArray(txData)) {
-            db.transactions.bulkPut(txData);
-          }
+        return { payload, txData };
+      };
+
+      const shouldBlockForFreshData = page === 1;
+      if (shouldBlockForFreshData) {
+        try {
+          console.log('[TransactionService] 在线首屏获取交易数据，使用服务端结果刷新列表');
+          const { payload, txData } = await fetchRemoteAndUpsert();
+          const paginatedFromRemote = txData.slice(offset, offset + limit);
+          const totalFromRemote = typeof payload?.total === 'number' ? payload.total : txData.length;
+          return {
+            data: paginatedFromRemote,
+            total: totalFromRemote,
+            page: typeof payload?.page === 'number' ? payload.page : page,
+            limit: typeof payload?.limit === 'number' ? payload.limit : limit,
+          };
+        } catch (err) {
+          console.warn('[TransactionService] 在线获取交易失败，回退本地缓存', err);
         }
-      }).catch(err => console.warn('后台刷新交易数据失败', err));
+      } else {
+        fetchRemoteAndUpsert().catch(err => console.warn('[TransactionService] 后台刷新交易数据失败', err));
+      }
     }
 
+    const paginatedData = localData.slice(offset, offset + limit);
     return {
       data: paginatedData,
       total: localData.length,

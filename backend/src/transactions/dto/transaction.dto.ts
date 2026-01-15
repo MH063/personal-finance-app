@@ -66,7 +66,7 @@ export class UpdateTransactionDto {
   @ApiPropertyOptional({ example: 200.0 })
   @IsNumber()
   @Min(0.01)
-  @Max(999999999999999.99)
+  @Max(999999999999.99)
   @IsOptional()
   amount?: number;
 

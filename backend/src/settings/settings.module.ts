@@ -7,11 +7,7 @@ import { AuthModule } from '../auth/auth.module';
 import { LedgersModule } from '../ledgers/ledgers.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([UserSetting]), 
-    AuthModule,
-    LedgersModule,
-  ],
+  imports: [TypeOrmModule.forFeature([UserSetting]), AuthModule, LedgersModule],
   controllers: [SettingsController],
   providers: [SettingsService],
   exports: [SettingsService],

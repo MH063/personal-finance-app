@@ -7,9 +7,7 @@ import { Category } from '../entities/category.entity';
 import { Debt } from '../entities/debt.entity';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Transaction, Category, Debt]),
-  ],
+  imports: [TypeOrmModule.forFeature([Transaction, Category, Debt])],
   controllers: [AiController],
   providers: [AiService],
   exports: [AiService],

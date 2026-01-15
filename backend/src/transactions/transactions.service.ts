@@ -15,9 +15,9 @@ import {
   Raw,
   FindOptionsWhere,
 } from 'typeorm';
-import { Transaction, TransactionType } from '../entities/transaction.entity';
+import { Transaction, TransactionType, PaymentMethod } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
-import { Ledger, LedgerMember } from '../entities/ledger.entity';
+import { Ledger, LedgerMember, LedgerType } from '../entities/ledger.entity';
 import { TransactionLog, LogAction, EntityType } from '../entities/transaction-log.entity';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
 import {
@@ -77,6 +77,71 @@ export class TransactionsService {
     return category;
   }
 
+  private async resolveLedgerIdForCreate(userId: string, ledgerId?: string): Promise<string> {
+    if (ledgerId) {
+      const membership = await this.ledgerMemberRepository.findOne({
+        where: { ledgerId, userId },
+      });
+      if (!membership) {
+        throw new ForbiddenException('您没有权限在该账本中创建交易');
+      }
+      return ledgerId;
+    }
+
+    const defaultLedger = await this.ledgerRepository.findOne({
+      where: { ownerId: userId, isDefault: true },
+    });
+    if (defaultLedger) return defaultLedger.id;
+
+    const ownedLedgers = await this.ledgerRepository.find({
+      where: { ownerId: userId },
+      order: { createdAt: 'ASC' },
+      take: 1,
+    });
+    const fallbackLedger = ownedLedgers[0];
+
+    if (fallbackLedger) {
+      fallbackLedger.isDefault = true;
+      await this.ledgerRepository.save(fallbackLedger);
+
+      const existingMember = await this.ledgerMemberRepository.findOne({
+        where: { ledgerId: fallbackLedger.id, userId },
+      });
+      if (!existingMember) {
+        await this.ledgerMemberRepository.save(
+          this.ledgerMemberRepository.create({
+            ledgerId: fallbackLedger.id,
+            userId,
+            role: 'owner',
+          }),
+        );
+      }
+
+      this.logger.warn(`用户 ${userId} 缺失默认账本，已自动修复为: ${fallbackLedger.id}`);
+      return fallbackLedger.id;
+    }
+
+    const createdLedger = await this.ledgerRepository.save(
+      this.ledgerRepository.create({
+        name: '我的私有账本',
+        ownerId: userId,
+        type: LedgerType.PRIVATE,
+        isDefault: true,
+      }),
+    );
+
+    await this.ledgerMemberRepository.save(
+      this.ledgerMemberRepository.create({
+        ledgerId: createdLedger.id,
+        userId,
+        role: 'owner',
+      }),
+    );
+
+    this.logger.warn(`用户 ${userId} 缺失默认账本，已自动创建: ${createdLedger.id}`);
+    return createdLedger.id;
+  }
+
   /**
    * 创建交易记录
    */
@@ -87,25 +152,7 @@ export class TransactionsService {
       await this.validateCategory(userId, createDto.categoryId, createDto.type);
     }
 
-    let ledgerId = createDto.ledgerId;
-    if (!ledgerId) {
-      // 获取用户的默认私有账本
-      const defaultLedger = await this.ledgerRepository.findOne({
-        where: { ownerId: userId, isDefault: true },
-      });
-      if (!defaultLedger) {
-        throw new NotFoundException('未找到用户的默认账本');
-      }
-      ledgerId = defaultLedger.id;
-    } else {
-      // 验证用户是否有权限在该账本中创建交易
-      const membership = await this.ledgerMemberRepository.findOne({
-        where: { ledgerId, userId },
-      });
-      if (!membership) {
-        throw new ForbiddenException('您没有权限在该账本中创建交易');
-      }
-    }
+    const ledgerId = await this.resolveLedgerIdForCreate(userId, createDto.ledgerId);
 
     const transaction = this.transactionRepository.create({
       ...createDto,
@@ -268,6 +315,11 @@ export class TransactionsService {
       throw new ForbiddenException('您没有权限修改此交易记录');
     }
 
+    // 检查是否为债务关联交易，如果是，则禁止通过常规接口修改
+    if (transaction.metadata?.isDebtLink) {
+      throw new ForbiddenException('此交易关联至债务记录，请前往债务管理模块进行修改');
+    }
+
     if (updateDto.categoryId) {
       await this.validateCategory(
         userId,
@@ -290,7 +342,11 @@ export class TransactionsService {
 
     // 乐观锁校验
     if (updateDto.version !== undefined && transaction.version !== updateDto.version) {
-      throw new OptimisticLockVersionMismatchError('Transaction', updateDto.version, transaction.version);
+      throw new OptimisticLockVersionMismatchError(
+        'Transaction',
+        updateDto.version,
+        transaction.version,
+      );
     }
 
     const changedFields: string[] = [];
@@ -305,7 +361,8 @@ export class TransactionsService {
     });
 
     // 移除 version，防止 Object.assign 覆盖实体中的 version，让 TypeORM 自动管理
-    const { version, ...updateData } = updateDto;
+    const updateData: Partial<UpdateTransactionDto> = { ...updateDto };
+    delete (updateData as any).version;
     Object.assign(transaction, updateData);
 
     if (updateDto.transactionDate) {
@@ -315,7 +372,12 @@ export class TransactionsService {
     const updatedTransaction = await this.transactionRepository.save(transaction);
 
     // 发送实时更新通知
-    this.ledgerGateway.notifyUpdate(transaction.ledgerId, 'TRANSACTION_UPDATED', updatedTransaction, userId);
+    this.ledgerGateway.notifyUpdate(
+      transaction.ledgerId,
+      'TRANSACTION_UPDATED',
+      updatedTransaction,
+      userId,
+    );
 
     await this.logRepository.save({
       action: LogAction.UPDATE,
@@ -348,6 +410,11 @@ export class TransactionsService {
       throw new ForbiddenException('您没有权限删除此交易记录');
     }
 
+    // 检查是否为债务关联交易
+    if (transaction.metadata?.isDebtLink) {
+      throw new ForbiddenException('此交易关联至债务记录，请前往债务管理模块进行删除');
+    }
+
     transaction.isDeleted = true;
     transaction.deletedAt = new Date();
     await this.transactionRepository.save(transaction);
@@ -371,6 +438,24 @@ export class TransactionsService {
    */
   async batchRemove(userId: string, dto: BatchDeleteDto): Promise<{ deletedCount: number }> {
     this.logger.log(`用户 ${userId} 批量删除交易记录: ${dto.ids.length}条`);
+
+    // 检查是否有受保护的债务关联交易
+    const protectedCount = await this.transactionRepository.count({
+      where: {
+        id: In(dto.ids),
+        userId,
+        isDeleted: false,
+        metadata: Raw((alias) => `${alias} @> :meta`, {
+          meta: JSON.stringify({ isDebtLink: true }),
+        }),
+      },
+    });
+
+    if (protectedCount > 0) {
+      throw new ForbiddenException(
+        '选中的记录中包含债务关联交易，无法批量删除。请前往债务管理模块操作。',
+      );
+    }
 
     const result = await this.transactionRepository.update(
       { id: In(dto.ids), userId, isDeleted: false },
@@ -432,7 +517,12 @@ export class TransactionsService {
     );
 
     // 触发更新通知
-    this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_UPDATED', { ids: dto.ids, categoryId: dto.categoryId }, userId);
+    this.ledgerGateway.notifyUpdate(
+      null,
+      'TRANSACTION_BATCH_UPDATED',
+      { ids: dto.ids, categoryId: dto.categoryId },
+      userId,
+    );
 
     if (result.affected === 0) {
       throw new NotFoundException('未找到要更新的交易记录');
@@ -450,20 +540,167 @@ export class TransactionsService {
     return { updatedCount: result.affected || 0 };
   }
 
+  async updateLinkedDebtEntryTransaction(
+    userId: string,
+    debtId: string,
+    patch: { amount?: number; description?: string; paymentMethod?: PaymentMethod },
+  ): Promise<{ updatedCount: number; ids: string[] }> {
+    if (!debtId) return { updatedCount: 0, ids: [] };
+
+    const where: any = { userId, isDeleted: false };
+    where.metadata = Raw(
+      (alias) => `${alias} @> :meta AND NOT (jsonb_exists(${alias}, 'paymentId'))`,
+      { meta: JSON.stringify({ debtId }) },
+    );
+
+    const linkedTxs = await this.transactionRepository.find({ where });
+    if (linkedTxs.length === 0) return { updatedCount: 0, ids: [] };
+
+    const ids: string[] = [];
+
+    for (const tx of linkedTxs) {
+      const oldData = { ...(tx as any) };
+      const changedFields: string[] = [];
+
+      if (patch.amount !== undefined && Number(tx.amount) !== Number(patch.amount)) {
+        (tx as any).amount = patch.amount as any;
+        changedFields.push('amount');
+      }
+
+      if (patch.description !== undefined && (tx.description || '') !== patch.description) {
+        tx.description = patch.description as any;
+        changedFields.push('description');
+      }
+
+      if (patch.paymentMethod !== undefined && tx.paymentMethod !== patch.paymentMethod) {
+        tx.paymentMethod = patch.paymentMethod as any;
+        changedFields.push('paymentMethod');
+      }
+
+      if (changedFields.length === 0) continue;
+
+      const saved = await this.transactionRepository.save(tx);
+      ids.push(saved.id);
+
+      this.ledgerGateway.notifyUpdate(tx.ledgerId, 'TRANSACTION_UPDATED', saved, userId);
+
+      await this.logRepository.save({
+        action: LogAction.UPDATE,
+        entityType: EntityType.TRANSACTION,
+        entityId: saved.id,
+        oldData: this.sanitizeTransactionData(oldData as any),
+        newData: this.sanitizeTransactionData(saved as any),
+        changedFields,
+        userId,
+      });
+    }
+
+    if (ids.length > 0) {
+      this.logger.log(
+        `已更新债务关联交易: userId=${userId}, debtId=${debtId}, count=${ids.length}`,
+      );
+    }
+
+    return { updatedCount: ids.length, ids };
+  }
+
+  async updateLinkedPaymentTransactions(
+    userId: string,
+    paymentId: string,
+    patch: {
+      amount?: number;
+      description?: string;
+      paymentMethod?: PaymentMethod;
+      transactionDate?: string | Date;
+    },
+  ): Promise<{ updatedCount: number; ids: string[] }> {
+    if (!paymentId) return { updatedCount: 0, ids: [] };
+
+    const where: any = { userId, isDeleted: false };
+    where.metadata = Raw((alias) => `${alias} @> :meta`, { meta: JSON.stringify({ paymentId }) });
+
+    const linkedTxs = await this.transactionRepository.find({ where });
+    if (linkedTxs.length === 0) return { updatedCount: 0, ids: [] };
+
+    const ids: string[] = [];
+
+    for (const tx of linkedTxs) {
+      const oldData = { ...(tx as any) };
+      const changedFields: string[] = [];
+
+      if (patch.amount !== undefined && Number(tx.amount) !== Number(patch.amount)) {
+        (tx as any).amount = patch.amount as any;
+        changedFields.push('amount');
+      }
+
+      if (patch.description !== undefined && (tx.description || '') !== patch.description) {
+        tx.description = patch.description as any;
+        changedFields.push('description');
+      }
+
+      if (patch.paymentMethod !== undefined && tx.paymentMethod !== patch.paymentMethod) {
+        tx.paymentMethod = patch.paymentMethod as any;
+        changedFields.push('paymentMethod');
+      }
+
+      if (patch.transactionDate !== undefined) {
+        const nextDate = new Date(patch.transactionDate);
+        if (!Number.isNaN(nextDate.getTime())) {
+          const currentTime = tx.transactionDate ? new Date(tx.transactionDate).getTime() : 0;
+          if (currentTime !== nextDate.getTime()) {
+            tx.transactionDate = nextDate as any;
+            changedFields.push('transactionDate');
+          }
+        }
+      }
+
+      if (changedFields.length === 0) continue;
+
+      const saved = await this.transactionRepository.save(tx);
+      ids.push(saved.id);
+
+      this.ledgerGateway.notifyUpdate(tx.ledgerId, 'TRANSACTION_UPDATED', saved, userId);
+
+      await this.logRepository.save({
+        action: LogAction.UPDATE,
+        entityType: EntityType.TRANSACTION,
+        entityId: saved.id,
+        oldData: this.sanitizeTransactionData(oldData as any),
+        newData: this.sanitizeTransactionData(saved as any),
+        changedFields,
+        userId,
+      });
+    }
+
+    if (ids.length > 0) {
+      this.logger.log(
+        `已更新还款关联交易: userId=${userId}, paymentId=${paymentId}, count=${ids.length}`,
+      );
+    }
+
+    return { updatedCount: ids.length, ids };
+  }
+
   /**
    * 检查是否存在关联的交易记录
    */
-  async existsLinkedTransaction(userId: string, criteria: { debtId?: string; paymentId?: string }): Promise<boolean> {
+  async existsLinkedTransaction(
+    userId: string,
+    criteria: { debtId?: string; paymentId?: string },
+  ): Promise<boolean> {
     const { debtId, paymentId } = criteria;
     if (!debtId && !paymentId) return false;
 
     const where: any = { userId, isDeleted: false };
     if (paymentId) {
-      where.metadata = Raw(alias => `${alias} @> :meta`, { meta: JSON.stringify({ paymentId }) });
+      where.metadata = Raw((alias) => `${alias} @> :meta`, { meta: JSON.stringify({ paymentId }) });
     } else if (debtId) {
       // 仅匹配债务本身的交易（不含还款），通过判断 metadata 中是否存在 paymentId 来区分
       // 使用 jsonb_exists 函数代替 ?? 操作符，避免 TypeORM/Postgres 的转义问题
-      where.metadata = Raw(alias => `${alias} @> :meta AND NOT (jsonb_exists(${alias}, 'paymentId'))`, { meta: JSON.stringify({ debtId }) });
+      where.metadata = Raw(
+        (alias) => `${alias} @> :meta AND NOT (jsonb_exists(${alias}, 'paymentId'))`,
+        { meta: JSON.stringify({ debtId }) },
+      );
     }
 
     const count = await this.transactionRepository.count({ where });
@@ -473,31 +710,34 @@ export class TransactionsService {
   /**
    * 删除与债务或还款关联的交易记录
    */
-  async removeLinkedTransactions(userId: string, criteria: { debtId?: string; paymentId?: string }): Promise<void> {
+  async removeLinkedTransactions(
+    userId: string,
+    criteria: { debtId?: string; paymentId?: string },
+  ): Promise<void> {
     const { debtId, paymentId } = criteria;
     if (!debtId && !paymentId) return;
 
     this.logger.log(`删除关联交易: userId=${userId}, criteria=${JSON.stringify(criteria)}`);
 
     const where: any = { userId, isDeleted: false };
-    
+
     if (paymentId) {
       // 这里的 Raw 语法取决于数据库类型，PostgreSQL 使用 @>
-      where.metadata = Raw(alias => `${alias} @> :meta`, { meta: JSON.stringify({ paymentId }) });
+      where.metadata = Raw((alias) => `${alias} @> :meta`, { meta: JSON.stringify({ paymentId }) });
     } else if (debtId) {
-      where.metadata = Raw(alias => `${alias} @> :meta`, { meta: JSON.stringify({ debtId }) });
+      where.metadata = Raw((alias) => `${alias} @> :meta`, { meta: JSON.stringify({ debtId }) });
     }
 
     const linkedTxs = await this.transactionRepository.find({ where });
-    
+
     if (linkedTxs.length > 0) {
-      const ids = linkedTxs.map(tx => tx.id);
+      const ids = linkedTxs.map((tx) => tx.id);
       await this.transactionRepository.update(
         { id: In(ids) },
-        { isDeleted: true, deletedAt: new Date() }
+        { isDeleted: true, deletedAt: new Date() },
       );
       this.logger.log(`已软删除 ${linkedTxs.length} 条关联交易记录`);
-      
+
       // 发送实时更新通知
       this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_DELETED', { ids }, userId);
     }
@@ -507,7 +747,7 @@ export class TransactionsService {
    * 获取交易记录变更历史
    */
   async getHistory(userId: string, transactionId: string): Promise<TransactionLog[]> {
-    const transaction = await this.findOne(userId, transactionId);
+    await this.findOne(userId, transactionId);
 
     return this.logRepository.find({
       where: {
@@ -523,7 +763,8 @@ export class TransactionsService {
    * 清理交易记录敏感数据
    */
   private sanitizeTransactionData(transaction: Transaction): Record<string, any> {
-    const { user, ...data } = transaction;
+    const data: Record<string, any> = { ...(transaction as any) };
+    delete (data as any).user;
     return data;
   }
 }

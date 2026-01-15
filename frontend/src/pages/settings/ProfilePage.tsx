@@ -55,11 +55,14 @@ const ProfilePage: React.FC = () => {
       
       // 如果有待上传的头像，先上传
       if (pendingAvatarFile) {
+        setAvatarLoading(true);
         try {
           const uploadResult = await authService.uploadAvatar(pendingAvatarFile);
           avatarUrl = uploadResult.url;
         } catch (uploadError: any) {
           throw new Error('头像上传失败: ' + (uploadError.message || '未知错误'));
+        } finally {
+          setAvatarLoading(false);
         }
       }
 

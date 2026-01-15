@@ -8,7 +8,7 @@ import {
   MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { UseGuards, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 
 /**
@@ -52,7 +52,7 @@ export class LedgerGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.join(`user_${userId}`);
         this.logger.log(`用户 ${payload.username} 已加入个人房间: user_${userId}`);
       }
-    } catch (error) {
+    } catch (_error) {
       this.logger.error(`连接鉴权失败: ${client.id}`);
       client.disconnect();
     }
@@ -69,19 +69,16 @@ export class LedgerGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * 加入账本房间
    */
   @SubscribeMessage('joinLedger')
-  handleJoinLedger(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() ledgerId: string,
-  ) {
+  handleJoinLedger(@ConnectedSocket() client: Socket, @MessageBody() ledgerId: string) {
     client.join(`ledger_${ledgerId}`);
     this.logger.log(`用户 ${client.data.user?.username} 加入了账本房间: ${ledgerId}`);
-    
+
     // 通知房间内其他成员有人加入
     client.to(`ledger_${ledgerId}`).emit('userJoined', {
       userId: client.data.user?.sub,
       username: client.data.user?.username,
     });
-    
+
     return { event: 'joined', data: ledgerId };
   }
 
@@ -89,19 +86,16 @@ export class LedgerGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * 离开账本房间
    */
   @SubscribeMessage('leaveLedger')
-  handleLeaveLedger(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() ledgerId: string,
-  ) {
+  handleLeaveLedger(@ConnectedSocket() client: Socket, @MessageBody() ledgerId: string) {
     client.leave(`ledger_${ledgerId}`);
     this.logger.log(`用户 ${client.data.user?.username} 离开了账本房间: ${ledgerId}`);
-    
+
     // 通知房间内其他成员有人离开
     client.to(`ledger_${ledgerId}`).emit('userLeft', {
       userId: client.data.user?.sub,
       username: client.data.user?.username,
     });
-    
+
     return { event: 'left', data: ledgerId };
   }
 
@@ -116,7 +110,9 @@ export class LedgerGateway implements OnGatewayConnection, OnGatewayDisconnect {
       timestamp: new Date().toISOString(),
     };
 
-    this.logger.log(`[RealTime] 推送更新通知: type=${type}, userId=${userId || 'all'}, ledgerId=${ledgerId || 'none'}`);
+    this.logger.log(
+      `[RealTime] 推送更新通知: type=${type}, userId=${userId || 'all'}, ledgerId=${ledgerId || 'none'}`,
+    );
 
     // 发送到账本房间
     if (ledgerId) {

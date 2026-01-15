@@ -98,7 +98,7 @@ export class AiService implements OnModuleInit {
     }
 
     const totalDebt = debts.reduce((sum: number, d: Debt) => sum + Number(d.remainingAmount), 0);
-    
+
     const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : 0;
     const debtToIncomeRatio = totalIncome > 0 ? (totalDebt / (totalIncome * 12)) * 100 : 0; // 以年收入为基准
 
@@ -127,7 +127,7 @@ export class AiService implements OnModuleInit {
       score: Math.min(100, Math.max(0, score)),
       savingsRate: savingsRate.toFixed(1),
       debtToIncomeRatio: debtToIncomeRatio.toFixed(1),
-      insights
+      insights,
     };
   }
 
@@ -138,11 +138,11 @@ export class AiService implements OnModuleInit {
     // 获取过去 6 个月的月度数据
     const transactions = await this.transactionRepository.find({
       where: { userId, isDeleted: false },
-      order: { transactionDate: 'ASC' }
+      order: { transactionDate: 'ASC' },
     });
 
     const monthlyMap = new Map<string, number>();
-    transactions.forEach(tx => {
+    transactions.forEach((tx) => {
       if (tx.type === 'expense') {
         const month = tx.transactionDate.toISOString().substring(0, 7);
         monthlyMap.set(month, (monthlyMap.get(month) || 0) + Number(tx.amount));
@@ -164,7 +164,7 @@ export class AiService implements OnModuleInit {
     for (let i = 1; i <= 3; i++) {
       forecast.push({
         month: `下月 ${i}`,
-        amount: Math.max(0, line(lastIndex + i))
+        amount: Math.max(0, line(lastIndex + i)),
       });
     }
 

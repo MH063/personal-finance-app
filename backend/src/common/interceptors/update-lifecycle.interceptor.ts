@@ -1,10 +1,4 @@
-import {
-  Injectable,
-  NestInterceptor,
-  ExecutionContext,
-  CallHandler,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Logger } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { LedgerGateway } from '../../ledgers/ledger.gateway';
@@ -31,15 +25,17 @@ export class UpdateLifecycleInterceptor implements NestInterceptor {
       return next.handle();
     }
 
-    this.logger.log(`[${requestId}] 开始处理更新请求: ${method} ${url} (用户: ${user?.username || 'anonymous'})`);
+    this.logger.log(
+      `[${requestId}] 开始处理更新请求: ${method} ${url} (用户: ${user?.username || 'anonymous'})`,
+    );
 
     return next.handle().pipe(
       tap(() => {
         const endTime = Date.now();
         const duration = endTime - startTime;
-        
+
         this.logger.log(`[${requestId}] 数据库写入完成, 耗时: ${duration}ms`);
-        
+
         // 500ms 写入性能监控
         if (duration > 500) {
           this.logger.warn(`[${requestId}] 警告: 数据库写入耗时超过 500ms (${duration}ms)`);

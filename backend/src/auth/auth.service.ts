@@ -8,7 +8,6 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
-import * as crypto from 'crypto';
 import { User, UserStatus } from '../entities/user.entity';
 import { Ledger, LedgerType, LedgerMember } from '../entities/ledger.entity';
 import {
@@ -409,7 +408,10 @@ export class AuthService {
    * 清理用户敏感信息
    */
   private sanitizeUser(user: User): Partial<User> {
-    const { password, loginAttempts, lockUntil, ...sanitizedUser } = user;
+    const sanitizedUser: Record<string, any> = { ...(user as any) };
+    delete (sanitizedUser as any).password;
+    delete (sanitizedUser as any).loginAttempts;
+    delete (sanitizedUser as any).lockUntil;
     return sanitizedUser;
   }
 }

@@ -1,13 +1,14 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, In, TreeRepository, OptimisticLockVersionMismatchError } from 'typeorm';
+import {
+  Repository,
+  Between,
+  In,
+  TreeRepository,
+  OptimisticLockVersionMismatchError,
+} from 'typeorm';
 import { format } from 'date-fns';
-import { Budget, BudgetStatus } from '../entities/budget.entity';
+import { Budget } from '../entities/budget.entity';
 import { Transaction, TransactionType } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
 import { CreateBudgetDto, UpdateBudgetDto } from './dto/budget.dto';
@@ -87,11 +88,7 @@ export class BudgetsService {
     };
   }
 
-  async update(
-    userId: string,
-    id: string,
-    updateBudgetDto: UpdateBudgetDto,
-  ): Promise<Budget> {
+  async update(userId: string, id: string, updateBudgetDto: UpdateBudgetDto): Promise<Budget> {
     this.logger.log(`用户 ${userId} 正在更新预算 ${id}: ${JSON.stringify(updateBudgetDto)}`);
     const budget = await this.findOne(userId, id);
 
@@ -100,17 +97,24 @@ export class BudgetsService {
       updateBudgetDto.endDate &&
       new Date(updateBudgetDto.startDate) > new Date(updateBudgetDto.endDate)
     ) {
-      this.logger.warn(`更新预算失败：开始日期 ${updateBudgetDto.startDate} 晚于结束日期 ${updateBudgetDto.endDate}`);
+      this.logger.warn(
+        `更新预算失败：开始日期 ${updateBudgetDto.startDate} 晚于结束日期 ${updateBudgetDto.endDate}`,
+      );
       throw new BadRequestException('开始日期不能晚于结束日期');
     }
 
     // 乐观锁校验
     if (updateBudgetDto.version !== undefined && budget.version !== updateBudgetDto.version) {
-      throw new OptimisticLockVersionMismatchError('Budget', updateBudgetDto.version, budget.version);
+      throw new OptimisticLockVersionMismatchError(
+        'Budget',
+        updateBudgetDto.version,
+        budget.version,
+      );
     }
 
     // 移除 version，防止 Object.assign 覆盖实体中的 version，让 TypeORM 自动管理
-    const { version, ...updateData } = updateBudgetDto;
+    const updateData: Partial<UpdateBudgetDto> = { ...updateBudgetDto };
+    delete (updateData as any).version;
     Object.assign(budget, updateData);
     const updatedBudget = await this.budgetRepository.save(budget);
     this.logger.log(`预算 ${id} 更新成功`);
@@ -143,7 +147,7 @@ export class BudgetsService {
       });
       if (category) {
         const descendants = await this.categoryRepository.findDescendants(category);
-        descendants.forEach(d => {
+        descendants.forEach((d) => {
           if (!categoryIds.includes(d.id)) {
             categoryIds.push(d.id);
           }
@@ -155,12 +159,12 @@ export class BudgetsService {
 
     // 将日期转换为当天开始和结束时间，以确保包含整天的数据
     // budget.startDate 和 budget.endDate 是 DATE 类型，通常为 'YYYY-MM-DD' 字符串或对应的 Date 对象
-    const startDateStr = typeof budget.startDate === 'string' 
-      ? budget.startDate 
-      : format(budget.startDate, 'yyyy-MM-dd');
-    const endDateStr = typeof budget.endDate === 'string' 
-      ? budget.endDate 
-      : format(budget.endDate, 'yyyy-MM-dd');
+    const startDateStr =
+      typeof budget.startDate === 'string'
+        ? budget.startDate
+        : format(budget.startDate, 'yyyy-MM-dd');
+    const endDateStr =
+      typeof budget.endDate === 'string' ? budget.endDate : format(budget.endDate, 'yyyy-MM-dd');
 
     const startOfDay = `${startDateStr} 00:00:00`;
     const endOfDay = `${endDateStr} 23:59:59.999`;
@@ -177,13 +181,9 @@ export class BudgetsService {
 
     this.logger.debug(`找到 ${transactions.length} 笔相关交易`);
 
-    const usedAmount = transactions.reduce(
-      (sum, t) => sum + Number(t.amount),
-      0,
-    );
+    const usedAmount = transactions.reduce((sum, t) => sum + Number(t.amount), 0);
     const remainingAmount = Math.max(0, budget.amount - usedAmount);
-    const usagePercentage =
-      budget.amount > 0 ? (usedAmount / budget.amount) * 100 : 0;
+    const usagePercentage = budget.amount > 0 ? (usedAmount / budget.amount) * 100 : 0;
 
     return {
       usedAmount,

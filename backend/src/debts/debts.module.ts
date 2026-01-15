@@ -4,6 +4,8 @@ import { DebtsController } from './debts.controller';
 import { DebtsService } from './debts.service';
 import { Debt } from '../entities/debt.entity';
 import { DebtPayment } from '../entities/debt-payment.entity';
+import { TransactionLog } from '../entities/transaction-log.entity';
+import { UserSetting } from '../entities/user-setting.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { LedgersModule } from '../ledgers/ledgers.module';
 import { TransactionsModule } from '../transactions/transactions.module';
@@ -11,7 +13,7 @@ import { CategoriesModule } from '../categories/categories.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Debt, DebtPayment]),
+    TypeOrmModule.forFeature([Debt, DebtPayment, TransactionLog, UserSetting]),
     NotificationsModule,
     LedgersModule,
     forwardRef(() => TransactionsModule),

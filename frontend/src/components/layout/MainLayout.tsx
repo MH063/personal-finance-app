@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography, Spin, Tooltip } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography, Spin, Tooltip, Modal, List, Tag } from 'antd';
 import {
   DashboardOutlined,
   RiseOutlined,
@@ -25,6 +25,8 @@ import type { UnknownAction } from '@reduxjs/toolkit';
 import { RootState, AppDispatch } from '../../store';
 import { logout } from '../../store/slices/authSlice';
 import { fetchNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../store/slices/notificationSlice';
+import { fetchSettings } from '../../store/slices/settingsSlice';
+import { fetchDebts } from '../../store/slices/debtSlice';
 import { useSafeBackground } from '../../hooks/useSafeBackground';
 import { collaborativeService } from '../../services/collaborativeService';
 import { cancelPendingRequests, silenceAuthErrors } from '../../services/api';
@@ -47,6 +49,8 @@ const MainLayout = () => {
   const { notifications, unreadCount } = useSelector((state: RootState) => state.notifications);
   const { loading: globalLoading } = useSelector((state: RootState) => state.app);
   const { user } = useSelector((state: RootState) => state.auth);
+  const settings = useSelector((state: RootState) => state.settings.settings);
+  const debts = useSelector((state: RootState) => state.debts.debts);
 
   const [syncStatus, setSyncStatus] = useState<'connected' | 'disconnected' | 'syncing'>('disconnected');
   const [syncMonitorVisible, setSyncMonitorVisible] = useState(false);
@@ -171,6 +175,138 @@ const MainLayout = () => {
     window.addEventListener('app:background-updated', handleBackgroundUpdated);
     return () => window.removeEventListener('app:background-updated', handleBackgroundUpdated);
   }, []);
+
+  const repaymentReminder = useMemo(() => {
+    const notifSettings = settings?.notificationSettings;
+    const reminderEnabled = notifSettings?.debtReminder ?? true;
+    const advanceDays = Number(notifSettings?.reminderAdvanceDays ?? 3);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (!reminderEnabled) return { items: [] as any[], advanceDays };
+    if (!Array.isArray(debts) || debts.length === 0) return { items: [] as any[], advanceDays };
+
+    const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+
+    const buildMonthDate = (year: number, month: number, repaymentDay: number, adjustment?: string) => {
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const targetDay = Math.min(Number(repaymentDay), lastDay);
+      const target = new Date(year, month, targetDay);
+      target.setHours(0, 0, 0, 0);
+
+      if (adjustment === 'workday') {
+        while (isWeekend(target)) {
+          target.setDate(target.getDate() + 1);
+          target.setHours(0, 0, 0, 0);
+        }
+      }
+
+      return target;
+    };
+
+    const items = debts
+      .filter((d: any) => d && d.repaymentDay && d.status !== 'paid' && d.isReminderEnabled !== false)
+      .map((d: any) => {
+        const year = today.getFullYear();
+        const month = today.getMonth();
+
+        const thisMonthDate = buildMonthDate(year, month, d.repaymentDay, d.repaymentDayAdjustment);
+        const nextMonthDate = buildMonthDate(year, month + 1, d.repaymentDay, d.repaymentDayAdjustment);
+
+        const reminderStart = new Date(thisMonthDate);
+        reminderStart.setDate(thisMonthDate.getDate() - advanceDays);
+        reminderStart.setHours(0, 0, 0, 0);
+
+        const inWindow =
+          today.getTime() >= reminderStart.getTime() && today.getTime() <= thisMonthDate.getTime();
+
+        const overdue =
+          today.getTime() > thisMonthDate.getTime() && today.getTime() < nextMonthDate.getTime();
+
+        return {
+          debt: d,
+          repaymentDate: thisMonthDate,
+          inWindow,
+          overdue,
+          advanceDays,
+        };
+      })
+      .filter((x: any) => x.inWindow || x.overdue)
+      .sort((a: any, b: any) => a.repaymentDate.getTime() - b.repaymentDate.getTime());
+
+    return { items, advanceDays };
+  }, [debts, settings]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (!settings) dispatch(fetchSettings() as unknown as UnknownAction);
+    if (!Array.isArray(debts) || debts.length === 0) dispatch(fetchDebts({ debtType: '', status: '' }) as unknown as UnknownAction);
+  }, [debts, dispatch, settings, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (!repaymentReminder.items.length) return;
+
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const storageKey = `debtRepaymentPopupShown:${todayKey}`;
+    if (localStorage.getItem(storageKey)) return;
+
+    localStorage.setItem(storageKey, '1');
+
+    Modal.info({
+      title: '还款提醒',
+      width: 520,
+      centered: true,
+      okText: '知道了',
+      content: (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ marginBottom: 10, color: 'rgba(255,255,255,0.85)' }}>
+            提前提醒天数：{repaymentReminder.advanceDays}天
+          </div>
+          <List
+            dataSource={repaymentReminder.items}
+            renderItem={(item: any) => {
+              const dateText = new Date(item.repaymentDate).toLocaleDateString();
+              const amountText = `¥${Number(item.debt?.remainingAmount || 0).toFixed(2)}`;
+              return (
+                <List.Item
+                  style={{ paddingLeft: 0, paddingRight: 0 }}
+                  actions={[
+                    <Button
+                      key="go"
+                      type="primary"
+                      size="small"
+                      onClick={() => {
+                        Modal.destroyAll();
+                        navigate('/debt', { state: { payDebtId: item.debt.id } });
+                      }}
+                    >
+                      去确认
+                    </Button>,
+                  ]}
+                >
+                  <List.Item.Meta
+                    title={
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span style={{ fontWeight: 600 }}>{item.debt?.debtorName}</span>
+                        {item.overdue ? <Tag color="error">已逾期</Tag> : <Tag color="warning">即将到期</Tag>}
+                      </div>
+                    }
+                    description={
+                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        <span>还款日：{dateText}</span>
+                        <span>待还：{amountText}</span>
+                      </div>
+                    }
+                  />
+                </List.Item>
+              );
+            }}
+          />
+        </div>
+      ),
+    });
+  }, [navigate, repaymentReminder.advanceDays, repaymentReminder.items, user?.id]);
 
   // 安全加载全局背景图片
   // 只有在配置加载完成后才决定使用哪个背景，避免闪烁

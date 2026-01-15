@@ -6,9 +6,7 @@ import Redis from 'ioredis';
 @ApiTags('系统')
 @Controller()
 export class AppController {
-  constructor(
-    @Inject('REDIS_CLIENT') private readonly redis: Redis,
-  ) {}
+  constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) {}
 
   @Public()
   @Get()

@@ -1,3 +1,4 @@
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
   IsString,
   IsNumber,
@@ -10,12 +11,20 @@ import {
   MaxLength,
   IsBoolean,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { DebtType, DebtStatus } from '../../entities/debt.entity';
+import {
+  DebtType,
+  DebtStatus,
+  RepaymentType,
+  RepaymentDayAdjustment,
+} from '../../entities/debt.entity';
+import { PaymentStatus } from '../../entities/debt-payment.entity';
+import { PaymentMethod } from '../../entities/transaction.entity';
 
 export class CreateDebtDto {
-  @ApiPropertyOptional({ example: 'a99b5cb7-7944-40fb-b2c2-a9df9c34e49c', description: '债务ID（可选，离线同步时使用）' })
+  @ApiPropertyOptional({
+    example: 'a99b5cb7-7944-40fb-b2c2-a9df9c34e49c',
+    description: '债务ID（可选，离线同步时使用）',
+  })
   @IsUUID()
   @IsOptional()
   id?: string;
@@ -39,6 +48,10 @@ export class CreateDebtDto {
   @IsEnum(DebtType)
   debtType: DebtType;
 
+  @ApiProperty({ example: '2025-01-01', description: '借款日期' })
+  @IsDateString()
+  loanDate: string;
+
   @ApiPropertyOptional({ example: '2025-02-08', description: '约定还款日期' })
   @IsDateString()
   @IsOptional()
@@ -56,6 +69,43 @@ export class CreateDebtDto {
   @MaxLength(500)
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({
+    enum: PaymentMethod,
+    example: PaymentMethod.CASH,
+    description: '支付方式',
+    default: PaymentMethod.OTHER,
+  })
+  @IsEnum(PaymentMethod)
+  @IsOptional()
+  paymentMethod?: PaymentMethod;
+
+  @ApiPropertyOptional({
+    enum: RepaymentType,
+    example: RepaymentType.EQUAL_LOAN_PAYMENTS,
+    description: '还款方式',
+    default: RepaymentType.CUSTOM,
+  })
+  @IsEnum(RepaymentType)
+  @IsOptional()
+  repaymentType?: RepaymentType;
+
+  @ApiPropertyOptional({ example: 15, description: '每月还款日 (1-31)' })
+  @IsNumber()
+  @Min(1)
+  @Max(31)
+  @IsOptional()
+  repaymentDay?: number;
+
+  @ApiPropertyOptional({
+    enum: RepaymentDayAdjustment,
+    example: RepaymentDayAdjustment.NONE,
+    description: '非工作日调整策略',
+    default: RepaymentDayAdjustment.NONE,
+  })
+  @IsEnum(RepaymentDayAdjustment)
+  @IsOptional()
+  repaymentDayAdjustment?: RepaymentDayAdjustment;
 
   @ApiPropertyOptional({ example: '2025-01-15', description: '提醒日期' })
   @IsDateString()
@@ -75,10 +125,22 @@ export class UpdateDebtDto {
   @IsOptional()
   debtorName?: string;
 
+  @ApiPropertyOptional({ example: 10000, description: '原始金额' })
+  @IsNumber()
+  @Min(0.01)
+  @Max(999999999999.99)
+  @IsOptional()
+  originalAmount?: number;
+
+  @ApiPropertyOptional({ example: '2025-01-01', description: '借款日期' })
+  @IsDateString()
+  @IsOptional()
+  loanDate?: string;
+
   @ApiPropertyOptional({ example: 8000 })
   @IsNumber()
   @Min(0)
-  @Max(999999999999999.99)
+  @Max(999999999999999)
   @IsOptional()
   remainingAmount?: number;
 
@@ -97,6 +159,37 @@ export class UpdateDebtDto {
   @MaxLength(500)
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({
+    enum: PaymentMethod,
+    description: '支付方式',
+  })
+  @IsEnum(PaymentMethod)
+  @IsOptional()
+  paymentMethod?: PaymentMethod;
+
+  @ApiPropertyOptional({
+    enum: RepaymentType,
+    description: '还款方式',
+  })
+  @IsEnum(RepaymentType)
+  @IsOptional()
+  repaymentType?: RepaymentType;
+
+  @ApiPropertyOptional({ description: '每月还款日 (1-31)' })
+  @IsNumber()
+  @Min(1)
+  @Max(31)
+  @IsOptional()
+  repaymentDay?: number;
+
+  @ApiPropertyOptional({
+    enum: RepaymentDayAdjustment,
+    description: '非工作日调整策略',
+  })
+  @IsEnum(RepaymentDayAdjustment)
+  @IsOptional()
+  repaymentDayAdjustment?: RepaymentDayAdjustment;
 
   @ApiPropertyOptional()
   @IsNumber()
@@ -137,7 +230,28 @@ export class CreatePaymentDto {
   @MaxLength(255)
   @IsOptional()
   note?: string;
+
+  @ApiPropertyOptional({
+    enum: PaymentMethod,
+    example: PaymentMethod.CASH,
+    description: '支付方式',
+    default: PaymentMethod.OTHER,
+  })
+  @IsEnum(PaymentMethod)
+  @IsOptional()
+  paymentMethod?: PaymentMethod;
+
+  @ApiPropertyOptional({
+    enum: PaymentStatus,
+    description: '还款状态',
+    default: PaymentStatus.CONFIRMED,
+  })
+  @IsEnum(PaymentStatus)
+  @IsOptional()
+  status?: PaymentStatus;
 }
+
+export class UpdatePaymentDto extends PartialType(CreatePaymentDto) {}
 
 export class DebtQueryDto {
   @ApiPropertyOptional({ enum: DebtType })

@@ -232,7 +232,7 @@ const CategoryPage: React.FC = () => {
         onOk={() => form.submit()}
         onCancel={() => setModalVisible(false)}
         confirmLoading={submitLoading}
-        destroyOnClose
+        destroyOnHidden
         className="custom-modal"
         centered
         maskClosable={true}

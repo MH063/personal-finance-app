@@ -15,8 +15,16 @@ import {
   UploadedFile,
 } from '@nestjs/common';
 import { Response } from 'express';
+import { createReadStream } from 'fs';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { BackupService } from './backup.service';
 import {
   CreateBackupDto,
@@ -55,15 +63,19 @@ export class BackupController {
     @Param('id', ParseUUIDPipe) id: string,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { filePath, fileName, fileSize, checksum } = await this.backupService.getBackupDownloadInfo(req.user.id, id);
-    
+    const { filePath, fileName, fileSize, checksum } =
+      await this.backupService.getBackupDownloadInfo(req.user.id, id);
+
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Length', fileSize.toString());
     res.setHeader('X-Checksum', checksum || '');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition, Content-Length, X-Checksum');
+    res.setHeader(
+      'Access-Control-Expose-Headers',
+      'Content-Disposition, Content-Length, X-Checksum',
+    );
 
-    const file = require('fs').createReadStream(filePath);
+    const file = createReadStream(filePath);
     return new StreamableFile(file);
   }
 

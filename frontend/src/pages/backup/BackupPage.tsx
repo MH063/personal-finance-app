@@ -826,7 +826,7 @@ const BackupPage: React.FC = () => {
         onCancel={() => setCreateModalVisible(false)} 
         footer={null} 
         width={500} 
-        destroyOnClose
+        destroyOnHidden
         className="custom-modal"
         centered
         maskClosable={true}
@@ -859,7 +859,7 @@ const BackupPage: React.FC = () => {
         onCancel={() => setRestoreModalVisible(false)} 
         footer={null} 
         width={400} 
-        destroyOnClose
+        destroyOnHidden
         className="custom-modal"
         centered
         maskClosable={true}

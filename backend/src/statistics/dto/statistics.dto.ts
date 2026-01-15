@@ -1,6 +1,5 @@
-import { IsString, IsEnum, IsOptional, IsDateString, IsNumber, Min } from 'class-validator';
+import { IsString, IsEnum, IsOptional, IsDateString } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
 import { TransactionType } from '../../entities/transaction.entity';
 
 export enum TimeRange {

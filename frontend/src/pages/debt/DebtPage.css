@@ -97,3 +97,20 @@
   border-color: rgba(255, 255, 255, 0.2) !important;
   color: white !important;
 }
+
+.debt-page .glass-table .ant-spin-container::after {
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+
+.debt-page .glass-table .ant-spin-blur {
+  opacity: 1 !important;
+  filter: none !important;
+}
+
+.debt-page .glass-table .ant-spin-dot-item {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.debt-page .glass-table .ant-spin-text {
+  color: rgba(255, 255, 255, 0.85) !important;
+}

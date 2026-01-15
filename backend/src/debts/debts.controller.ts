@@ -17,6 +17,7 @@ import {
   CreateDebtDto,
   UpdateDebtDto,
   CreatePaymentDto,
+  UpdatePaymentDto,
   DebtQueryDto,
   DebtStatisticsDto,
 } from './dto/debt.dto';
@@ -99,6 +100,18 @@ export class DebtsController {
     @Body() paymentDto: CreatePaymentDto,
   ) {
     return this.debtsService.addPayment(req.user.id, id, paymentDto);
+  }
+
+  @Put(':id/payments/:paymentId')
+  @ApiOperation({ summary: '更新还款记录 (确认还款)' })
+  @ApiResponse({ status: 200, description: '更新成功' })
+  async updatePayment(
+    @Request() req: any,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('paymentId', ParseUUIDPipe) paymentId: string,
+    @Body() updateDto: UpdatePaymentDto,
+  ) {
+    return this.debtsService.updatePayment(req.user.id, id, paymentId, updateDto);
   }
 
   @Delete(':id/payments/:paymentId')

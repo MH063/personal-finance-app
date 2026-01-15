@@ -5,6 +5,7 @@ import {
   Put,
   Delete,
   Body,
+  BadRequestException,
   Param,
   Query,
   UseGuards,
@@ -14,6 +15,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { readFileSync } from 'fs';
 import {
   ApiTags,
   ApiOperation,
@@ -131,7 +133,71 @@ export class TransactionsController {
     },
   })
   @ApiResponse({ status: 201, description: '导入成功' })
-  async importTransactions(@Request() req: any, @UploadedFile() file: Express.Multer.File) {
-    return this.transactionsService;
+  async importTransactions(
+    @Request() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('overwrite') overwrite?: string | boolean,
+  ) {
+    if (!file?.path) {
+      throw new BadRequestException('导入文件无效');
+    }
+
+    const overwriteEnabled = overwrite === true || overwrite === 'true';
+    if (overwriteEnabled) {
+      throw new BadRequestException('暂不支持覆盖导入');
+    }
+
+    let parsed: any;
+    try {
+      const raw = readFileSync(file.path, 'utf8');
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new BadRequestException('导入文件解析失败，仅支持 JSON 格式');
+    }
+
+    const items: any[] = Array.isArray(parsed)
+      ? parsed
+      : parsed?.transactions || parsed?.data?.transactions || parsed?.data || parsed?.items;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      throw new BadRequestException('导入文件格式不正确，需要 JSON 数组或包含 transactions 数组');
+    }
+
+    let importedCount = 0;
+    let failedCount = 0;
+
+    for (const item of items) {
+      try {
+        const amount = Number(item.amount ?? item.originalAmount ?? item.money);
+        const type = item.type;
+        const transactionDate = item.transactionDate || item.date || item.createdAt;
+
+        if (!amount || !type || !transactionDate) {
+          failedCount++;
+          continue;
+        }
+
+        await this.transactionsService.create(req.user.id, {
+          amount,
+          type,
+          categoryId: item.categoryId,
+          description: item.description,
+          paymentMethod: item.paymentMethod,
+          merchant: item.merchant,
+          transactionDate: new Date(transactionDate).toISOString(),
+          metadata: item.metadata,
+          ledgerId: item.ledgerId,
+        });
+        importedCount++;
+      } catch {
+        failedCount++;
+      }
+    }
+
+    return {
+      importedCount,
+      failedCount,
+      total: items.length,
+    };
   }
 }

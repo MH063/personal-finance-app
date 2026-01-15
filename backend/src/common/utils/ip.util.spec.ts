@@ -51,7 +51,9 @@ describe('IP 脱敏工具 (ip.util)', () => {
 
     it('应该处理复杂日志消息', () => {
       const message = '[NetworkMonitorService] 检测到的 IPv4 地址: 192.168.68.27, 10.1.1.1';
-      expect(maskIPInString(message)).toBe('[NetworkMonitorService] 检测到的 IPv4 地址: ***.***.**.**, **.*.*.*');
+      expect(maskIPInString(message)).toBe(
+        '[NetworkMonitorService] 检测到的 IPv4 地址: ***.***.**.**, **.*.*.*',
+      );
     });
   });
 });

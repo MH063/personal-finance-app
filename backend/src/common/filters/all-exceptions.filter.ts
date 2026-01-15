@@ -24,9 +24,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     let status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
     let message = (exception as any).message || 'Internal server error';
 
@@ -36,9 +34,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = '数据已被其他操作更新，请刷新后重试';
     } else if (exception instanceof HttpException) {
       const exceptionResponse = exception.getResponse();
-      message = typeof exceptionResponse === 'object' && 'message' in exceptionResponse
-        ? (exceptionResponse as any).message
-        : exceptionResponse;
+      message =
+        typeof exceptionResponse === 'object' && 'message' in exceptionResponse
+          ? (exceptionResponse as any).message
+          : exceptionResponse;
     }
 
     const errorResponse = {

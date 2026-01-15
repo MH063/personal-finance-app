@@ -85,7 +85,8 @@ export function maskIPInString(message: string): string {
   });
 
   // UUID 脱敏
-  const uuidGlobalRegex = /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
+  const uuidGlobalRegex =
+    /\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g;
   maskedMessage = maskedMessage.replace(uuidGlobalRegex, '********-****-****-****-************');
 
   // Socket.io ID 脱敏 (20位字符，包含字母数字下划线连字符)
@@ -93,11 +94,11 @@ export function maskIPInString(message: string): string {
   // 仅匹配日志中常见的模式，如 "用户已连接: xxxxx (SocketID)"
   const socketIdRegex = /([a-zA-Z0-9_-]{20})/g;
   maskedMessage = maskedMessage.replace(socketIdRegex, (match) => {
-      // 避免误伤常用的短单词，只脱敏那些看起来像 ID 的随机字符串
-      if (match.length === 20) {
-        return '********************';
-      }
-      return match;
+    // 避免误伤常用的短单词，只脱敏那些看起来像 ID 的随机字符串
+    if (match.length === 20 && /[0-9]/.test(match)) {
+      return '********************';
+    }
+    return match;
   });
 
   // Terminal ID 脱敏 (例如: Terminal#1009-1010)

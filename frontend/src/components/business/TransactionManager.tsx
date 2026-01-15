@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
-import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App as AntdApp, Row, Col, Popconfirm } from 'antd';
+import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App as AntdApp, Row, Col, Popconfirm, Alert } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
 import { fetchTransactions, createTransaction, updateTransaction, deleteTransaction, batchDeleteTransactions } from '../../store/slices/transactionSlice';
@@ -37,6 +38,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   const [categoryForm] = Form.useForm();
   const [filters, setFilters] = useState({ categoryId: '', ledgerId: '', startDate: '', endDate: '' });
   const [form] = Form.useForm();
+  const navigate = useNavigate();
 
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
@@ -66,22 +68,31 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     const handleUpdate = (data: any) => {
       console.log('[TransactionManager] 监听到实时更新:', data);
       
-      const { type: updateType, ledgerId } = data;
+      const updateType = String(data?.type || '');
+      const normalizedType = updateType.toLowerCase();
+      const payloadData = data?.data;
+      const changedLedgerId = payloadData?.ledgerId ?? data?.ledgerId;
       
       // 1. 如果是交易更新，且属于当前账本或全局，刷新交易列表
-      if (updateType.startsWith('transaction_')) {
-        if (!filters.ledgerId || ledgerId === filters.ledgerId) {
+      const shouldRefreshTransactions =
+        normalizedType.startsWith('transaction_') ||
+        normalizedType.startsWith('transaction') ||
+        normalizedType.startsWith('debt_') ||
+        normalizedType.startsWith('debt');
+
+      if (shouldRefreshTransactions) {
+        if (!filters.ledgerId || !changedLedgerId || changedLedgerId === filters.ledgerId) {
           dispatch(fetchTransactions({ type, ...filters }) as any);
         }
       }
       
       // 2. 如果是分类更新，刷新分类列表
-      if (updateType.startsWith('category_')) {
+      if (normalizedType.startsWith('category_') || normalizedType.startsWith('category')) {
         dispatch(fetchCategories(type) as any);
       }
       
       // 3. 如果是账本更新，刷新账本列表
-      if (updateType.startsWith('ledger_')) {
+      if (normalizedType.startsWith('ledger_') || normalizedType.startsWith('ledger')) {
         dispatch(fetchLedgers() as any);
       }
     };
@@ -256,6 +267,21 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     }
   };
 
+  const handleJumpToDebtEdit = useCallback(async () => {
+    const debtId = (editingTransaction as any)?.metadata?.debtId;
+    if (!debtId) {
+      message.warning('未找到关联债务，无法跳转');
+      return;
+    }
+
+    console.log('[TransactionManager] 跳转至债务编辑:', { transactionId: editingTransaction?.id, debtId });
+    setModalVisible(false);
+
+    requestAnimationFrame(() => {
+      navigate(`/debt?editDebtId=${encodeURIComponent(debtId)}`, { state: { editDebtId: debtId } });
+    });
+  }, [editingTransaction, message, navigate]);
+
   const handleCategorySubmit = async (values: any) => {
     setLoading(true);
     try {
@@ -329,9 +355,10 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
           bank_card: { label: '银行卡', color: 'blue' },
           alipay: { label: '支付宝', color: 'cyan' },
           wechat: { label: '微信', color: 'green' },
-          cash: { label: '现金', color: 'orange' }
+          cash: { label: '现金', color: 'orange' },
+          other: { label: '其他', color: 'purple' }
         };
-        const config = methods[method] || { label: method || '其他', color: 'default' };
+        const config = methods[method] || { label: method || '其他', color: 'purple' };
         return <Tag color={config.color} className="method-tag">{config.label}</Tag>;
       }
     },
@@ -559,10 +586,11 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       <Modal
         title={editingTransaction ? `编辑${title}` : `添加${title}`}
         open={modalVisible}
-        onOk={() => form.submit()}
+        onOk={editingTransaction?.metadata?.isDebtLink ? handleJumpToDebtEdit : () => form.submit()}
         onCancel={() => setModalVisible(false)}
+        okText={editingTransaction?.metadata?.isDebtLink ? '跳转至债务编辑' : undefined}
         confirmLoading={loading}
-        destroyOnClose
+        destroyOnHidden
         className="custom-modal"
         width={600}
         centered
@@ -576,12 +604,22 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         cancelButtonProps={{ size: 'large' }}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit} className="modern-form">
+          {editingTransaction?.metadata?.isDebtLink && (
+            <Alert
+              message="仅查看模式"
+              description="此交易关联至债务记录，为保证数据一致性，请前往“债务管理”模块进行修改。"
+              type="info"
+              showIcon
+              style={{ marginBottom: 24 }}
+            />
+          )}
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="categoryId" label="分类" rules={[{ required: true, message: '请选择分类' }]}>
                 <Select 
                   placeholder="选择分类" 
                   size="large"
+                  disabled={!!editingTransaction?.metadata?.isDebtLink}
                   dropdownRender={(menu) => (
                     <>
                       {menu}
@@ -604,7 +642,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
             </Col>
             <Col span={12}>
               <Form.Item name="ledgerId" label="账本" rules={[{ required: true, message: '请选择账本' }]}>
-                <Select placeholder="选择账本" size="large">
+                <Select placeholder="选择账本" size="large" disabled={!!editingTransaction?.metadata?.isDebtLink}>
                   {ledgers.filter(l => l && l.id).map(l => <Option key={l.id} value={l.id}>{l.name}</Option>)}
                 </Select>
               </Form.Item>
@@ -613,7 +651,11 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item name="transactionDate" label="日期" rules={[{ required: true, message: '请选择日期' }]}>
-                <DatePicker style={{ width: '100%' }} size="large" />
+                <DatePicker 
+                  style={{ width: '100%' }} 
+                  size="large" 
+                  disabled={!!editingTransaction?.metadata?.isDebtLink}
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -623,7 +665,12 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
             label="金额" 
             rules={[
               { required: true, message: '请输入金额' },
-              { type: 'number', max: 999999999999, message: '金额不能超过 999,999,999,999' }
+              { 
+                type: 'number', 
+                transform: (value) => (value === '' || value === null || value === undefined ? value : Number(value)),
+                max: 999999999999, 
+                message: '金额不能超过 999,999,999,999' 
+              }
             ]}
           >
             <InputNumber 
@@ -633,11 +680,16 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
               placeholder="0.00" 
               size="large"
               prefix="¥"
+              disabled={!!editingTransaction?.metadata?.isDebtLink}
             />
           </Form.Item>
 
           <Form.Item name="paymentMethod" label="支付方式" rules={[{ required: true, message: '请选择支付方式' }]}>
-            <Select placeholder="选择支付方式" size="large">
+            <Select 
+              placeholder="选择支付方式" 
+              size="large"
+              disabled={!!editingTransaction?.metadata?.isDebtLink}
+            >
               <Option value="cash">现金</Option>
               <Option value="alipay">支付宝</Option>
               <Option value="wechat">微信</Option>
@@ -650,7 +702,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
             <TextArea 
               rows={3} 
               placeholder={predicting ? "AI 正在分析您的描述..." : "添加备注信息..."}
-              disabled={predicting}
+              disabled={predicting || !!editingTransaction?.metadata?.isDebtLink}
               showCount 
               maxLength={200} 
               onBlur={handleDescriptionBlur}
@@ -665,7 +717,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         onOk={() => categoryForm.submit()}
         onCancel={() => setCategoryModalVisible(false)}
         confirmLoading={loading}
-        destroyOnClose
+        destroyOnHidden
         className="custom-modal"
         width={400}
         centered

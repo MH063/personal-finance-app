@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, TreeRepository, OptimisticLockVersionMismatchError } from 'typeorm';
+import { TreeRepository, OptimisticLockVersionMismatchError } from 'typeorm';
 import { Category, CategoryType } from '../entities/category.entity';
 import { CreateCategoryDto, UpdateCategoryDto, CategoryQueryDto } from './dto/category.dto';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
@@ -31,6 +31,21 @@ export class CategoriesService {
   async create(userId: string, createCategoryDto: CreateCategoryDto): Promise<Category> {
     this.logger.log(`用户 ${userId} 创建分类: ${createCategoryDto.name}`);
 
+    // 检查是否存在同名分类
+    const existingCategory = await this.categoryRepository.findOne({
+      where: {
+        userId,
+        name: createCategoryDto.name,
+        type: createCategoryDto.type,
+      },
+    });
+
+    if (existingCategory) {
+      throw new ConflictException(
+        `已存在名为“${createCategoryDto.name}”的${createCategoryDto.type === 'income' ? '收入' : '支出'}分类`,
+      );
+    }
+
     if (createCategoryDto.parentId) {
       const parentCategory = await this.categoryRepository.findOne({
         where: { id: createCategoryDto.parentId, userId },
@@ -53,10 +68,10 @@ export class CategoriesService {
 
     const savedCategory = await this.categoryRepository.save(category);
     this.logger.log(`分类创建成功: ${savedCategory.id}`);
-    
+
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'CATEGORY_CREATED', savedCategory, userId);
-    
+
     return savedCategory;
   }
 
@@ -126,6 +141,23 @@ export class CategoriesService {
       throw new BadRequestException('系统内置分类不能修改名称和父级');
     }
 
+    // 检查名称是否重复
+    if (updateCategoryDto.name && updateCategoryDto.name !== category.name) {
+      const existingCategory = await this.categoryRepository.findOne({
+        where: {
+          userId,
+          name: updateCategoryDto.name,
+          type: category.type, // 类型不能修改，所以用原类型的
+        },
+      });
+
+      if (existingCategory && existingCategory.id !== id) {
+        throw new ConflictException(
+          `已存在名为“${updateCategoryDto.name}”的${category.type === 'income' ? '收入' : '支出'}分类`,
+        );
+      }
+    }
+
     if (updateCategoryDto.parentId && updateCategoryDto.parentId !== id) {
       const parentCategory = await this.categoryRepository.findOne({
         where: { id: updateCategoryDto.parentId, userId },
@@ -146,17 +178,21 @@ export class CategoriesService {
 
     // 乐观锁校验
     if (updateCategoryDto.version !== undefined && category.version !== updateCategoryDto.version) {
-      throw new OptimisticLockVersionMismatchError('Category', updateCategoryDto.version, category.version);
+      throw new OptimisticLockVersionMismatchError(
+        'Category',
+        updateCategoryDto.version,
+        category.version,
+      );
     }
 
     // 移除 version，防止 Object.assign 覆盖实体中的 version，让 TypeORM 自动管理
-    const { version, ...updateData } = updateCategoryDto;
+    const { version: _version, ...updateData } = updateCategoryDto;
     Object.assign(category, updateData);
     const updatedCategory = await this.categoryRepository.save(category);
-    
+
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'CATEGORY_UPDATED', updatedCategory, userId);
-    
+
     return updatedCategory;
   }
 
@@ -204,7 +240,12 @@ export class CategoriesService {
     await this.categoryRepository.remove(deletableCategories);
 
     // 发送实时更新通知
-    this.ledgerGateway.notifyUpdate(null, 'CATEGORY_BATCH_DELETED', { ids: deletableCategories.map(c => c.id) }, userId);
+    this.ledgerGateway.notifyUpdate(
+      null,
+      'CATEGORY_BATCH_DELETED',
+      { ids: deletableCategories.map((c) => c.id) },
+      userId,
+    );
 
     return { deletedCount: deletableCategories.length };
   }
@@ -216,7 +257,7 @@ export class CategoriesService {
     for (let i = 0; i < ids.length; i++) {
       await this.categoryRepository.update({ id: ids[i], userId }, { sortOrder: i });
     }
-    
+
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'CATEGORY_REORDERED', { ids }, userId);
   }

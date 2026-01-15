@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, OptimisticLockVersionMismatchError } from 'typeorm';
-import { Ledger, LedgerType, LedgerMember } from '../entities/ledger.entity';
+import { Ledger, LedgerMember } from '../entities/ledger.entity';
 import { Transaction } from '../entities/transaction.entity';
 import { CreateLedgerDto, UpdateLedgerDto, AddMemberDto } from './dto/ledger.dto';
 import { User } from '../entities/user.entity';
@@ -31,7 +31,7 @@ export class LedgersService {
       where: { userId },
       relations: ['ledger', 'ledger.owner'],
     });
-    return memberships.map(m => m.ledger);
+    return memberships.map((m) => m.ledger);
   }
 
   /**
@@ -76,17 +76,21 @@ export class LedgersService {
     });
 
     await this.ledgerMemberRepository.save(member);
-    
+
     // 发送实时更新通知到个人房间
     this.ledgerGateway.notifyUpdate(null, 'LEDGER_CREATED', savedLedger, userId);
-    
+
     return savedLedger;
   }
 
   /**
    * 检查用户在账本中的权限
    */
-  private async checkPermission(ledgerId: string, userId: string, requiredRoles: string[]): Promise<LedgerMember> {
+  private async checkPermission(
+    ledgerId: string,
+    userId: string,
+    requiredRoles: string[],
+  ): Promise<LedgerMember> {
     const membership = await this.ledgerMemberRepository.findOne({
       where: { ledgerId, userId },
     });
@@ -103,33 +107,41 @@ export class LedgersService {
    */
   async update(id: string, updateLedgerDto: UpdateLedgerDto, userId: string): Promise<Ledger> {
     const ledger = await this.findOne(id, userId);
-    
+
     // 只有所有者和管理员可以修改账本信息
     await this.checkPermission(id, userId, ['owner', 'admin']);
 
     // 乐观锁校验
     if (updateLedgerDto.version !== undefined && ledger.version !== updateLedgerDto.version) {
-      throw new OptimisticLockVersionMismatchError('Ledger', updateLedgerDto.version, ledger.version);
+      throw new OptimisticLockVersionMismatchError(
+        'Ledger',
+        updateLedgerDto.version,
+        ledger.version,
+      );
     }
 
     // 移除 version，防止 Object.assign 覆盖实体中的 version，让 TypeORM 自动管理
-    const { version, ...updateData } = updateLedgerDto;
+    const { version: _version, ...updateData } = updateLedgerDto;
     Object.assign(ledger, updateData);
-    
+
     const updatedLedger = await this.ledgerRepository.save(ledger);
-    
+
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(id, 'LEDGER_UPDATED', updatedLedger, userId);
-    
+
     return updatedLedger;
   }
 
   /**
    * 添加成员到账本
    */
-  async addMember(ledgerId: string, addMemberDto: AddMemberDto, userId: string): Promise<LedgerMember> {
+  async addMember(
+    ledgerId: string,
+    addMemberDto: AddMemberDto,
+    userId: string,
+  ): Promise<LedgerMember> {
     await this.findOne(ledgerId, userId);
-    
+
     // 只有所有者和管理员可以添加成员
     await this.checkPermission(ledgerId, userId, ['owner', 'admin']);
 
@@ -153,12 +165,12 @@ export class LedgersService {
     });
 
     const savedMember = await this.ledgerMemberRepository.save(member);
-    
+
     // 发送实时通知
     this.ledgerGateway.notifyUpdate(ledgerId, 'MEMBER_ADDED', savedMember, userId);
     // 同时通知被添加的用户
     this.ledgerGateway.notifyUpdate(ledgerId, 'JOINED_LEDGER', { ledgerId }, addMemberDto.userId);
-    
+
     return savedMember;
   }
 
@@ -167,11 +179,11 @@ export class LedgersService {
    */
   async removeMember(ledgerId: string, targetUserId: string, userId: string): Promise<void> {
     const ledger = await this.findOne(ledgerId, userId);
-    
+
     // 如果不是移除自己，则需要管理员或所有者权限
     if (targetUserId !== userId) {
       const myMembership = await this.checkPermission(ledgerId, userId, ['owner', 'admin']);
-      
+
       // 管理员不能移除所有者
       if (ledger.ownerId === targetUserId) {
         throw new ForbiddenException('不能移除账本所有者');
@@ -195,7 +207,7 @@ export class LedgersService {
     }
 
     await this.ledgerMemberRepository.delete({ ledgerId, userId: targetUserId });
-    
+
     // 发送实时通知
     this.ledgerGateway.notifyUpdate(ledgerId, 'MEMBER_REMOVED', { userId: targetUserId }, userId);
     // 同时通知被移除的用户
@@ -222,7 +234,7 @@ export class LedgersService {
 
     // 2. 删除账本（LedgerMember 会通过 CASCADE 自动删除）
     await this.ledgerRepository.remove(ledger);
-    
+
     // 发送实时通知
     this.ledgerGateway.notifyUpdate(id, 'LEDGER_DELETED', { id }, userId);
   }

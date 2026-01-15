@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import compression from 'compression';
@@ -36,7 +36,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);
   const host = configService.get<string>('APP_HOST', '0.0.0.0');
-  
+
   // 配置 Redis Socket.io 适配器
   const redisIoAdapter = new RedisIoAdapter(app);
   const redisClient = app.get('REDIS_CLIENT');
@@ -62,9 +62,9 @@ async function bootstrap() {
 
   // 注册统一响应格式拦截器
   app.useGlobalInterceptors(
-    new TransformInterceptor(), 
+    new TransformInterceptor(),
     new LoggingInterceptor(),
-    new UpdateLifecycleInterceptor(ledgerGateway)
+    new UpdateLifecycleInterceptor(ledgerGateway),
   );
 
   // 注册全局异常过滤器
@@ -81,7 +81,9 @@ async function bootstrap() {
     }),
   );
 
-  const corsOrigins = configService.get<string>('CORS_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000').split(',');
+  const corsOrigins = configService
+    .get<string>('CORS_ORIGINS', 'http://localhost:8000,http://127.0.0.1:8000')
+    .split(',');
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -148,8 +150,8 @@ async function bootstrap() {
   }
 
   const primaryIP = getPrimaryIP();
-  await app.listen(port, '0.0.0.0');
-  
+  await app.listen(port, host);
+
   logger.log(`🚀 应用已启动并监听所有网卡接口`);
   logger.log(`🏠 本地访问: http://localhost:${port}/${apiPrefix}`);
   logger.log(`🌐 网络访问: http://${primaryIP}:${port}/${apiPrefix}`);
