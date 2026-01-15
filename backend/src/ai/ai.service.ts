@@ -36,7 +36,6 @@ export class AiService implements OnModuleInit {
     try {
       console.log('[AiService] 开始训练分类器...');
       const transactions = await this.transactionRepository.find({
-        where: { isDeleted: false },
         relations: ['category'],
       });
 
@@ -81,7 +80,7 @@ export class AiService implements OnModuleInit {
    */
   async getHealthAnalysis(userId: string) {
     const transactions = await this.transactionRepository.find({
-      where: { userId, isDeleted: false },
+      where: { userId },
     });
 
     const debts = await this.debtRepository.find({
@@ -137,7 +136,7 @@ export class AiService implements OnModuleInit {
   async getForecast(userId: string) {
     // 获取过去 6 个月的月度数据
     const transactions = await this.transactionRepository.find({
-      where: { userId, isDeleted: false },
+      where: { userId },
       order: { transactionDate: 'ASC' },
     });
 

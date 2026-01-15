@@ -88,12 +88,6 @@ export class Transaction {
   @JoinColumn({ name: 'category_id' })
   category: Category;
 
-  @Column({ name: 'is_deleted', default: false })
-  isDeleted: boolean;
-
-  @Column({ name: 'deleted_at', type: 'timestamp', nullable: true })
-  deletedAt: Date;
-
   @Column({ name: 'ledger_id', nullable: true })
   ledgerId: string;
 

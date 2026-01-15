@@ -32,8 +32,14 @@ const DashboardPage: React.FC = () => {
   const { statistics: debtStats } = useSelector((state: RootState) => state.debts);
   const { categories } = useSelector((state: RootState) => state.categories);
   const { healthAnalysis, forecast } = useSelector((state: RootState) => state.ai);
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
 
   const refreshData = React.useCallback((range: string = 'month') => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[Dashboard] 未认证，跳过刷新');
+      return;
+    }
     console.log(`[Dashboard] 正在刷新数据 (范围: ${range})...`);
     dispatch(fetchOverview({ timeRange: range }) as any);
     dispatch(fetchTrend({ timeRange: 'last6months' }) as any);
@@ -48,27 +54,26 @@ const DashboardPage: React.FC = () => {
   }, [dispatch]);
 
   useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
     refreshData(budgetRange);
-
-    // 监听更新
+ 
     const handleUpdate = (data: any) => {
       console.log('[Dashboard] 监听到实时更新:', data);
-      // 只要有任何更新，或者重连成功，都刷新概览数据
       refreshData(budgetRange);
     };
-
+ 
     collaborativeService.on('ledgerUpdate', handleUpdate);
     collaborativeService.on('globalUpdate', handleUpdate);
     collaborativeService.on('budgetUpdate', handleUpdate);
     collaborativeService.on('transactionUpdate', handleUpdate);
-
+ 
     return () => {
       collaborativeService.off('ledgerUpdate', handleUpdate);
       collaborativeService.off('globalUpdate', handleUpdate);
       collaborativeService.off('budgetUpdate', handleUpdate);
       collaborativeService.off('transactionUpdate', handleUpdate);
     };
-  }, [budgetRange, refreshData]);
+  }, [budgetRange, refreshData, isAuthenticated, user?.id]);
 
   const handleNav = (path: string) => {
     if (navLoading) return;

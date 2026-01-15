@@ -34,6 +34,11 @@ export const aiService = {
    * 获取财务健康分析
    */
   async getHealthAnalysis(): Promise<HealthAnalysis | null> {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[aiService] 未认证，跳过健康分析请求');
+      return null;
+    }
     try {
       const response = await api.get(`/ai/health-analysis`);
       const data = response.data;
@@ -58,6 +63,11 @@ export const aiService = {
    * 获取收支预测
    */
   async getForecast(): Promise<ForecastData[] | null> {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[aiService] 未认证，跳过预测请求');
+      return [];
+    }
     try {
       const response = await api.get(`/ai/forecast`);
       const result = response.data;

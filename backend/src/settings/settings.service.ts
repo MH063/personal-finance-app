@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { UserSetting } from '../entities/user-setting.entity';
+import { UserSetting, ThemeMode, Currency } from '../entities/user-setting.entity';
 import { UpdateSettingsDto } from './dto/settings.dto';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
 
@@ -35,17 +35,44 @@ export class SettingsService {
    * @param dto 更新数据
    */
   async updateSettings(userId: string, dto: UpdateSettingsDto): Promise<UserSetting> {
-    const settings = await this.getSettings(userId);
+    let settings = await this.userSettingRepository.findOne({
+      where: { userId },
+    });
+
+    if (!settings) {
+      settings = this.userSettingRepository.create({
+        userId,
+        theme: ThemeMode.SYSTEM,
+        currency: Currency.CNY,
+        language: 'zh-CN',
+        dateFormat: 'YYYY-MM-DD',
+        firstDayOfWeek: 0,
+        decimalPlaces: 2,
+        notificationSettings: {
+          debtReminder: true,
+          budgetAlert: true,
+          weeklyReport: false,
+          monthlyReport: true,
+          reminderAdvanceDays: 3,
+        },
+        quickAddEnabled: true,
+        dataReminderEnabled: true,
+        dataReminderTime: '20:00',
+      });
+    }
 
     // 合并通知设置
-    if (dto.notificationSettings && settings.notificationSettings) {
-      dto.notificationSettings = {
-        ...settings.notificationSettings,
+    if (dto.notificationSettings) {
+      settings.notificationSettings = {
+        ...(settings.notificationSettings || {}),
         ...dto.notificationSettings,
       };
     }
 
-    Object.assign(settings, dto);
+    // 移除 dto 中的 notificationSettings，防止 Object.assign 覆盖上面的合并结果
+    const { notificationSettings, ...otherProps } = dto;
+    Object.assign(settings, otherProps);
+
     const savedSettings = await this.userSettingRepository.save(settings);
 
     // 发送实时更新通知

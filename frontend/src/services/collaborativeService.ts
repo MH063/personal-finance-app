@@ -131,6 +131,21 @@ class CollaborativeService {
   }
 
   /**
+   * 获取待处理同步队列数量
+   * @returns 返回当前 IndexedDB 同步队列中的项目数量
+   */
+  async getPendingQueueSize(): Promise<number> {
+    try {
+      const { db } = await import('../db/db');
+      const count = await db.syncQueue.count();
+      return count;
+    } catch (error) {
+      console.warn('[Socket] 获取待处理队列数量失败', error);
+      return 0;
+    }
+  }
+
+  /**
    * 手动触发强制同步
    */
   async forceSync() {

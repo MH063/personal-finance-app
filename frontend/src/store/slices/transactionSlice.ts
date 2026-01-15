@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { transactionService, Transaction, TransactionQuery } from '../../services/transactionService';
 import { collaborativeService } from '../../services/collaborativeService';
+import { offlineSyncService } from '../../services/offlineSyncService';
 
 export interface TransactionState {
   transactions: Transaction[];
@@ -56,8 +57,10 @@ export const deleteTransaction = createAsyncThunk(
   async (id: string, { rejectWithValue }) => {
     try {
       await transactionService.deleteTransaction(id);
-      // 发送通知
-      collaborativeService.emit('ledgerUpdate', { type: 'transaction_deleted', id });
+      // 在线删除成功才广播删除事件；离线删除不广播，避免误导
+      if (offlineSyncService.isOnline()) {
+        collaborativeService.emit('ledgerUpdate', { type: 'transaction_deleted', id });
+      }
       return id;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '删除交易记录失败');
@@ -70,8 +73,10 @@ export const batchDeleteTransactions = createAsyncThunk(
   async (ids: string[], { rejectWithValue }) => {
     try {
       await transactionService.batchDeleteTransactions(ids);
-      // 发送通知
-      collaborativeService.emit('ledgerUpdate', { type: 'transaction_batch_deleted', ids });
+      // 在线成功才广播批量删除事件
+      if (offlineSyncService.isOnline()) {
+        collaborativeService.emit('ledgerUpdate', { type: 'transaction_batch_deleted', ids });
+      }
       return ids;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '批量删除交易记录失败');

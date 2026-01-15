@@ -78,6 +78,11 @@ const notificationService = {
    * 获取通知列表
    */
   getNotifications: async (query?: NotificationQuery): Promise<NotificationListResponse> => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[notificationService] 未认证，返回空通知列表');
+      return { items: [], total: 0, unreadCount: 0 };
+    }
     const response = await api.get('/notifications', { params: query });
     const result = response.data;
     return normalizeNotificationListResponse(result);

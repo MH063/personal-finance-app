@@ -28,6 +28,7 @@ import {
 } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import dayjs from 'dayjs';
+import { useNavigate } from 'react-router-dom';
 import { RootState, AppDispatch } from '../../store';
 import { 
   fetchBudgets, 
@@ -49,6 +50,7 @@ const BudgetPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { budgets } = useSelector((state: RootState) => state.budgets);
   const { categories } = useSelector((state: RootState) => state.categories);
+  const navigate = useNavigate();
   
   const [modalVisible, setModalVisible] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
@@ -310,7 +312,25 @@ const BudgetPage: React.FC = () => {
             label="支出分类"
             rules={[{ required: true, message: '请选择分类' }]}
           >
-            <Select placeholder="选择预算适用的支出分类" disabled={!!editingBudget}>
+            <Select 
+              placeholder="选择预算适用的支出分类" 
+              disabled={!!editingBudget}
+              dropdownRender={(menu) => (
+                <>
+                  {menu}
+                  <Space style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
+                    <Button 
+                      type="text" 
+                      icon={<PlusOutlined />} 
+                      onClick={() => navigate('/categories?openCreate=1&type=expense')}
+                      block
+                    >
+                      新增分类
+                    </Button>
+                  </Space>
+                </>
+              )}
+            >
               {categories.filter(cat => cat && cat.id && cat.type === 'expense').map(cat => (
                 <Option key={cat.id} value={cat.id}>{cat.name}</Option>
               ))}

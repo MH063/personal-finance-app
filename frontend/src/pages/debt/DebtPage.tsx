@@ -124,6 +124,17 @@ const DebtPage: React.FC = () => {
     dispatch(fetchDebts(currentFilters) as any);
   }, [dispatch, filters]);
 
+  const updateThrottleRef = useRef<number>(0);
+  const refreshDebts = useCallback(() => {
+    const now = Date.now();
+    if (now - updateThrottleRef.current < 800) {
+      return;
+    }
+    updateThrottleRef.current = now;
+    loadDebts();
+    dispatch(fetchDebtStatistics() as any);
+  }, [loadDebts, dispatch]);
+
   const handleSync = async () => {
     setSyncLoading(true);
     try {
@@ -159,8 +170,7 @@ const DebtPage: React.FC = () => {
     // 监听更新
     const handleUpdate = (data: any) => {
       console.log('[DebtPage] 监听到实时更新:', data);
-      loadDebts();
-      dispatch(fetchDebtStatistics() as any);
+      refreshDebts();
     };
 
     collaborativeService.on('ledgerUpdate', handleUpdate);
@@ -170,7 +180,7 @@ const DebtPage: React.FC = () => {
       collaborativeService.off('ledgerUpdate', handleUpdate);
       collaborativeService.off('globalUpdate', handleUpdate);
     };
-  }, [dispatch, loadDebts]);
+  }, [dispatch, loadDebts, refreshDebts]);
 
   const handleAdd = useCallback(() => {
     if (loading) return;
@@ -1056,7 +1066,17 @@ const DebtPage: React.FC = () => {
                 }
               }
             ]}
-            extra={selectedDebt?.accumulatedInterest ? <span style={{ color: '#fbbf24', fontSize: 12 }}>提示：建议优先覆盖利息 ¥{selectedDebt.accumulatedInterest}</span> : null}
+            extra={selectedDebt ? (
+              Number(selectedDebt.accumulatedInterest) > 0 ? (
+                <span style={{ fontSize: 12, fontWeight: 'bold', color: '#fa8c16' }}>
+                  本次还款金额已包含利息¥{Number(selectedDebt.accumulatedInterest).toFixed(2)}
+                </span>
+              ) : (
+                <span style={{ fontSize: 12, fontWeight: 'bold', color: '#52c41a' }}>
+                  本次还款金额不包含利息
+                </span>
+              )
+            ) : null}
           >
             <InputNumber 
               min={0.01} 

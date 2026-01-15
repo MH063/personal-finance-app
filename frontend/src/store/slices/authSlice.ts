@@ -132,11 +132,14 @@ export const updateProfile = createAsyncThunk(
     }
   }
 );
-export const logout = createAsyncThunk('auth/logout', async () => {
+export const logout = createAsyncThunk('auth/logout', async (token?: string | null) => {
   try {
-    await authService.logout();
+    await authService.logout(token || undefined);
   } catch (error) {
-    console.error('Logout error:', error);
+    const status = (error as any)?.response?.status;
+    if (status !== 401 && status !== 404) {
+      console.warn('Logout error (non-401/404):', error);
+    }
   } finally {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
@@ -164,6 +167,22 @@ const authSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null;
+    },
+    /**
+     * 开始登出（同步更新本地状态，立刻阻止后续受认证影响的副作用）
+     */
+    beginLogout: (state) => {
+      state.isAuthenticated = false;
+      state.user = null;
+      state.accessToken = null;
+      // 立即清理本地存储，避免后续请求误发
+      try {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+      } catch (e) {
+        console.warn('[Auth] 清理本地令牌失败', e);
+      }
     },
     setTokens: (state, action: PayloadAction<{ accessToken: string; refreshToken: string }>) => {
       state.accessToken = action.payload.accessToken;
@@ -238,5 +257,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, setTokens } = authSlice.actions;
+export const { clearError, setTokens, beginLogout } = authSlice.actions;
 export default authSlice.reducer;

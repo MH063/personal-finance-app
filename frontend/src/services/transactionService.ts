@@ -53,6 +53,7 @@ export interface TransactionQuery {
 
 export const transactionService = {
   getTransactions: async (query: TransactionQuery = {}) => {
+    const token = localStorage.getItem('accessToken');
     // 分页
     const page = query.page || 1;
     const limit = query.limit || 10;
@@ -77,6 +78,17 @@ export const transactionService = {
     };
 
     const localData = applyLocalFilters(await db.transactions.toArray());
+
+    // 未认证直接返回本地缓存，避免触发 401
+    if (!token) {
+      const paginatedDataUnauth = localData.slice(offset, offset + limit);
+      return {
+        data: paginatedDataUnauth,
+        total: localData.length,
+        page,
+        limit,
+      };
+    }
 
     // 如果在线，静默刷新本地缓存
     if (offlineSyncService.isOnline()) {
@@ -195,60 +207,60 @@ export const transactionService = {
   },
 
   deleteTransaction: async (id: string) => {
-    // 1. 从本地数据库删除
-    await db.transactions.delete(id);
-
-    // 2. 添加到同步队列（先检查是否已存在删除任务，避免重复）
-    const existingDelete = await db.syncQueue
-      .where('[entity+entityId+action]')
-      .equals(['TRANSACTION', id, 'DELETE'])
-      .first();
-
-    if (!existingDelete) {
-      await db.syncQueue.add({
-        action: 'DELETE',
-        entity: 'TRANSACTION',
-        entityId: id,
-        data: null,
-        timestamp: Date.now(),
-      });
+    const isOnline = offlineSyncService.isOnline();
+    if (isOnline) {
+      // 在线优先服务端删除，成功后再处理本地
+      await api.delete(`/transactions/${id}`);
+      // 服务端删除成功后，清理本地与队列
+      await db.transactions.delete(id);
+      await db.syncQueue
+        .where('[entity+entityId+action]')
+        .equals(['TRANSACTION', id, 'DELETE'])
+        .delete();
+      return { id };
+    } else {
+      // 离线：本地删除并入队，等待同步
+      await db.transactions.delete(id);
+      const existingDelete = await db.syncQueue
+        .where('[entity+entityId+action]')
+        .equals(['TRANSACTION', id, 'DELETE'])
+        .first();
+      if (!existingDelete) {
+        await db.syncQueue.add({
+          action: 'DELETE',
+          entity: 'TRANSACTION',
+          entityId: id,
+          data: null,
+          timestamp: Date.now(),
+        });
+      }
+      return { id };
     }
-
-    // 3. 如果在线，触发同步
-    if (offlineSyncService.isOnline()) {
-      await offlineSyncService.syncPendingChanges().catch(() => {});
-    }
-
-    return { id };
   },
 
   batchDeleteTransactions: async (ids: string[]) => {
-    // 1. 从本地数据库删除
-    await db.transactions.bulkDelete(ids);
-
-    // 2. 添加到同步队列
-    await Promise.all(ids.map(id => 
-      db.syncQueue.add({
-        action: 'DELETE',
-        entity: 'TRANSACTION',
-        entityId: id,
-        data: null,
-        timestamp: Date.now(),
-      })
-    ));
-
-    // 3. 如果在线，直接调用后端批量删除接口（优化性能）
-    if (offlineSyncService.isOnline()) {
-      try {
-        await api.post('/transactions/batch-delete', { ids });
-        // 如果后端批量删除成功，从同步队列中移除这些 ID 的删除任务，避免重复请求
-        await db.syncQueue.where('entityId').anyOf(ids).delete();
-      } catch (err) {
-        console.warn('后端批量删除同步失败，将依赖队列重试');
-        await offlineSyncService.syncPendingChanges().catch(() => {});
-      }
+    const isOnline = offlineSyncService.isOnline();
+    if (isOnline) {
+      // 在线：先请求服务端批量删除，成功后再清理本地和队列
+      await api.post('/transactions/batch-delete', { ids });
+      await db.transactions.bulkDelete(ids);
+      await db.syncQueue.where('entityId').anyOf(ids).delete();
+      return { ids };
+    } else {
+      // 离线：本地删除并将每个删除入队
+      await db.transactions.bulkDelete(ids);
+      await Promise.all(
+        ids.map(id =>
+          db.syncQueue.add({
+            action: 'DELETE',
+            entity: 'TRANSACTION',
+            entityId: id,
+            data: null,
+            timestamp: Date.now(),
+          })
+        )
+      );
+      return { ids };
     }
-
-    return { ids };
   }
 };

@@ -23,13 +23,14 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import type { UnknownAction } from '@reduxjs/toolkit';
 import { RootState, AppDispatch } from '../../store';
-import { logout } from '../../store/slices/authSlice';
+import { logout, beginLogout } from '../../store/slices/authSlice';
 import { fetchNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '../../store/slices/notificationSlice';
 import { fetchSettings } from '../../store/slices/settingsSlice';
 import { fetchDebts } from '../../store/slices/debtSlice';
 import { useSafeBackground } from '../../hooks/useSafeBackground';
 import { collaborativeService } from '../../services/collaborativeService';
 import { cancelPendingRequests, silenceAuthErrors } from '../../services/api';
+import { offlineSyncService, SyncListener } from '../../services/offlineSyncService';
 import WindowControls from './WindowControls';
 import SyncMonitor from './SyncMonitor';
 import './MainLayout.css';
@@ -48,7 +49,7 @@ const MainLayout = () => {
 
   const { notifications, unreadCount } = useSelector((state: RootState) => state.notifications);
   const { loading: globalLoading } = useSelector((state: RootState) => state.app);
-  const { user } = useSelector((state: RootState) => state.auth);
+  const { user, isAuthenticated } = useSelector((state: RootState) => state.auth);
   const settings = useSelector((state: RootState) => state.settings.settings);
   const debts = useSelector((state: RootState) => state.debts.debts);
 
@@ -64,15 +65,30 @@ const MainLayout = () => {
 
     const handleConnect = () => {
       console.log('[MainLayout] Sync Connected');
-      setSyncStatus('connected');
+      if (!offlineSyncService.isSyncing) {
+        setSyncStatus('connected');
+      }
     };
     const handleDisconnect = () => {
       console.warn('[MainLayout] Sync Disconnected');
       setSyncStatus('disconnected');
     };
+    
+    // 监听离线同步服务的状态变化
+    const handleSyncEvent: SyncListener = (event) => {
+      if (event === 'start') {
+        setSyncStatus('syncing');
+      } else if (event === 'complete' || event === 'error') {
+        // 同步结束，根据 socket 连接状态恢复
+        // @ts-expect-error - 访问私有 socket 仅用于状态展示
+        const isConnected = collaborativeService.socket?.connected;
+        setSyncStatus(isConnected ? 'connected' : 'disconnected');
+      }
+    };
+
+    // 仅记录日志，状态由 offlineSyncService 驱动
     const handleUpdate = () => {
-      setSyncStatus('syncing');
-      setTimeout(() => setSyncStatus('connected'), 1000);
+      console.log('[MainLayout] Received data update notification');
     };
 
     collaborativeService.on('connect', handleConnect);
@@ -80,11 +96,18 @@ const MainLayout = () => {
     collaborativeService.on('ledgerUpdate', handleUpdate);
     collaborativeService.on('globalUpdate', handleUpdate);
     collaborativeService.on('settingsUpdate', handleUpdate);
+    
+    offlineSyncService.on(handleSyncEvent);
 
     // 初始化时检查状态
     // @ts-expect-error - 访问私有 socket 仅用于状态展示
     if (collaborativeService.socket?.connected) {
       setSyncStatus('connected');
+    }
+    
+    // 如果正在同步，优先显示同步状态
+    if (offlineSyncService.isSyncing) {
+      setSyncStatus('syncing');
     }
 
     return () => {
@@ -93,19 +116,20 @@ const MainLayout = () => {
       collaborativeService.off('ledgerUpdate', handleUpdate);
       collaborativeService.off('globalUpdate', handleUpdate);
       collaborativeService.off('settingsUpdate', handleUpdate);
+      offlineSyncService.off(handleSyncEvent);
     };
   }, []);
 
   useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
     dispatch(fetchNotifications({ limit: 5 }));
     
-    // 每分钟轮询一次通知
     const timer = setInterval(() => {
       dispatch(fetchNotifications({ limit: 5 }));
     }, 60000);
 
     return () => clearInterval(timer);
-  }, [dispatch]);
+  }, [dispatch, isAuthenticated, user?.id]);
 
   // 管理背景图片状态
   const [customBg, setCustomBg] = useState<string | null>(null);
@@ -237,11 +261,24 @@ const MainLayout = () => {
     return { items, advanceDays };
   }, [debts, settings]);
 
+  const initializedRef = React.useRef(false);
+
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      initializedRef.current = false;
+      return;
+    }
+
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
     if (!settings) dispatch(fetchSettings() as unknown as UnknownAction);
-    if (!Array.isArray(debts) || debts.length === 0) dispatch(fetchDebts({ debtType: '', status: '' }) as unknown as UnknownAction);
-  }, [debts, dispatch, settings, user?.id]);
+    // 仅初始化时加载一次，移除对 debts 的依赖以防止死循环
+    if (!Array.isArray(debts) || debts.length === 0) {
+      dispatch(fetchDebts({ debtType: '', status: '' }) as unknown as UnknownAction);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dispatch, user?.id]); // 移除 debts 和 settings 依赖，避免死循环
 
   useEffect(() => {
     if (!user?.id) return;
@@ -347,11 +384,21 @@ const MainLayout = () => {
   ];
 
   const handleLogout = () => {
-    silenceAuthErrors(2000);
+    silenceAuthErrors(5000);
     cancelPendingRequests('User logout');
     collaborativeService.disconnect();
+    // 关闭离线同步（确保即使有事件也不触发）
+    try {
+      offlineSyncService.shutdown?.();
+    } catch (e) {
+      console.warn('[MainLayout] 关闭离线同步失败', e);
+    }
     navigate('/login', { replace: true });
-    dispatch(logout() as unknown as UnknownAction);
+    // 先向后端发起登出请求（携带有效令牌），完成后再同步清理本地状态
+    // 获取当前 token 并在清理前传递给 logout thunk，确保请求头能携带 Authorization
+    const token = localStorage.getItem('accessToken');
+    dispatch(logout(token) as unknown as UnknownAction);
+    dispatch(beginLogout() as unknown as UnknownAction);
   };
 
   const userMenuItems = [
@@ -522,7 +569,7 @@ const MainLayout = () => {
       </Sider>
 
       <Layout className="site-layout">
-        <Header className="main-header" style={{ background: 'transparent' }}>
+        <Header className="app-header" style={{ background: 'transparent' }}>
           <div className="header-left">
             {/* 顶部左侧区域，可保留为空以维持拖拽区 */}
           </div>

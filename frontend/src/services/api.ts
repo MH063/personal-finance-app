@@ -179,7 +179,9 @@ api.interceptors.response.use(
         isLoggedOut;
       const storedRefreshToken = localStorage.getItem('refreshToken');
 
-      console.log(`[API] 401 Detected for ${requestUrl}. Silent: ${silent401}, HasRefreshToken: ${!!storedRefreshToken}, Retry: ${originalConfig._retry}`);
+      if (!silent401) {
+        console.log(`[API] 401 Detected for ${requestUrl}. Silent: ${silent401}, HasRefreshToken: ${!!storedRefreshToken}, Retry: ${originalConfig._retry}`);
+      }
 
       if (!originalConfig._retry && storedRefreshToken && typeof storedRefreshToken === 'string') {
         originalConfig._retry = true;
@@ -238,7 +240,9 @@ api.interceptors.response.use(
             console.warn('[API] Refresh failed or returned no token, proceeding to logout');
         }
       } else {
-          console.log('[API] No refresh token available or already retried.');
+          if (!silent401) {
+            console.log('[API] No refresh token available or already retried.');
+          }
       }
 
       if (!isHandlingAuthFailure && !silent401) {

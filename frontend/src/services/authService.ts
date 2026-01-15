@@ -52,8 +52,17 @@ export const authService = {
     return response.data;
   },
 
-  logout: async () => {
-    const response = await api.post<any>('/auth/logout');
+  logout: async (token?: string) => {
+    const tokenToSend = token || localStorage.getItem('accessToken');
+    if (!tokenToSend) {
+      return { message: '已登出' };
+    }
+    const response = await api.post<any>('/auth/logout', undefined, {
+      headers: { 
+        'X-Silent-Error': 'true',
+        'Authorization': `Bearer ${tokenToSend}`
+      }
+    });
     return response.data;
   },
 

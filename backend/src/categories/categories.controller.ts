@@ -51,6 +51,27 @@ export class CategoriesController {
     return this.categoriesService.findTree(req.user.id, type as any);
   }
 
+  @Get('duplicates')
+  @ApiOperation({ summary: '查找重复分类' })
+  @ApiResponse({ status: 200, description: '获取成功' })
+  async findDuplicates(@Request() req: any) {
+    return this.categoriesService.findDuplicates(req.user.id);
+  }
+
+  @Post('cleanup')
+  @ApiOperation({ summary: '清理重复分类' })
+  @ApiResponse({ status: 200, description: '清理成功' })
+  async cleanupDuplicates(@Request() req: any) {
+    return this.categoriesService.cleanupDuplicates(req.user.id);
+  }
+
+  @Post('merge')
+  @ApiOperation({ summary: '合并重复分类' })
+  @ApiResponse({ status: 200, description: '合并成功' })
+  async mergeDuplicates(@Request() req: any, @Body('preferSystem') preferSystem?: boolean) {
+    return this.categoriesService.mergeDuplicates(req.user.id, { preferSystem });
+  }
+
   @Get(':id')
   @ApiOperation({ summary: '获取单个分类详情' })
   @ApiResponse({ status: 200, description: '获取成功' })
@@ -72,11 +93,30 @@ export class CategoriesController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: '删除分类' })
-  @ApiResponse({ status: 200, description: '删除成功' })
-  @ApiResponse({ status: 404, description: '分类不存在' })
-  async remove(@Request() req: any, @Param('id', ParseUUIDPipe) id: string) {
-    return this.categoriesService.remove(req.user.id, id);
+  @ApiOperation({
+    summary: '删除分类',
+    description:
+      '物理删除分类。如果分类下有关联交易，需指定 force=true 强制删除（同时永久删除关联交易）或 migrateTo=targetId 迁移交易。',
+  })
+  @ApiQuery({
+    name: 'force',
+    required: false,
+    type: Boolean,
+    description: '是否强制删除关联交易（物理删除）',
+  })
+  @ApiQuery({
+    name: 'migrateTo',
+    required: false,
+    type: String,
+    description: '迁移关联交易的目标分类ID',
+  })
+  async remove(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Query('force') force?: boolean,
+    @Query('migrateTo') migrateTo?: string,
+  ) {
+    return this.categoriesService.remove(req.user.id, id, { force, migrateTo });
   }
 
   @Post('batch-delete')

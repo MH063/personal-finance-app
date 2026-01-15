@@ -206,30 +206,6 @@ body {
  * 卡片通用样式
  * ======================================== */
 
-.glass-card {
-  border-radius: var(--radius-xl) !important;
-  background: var(--color-bg-elevated) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
-  box-shadow: var(--shadow-glass) !important;
-  overflow: hidden;
-}
-
-.glass-card .ant-card-head {
-  border-bottom: 1px solid var(--color-border-light);
-  padding: var(--space-4) var(--space-6) !important;
-}
-
-.glass-card .ant-card-head-title {
-  font-weight: var(--font-weight-semibold) !important;
-  font-size: var(--font-size-lg) !important;
-}
-
-.glass-card .ant-card-body {
-  padding: var(--space-6) !important;
-}
-
 /* ========================================
  * 统计卡片样式
  * ======================================== */

@@ -41,7 +41,7 @@ import { NetworkMonitorService } from './common/services/network-monitor.service
       {
         name: 'short',
         ttl: 1000,
-        limit: 20, // 每秒最多 20 个请求 (调高以防止开发环境下快速切换页面导致的偶发 429)
+        limit: 60, // 临时提升到 60 以避免前端初始化时的并发请求误触限流
       },
       {
         name: 'medium',

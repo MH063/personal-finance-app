@@ -30,6 +30,7 @@ const StatisticsPage: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
   const { overview, health } = useSelector((state: RootState) => state.statistics);
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
   const { message } = AntdApp.useApp();
 
   // 采样背景亮度以动态调整文字颜色
@@ -74,6 +75,10 @@ const StatisticsPage: React.FC = () => {
     : '0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4)';
 
   const refreshData = React.useCallback(() => {
+    if (!isAuthenticated || !user?.id) {
+      console.log('[Statistics] 未认证，跳过刷新');
+      return;
+    }
     console.log('[Statistics] 正在刷新数据...');
     const query: any = { timeRange };
     if (timeRange === 'custom') {
@@ -102,31 +107,30 @@ const StatisticsPage: React.FC = () => {
     aiService.getHealthAnalysis().then(res => {
       if (res) setAiData(res);
     });
-  }, [customRange, dispatch, timeRange]);
+  }, [customRange, dispatch, timeRange, isAuthenticated, user?.id]);
 
   useEffect(() => {
+    if (!isAuthenticated || !user?.id) return;
     refreshData();
-
-    // 初始化实时协作
+ 
     const token = localStorage.getItem('accessToken');
     if (token) {
       collaborativeService.init(token);
     }
-
-    // 监听更新
+ 
     const handleUpdate = (data: any) => {
       console.log('[Statistics] 监听到实时更新:', data);
       refreshData();
     };
-
+ 
     collaborativeService.on('ledgerUpdate', handleUpdate);
     collaborativeService.on('globalUpdate', handleUpdate);
-
+ 
     return () => {
       collaborativeService.off('ledgerUpdate', handleUpdate);
       collaborativeService.off('globalUpdate', handleUpdate);
     };
-  }, [refreshData]);
+  }, [refreshData, isAuthenticated, user?.id]);
 
   const handleQuickAdd = (type: 'income' | 'expense') => {
     if (quickAddLoading) return;

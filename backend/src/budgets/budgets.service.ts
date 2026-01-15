@@ -174,7 +174,6 @@ export class BudgetsService {
         userId: budget.userId,
         categoryId: In(categoryIds),
         type: TransactionType.EXPENSE,
-        isDeleted: false,
         transactionDate: Between(startOfDay, endOfDay) as any,
       },
     });

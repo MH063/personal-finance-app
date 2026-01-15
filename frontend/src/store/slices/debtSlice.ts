@@ -108,6 +108,9 @@ export const syncDebtsToTransactions = createAsyncThunk(
 
 export const repayDebt = createAsyncThunk(
   'debts/repay',
+  /**
+   * 还款确认/新增（返回最新债务用于立即刷新进度）
+   */
   async (
     {
       id,
@@ -135,15 +138,8 @@ export const repayDebt = createAsyncThunk(
         data = await debtService.getDebt(id);
       } else {
         // Create new payment
-        // Note: debtService.repayDebt is a wrapper around addPayment, but we should use addPayment directly if we want consistent naming, 
-        // OR update debtService.repayDebt to support new params. 
-        // Checking debtService, it seems I didn't see repayDebt method in previous read, but I saw addPayment. 
-        // Let's assume debtService.repayDebt existed or I should use addPayment.
-        // The previous read of debtService.ts showed `addPayment` but not `repayDebt` (maybe it was in the part I didn't read or I missed it).
-        // Wait, line 113 calls `debtService.repayDebt`. Let me check debtService again to be sure.
-        // Actually, I'll just use addPayment which I know exists.
-        await debtService.addPayment(id, { amount, paymentDate, paymentMethod, note });
-        data = await debtService.getDebt(id);
+        // 使用 repayDebt 保证网络写入后立即获取最新债务详情
+        data = await debtService.repayDebt(id, amount, paymentDate, paymentMethod);
       }
       
       // 发送通知

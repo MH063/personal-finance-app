@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Form, Input, Button, App as AntdApp } from 'antd';
 import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
@@ -6,6 +6,7 @@ import { useDispatch } from 'react-redux';
 import { register, setTokens } from '@store/slices/authSlice';
 import { useSafeBackground } from '../hooks/useSafeBackground';
 import WindowControls from '../components/layout/WindowControls';
+import { silenceAuthErrors } from '../services/api';
 import './RegisterPage.css';
 
 const RegisterPage = () => {
@@ -19,6 +20,10 @@ const RegisterPage = () => {
 
   const pageBg = useSafeBackground(`https://picsum.photos/1920/1080?random=${pageSeed}`);
   const panelBg = useSafeBackground(`https://picsum.photos/800/1200?random=${panelSeed}`);
+
+  useEffect(() => {
+    silenceAuthErrors(5000);
+  }, []);
 
   const onFinish = async (values: { username: string; email: string; password: string; fullName?: string }) => {
     setLoading(true);

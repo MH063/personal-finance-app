@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
 import { fetchTransactions, createTransaction, updateTransaction, deleteTransaction, batchDeleteTransactions } from '../../store/slices/transactionSlice';
-import { fetchCategories, createCategory } from '../../store/slices/categorySlice';
+import { fetchCategories } from '../../store/slices/categorySlice';
 import { fetchLedgers } from '../../store/slices/ledgerSlice';
 import { aiService } from '../../services/aiService';
 import { collaborativeService } from '../../services/collaborativeService';
@@ -32,10 +32,8 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [filterLoading, setFilterLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [predicting, setPredicting] = useState(false);
-  const [categoryForm] = Form.useForm();
   const [filters, setFilters] = useState({ categoryId: '', ledgerId: '', startDate: '', endDate: '' });
   const [form] = Form.useForm();
   const navigate = useNavigate();
@@ -161,9 +159,24 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     if (deleteLoading) return;
     console.log(`[TransactionManager] 执行删除: id=${id}`);
     setDeleteLoading(id);
+    
+    // 检查是否为债务相关记录
+    const targetTransaction = transactions.find(t => t.id === id);
+    // 判断逻辑：检查 metadata 中是否有 debtId 标识
+    const isDebtRecord = targetTransaction && ((targetTransaction as any).metadata?.debtId || (targetTransaction as any).metadata?.isDebtLink);
+
     try {
+      if (isDebtRecord) {
+        message.warning('此交易关联至债务记录，请前往债务管理模块进行删除');
+        return;
+      }
       await dispatch(deleteTransaction(id) as any);
-      message.success('删除成功');
+      
+      // 仅针对非债务管理模块的记录显示成功提示
+      if (!isDebtRecord) {
+        message.success('删除成功');
+      }
+      
       await dispatch(fetchTransactions({ type, ...filters }) as any);
       if (onSuccess) {
         onSuccess();
@@ -174,24 +187,41 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     } finally {
       setDeleteLoading(null);
     }
-  }, [dispatch, filters, message, type, onSuccess, deleteLoading]);
+  }, [dispatch, filters, message, type, onSuccess, deleteLoading, transactions]);
 
   const handleBatchDelete = useCallback(async () => {
     if (selectedRowKeys.length === 0 || batchDeleteLoading) return;
+
+    // 检查选中的记录是否全部为债务相关记录
+    const selectedTransactions = transactions.filter(t => selectedRowKeys.includes(t.id));
+    const allDebtRecords = selectedTransactions.length > 0 && selectedTransactions.every(t => 
+      (t as any).metadata?.debtId || (t as any).metadata?.isDebtLink
+    );
+    // 过滤掉债务关联记录，仅提交可删除的ID
+    const idsToDelete = selectedTransactions
+      .filter(t => !((t as any).metadata?.debtId || (t as any).metadata?.isDebtLink))
+      .map(t => t.id);
     
     modal.confirm({
       title: '批量删除',
-      content: `确定要删除选中的 ${selectedRowKeys.length} 条记录吗？`,
-      okText: '确定',
+      content: `确定要删除选中的 ${selectedRowKeys.length} 条记录吗？此操作将永久删除记录，不可恢复。`,
+      okText: '永久删除',
       okType: 'danger',
       cancelText: '取消',
       onOk: async () => {
         setBatchDeleteLoading(true);
         try {
-          const ids = selectedRowKeys.map(key => key.toString());
-          await dispatch(batchDeleteTransactions(ids) as any);
+          if (idsToDelete.length === 0) {
+            message.warning('选中的记录均为债务关联交易，无法删除，请前往债务管理模块操作');
+            return;
+          }
+          await dispatch(batchDeleteTransactions(idsToDelete) as any);
           
-          message.success('批量删除成功');
+          // 仅当包含非债务记录时，才显示成功提示
+          if (!allDebtRecords) {
+            message.success('批量删除成功');
+          }
+
           setSelectedRowKeys([]);
           await dispatch(fetchTransactions({ type, ...filters }) as any);
           if (onSuccess) {
@@ -203,9 +233,9 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         } finally {
           setBatchDeleteLoading(false);
         }
-      }
+      },
     });
-  }, [selectedRowKeys, batchDeleteLoading, modal, dispatch, type, filters, message, onSuccess]);
+  }, [selectedRowKeys, batchDeleteLoading, modal, dispatch, type, filters, message, onSuccess, transactions]);
 
   const handleSubmit = async (values: any) => {
     console.log(`[TransactionManager] 提交表单: values=`, values);
@@ -282,21 +312,6 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
     });
   }, [editingTransaction, message, navigate]);
 
-  const handleCategorySubmit = async (values: any) => {
-    setLoading(true);
-    try {
-      await dispatch(createCategory({ ...values, type }) as any);
-      message.success('分类创建成功');
-      setCategoryModalVisible(false);
-      categoryForm.resetFields();
-      // fetchCategories 会通过 collaborativeService 自动触发刷新，或者手动触发
-      dispatch(fetchCategories(type) as any);
-    } catch (error: any) {
-      message.error(error.message || '创建分类失败');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDescriptionBlur = async (e: React.FocusEvent<HTMLTextAreaElement>) => {
     const description = e.target.value;
@@ -411,7 +426,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
             />
             <Popconfirm 
               title="删除记录" 
-              description="确定要删除这条交易记录吗？"
+              description="此操作将永久删除该记录，不可恢复，确定要继续吗？"
               onConfirm={() => handleDelete(record.id)}
               okText="确定"
               cancelText="取消"
@@ -627,7 +642,10 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
                         <Button 
                           type="text" 
                           icon={<PlusOutlined />} 
-                          onClick={() => setCategoryModalVisible(true)}
+                          onClick={() => {
+                            navigate(`/categories?openCreate=1&type=${type}`);
+                            setModalVisible(false);
+                          }}
                           block
                         >
                           新增分类
@@ -711,35 +729,6 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         </Form>
       </Modal>
 
-      <Modal
-        title={`新增${type === 'income' ? '收入' : '支出'}分类`}
-        open={categoryModalVisible}
-        onOk={() => categoryForm.submit()}
-        onCancel={() => setCategoryModalVisible(false)}
-        confirmLoading={loading}
-        destroyOnHidden
-        className="custom-modal"
-        width={400}
-        centered
-        maskClosable={true}
-        keyboard={true}
-      >
-        <Form form={categoryForm} layout="vertical" onFinish={handleCategorySubmit}>
-          <Form.Item 
-            name="name" 
-            label="分类名称" 
-            rules={[{ required: true, message: '请输入分类名称' }]}
-          >
-            <Input placeholder="例如：餐饮、交通、工资等" size="large" />
-          </Form.Item>
-          <Form.Item name="icon" label="图标 (可选)">
-            <Input placeholder="图标名称" size="large" />
-          </Form.Item>
-          <Form.Item name="color" label="颜色 (可选)">
-            <Input type="color" size="large" style={{ width: '100%', height: '40px', padding: '4px' }} />
-          </Form.Item>
-        </Form>
-      </Modal>
     </div>
   );
 });

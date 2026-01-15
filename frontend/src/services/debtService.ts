@@ -3,6 +3,9 @@ import { db } from '../db/db';
 import { offlineSyncService } from './offlineSyncService';
 import { v4 as uuidv4 } from 'uuid';
 
+let debtsLastFetchAt = 0;
+let debtsInFlight = false;
+
 export type RepaymentType =
   | 'equal_loan_payments'
   | 'equal_principal_payments'
@@ -92,6 +95,10 @@ const debtService = {
    * 获取所有债务
    */
   getDebts: async (params?: any) => {
+    const token = localStorage.getItem('accessToken');
+    const now = Date.now();
+    const tooSoon = now - debtsLastFetchAt < 800;
+
     // 1. 先从本地数据库获取
     let localDebts = await db.debts.toArray();
     
@@ -132,32 +139,64 @@ const debtService = {
       return Array.from(map.values());
     };
 
+    // 未认证直接返回本地缓存，避免触发 401
+    if (!token) {
+      if (localDebts.length === 0) {
+        console.log('[DebtService] 未认证，返回空列表');
+      }
+      return localDebts;
+    }
+
     // 2. 如果在线，执行刷新逻辑
     if (offlineSyncService.isOnline()) {
       // 如果本地没有数据，则同步等待网络请求，确保首屏有数据
       if (localDebts.length === 0) {
+        // 增加防抖检查，防止在后端持续报错时前端陷入死循环重试
+        if (debtsInFlight || tooSoon) {
+          console.log('[DebtService] 跳过频繁的初始化重试');
+          return localDebts;
+        }
+
         try {
           console.log('[DebtService] 本地无数据，正在从服务器获取债务列表...');
+          debtsInFlight = true;
           const response = await api.get<any>('/debts', { params });
           const debts = dedupeById(extractDebts(response.data));
           
           if (debts && debts.length > 0) {
             console.log(`[DebtService] 成功从服务器获取 ${debts.length} 条债务数据`);
             await db.debts.bulkPut(debts);
+            debtsLastFetchAt = Date.now();
+            debtsInFlight = false;
             return debts;
           }
+          debtsInFlight = false;
         } catch (err) {
           console.warn('[DebtService] 同步获取债务失败', err);
+          debtsLastFetchAt = Date.now(); // 失败也更新时间戳，防止死循环
+          debtsInFlight = false;
         }
       } else {
         // 如果本地有数据，则异步静默刷新
-        api.get<any>('/debts', { params }).then(async response => {
-          const debts = dedupeById(extractDebts(response.data));
-          if (debts && debts.length > 0) {
-            console.log(`[DebtService] 后台刷新成功，获取 ${debts.length} 条数据`);
-            await db.debts.bulkPut(debts);
-          }
-        }).catch(err => console.warn('[DebtService] 后台刷新债务失败', err));
+        if (!debtsInFlight && !tooSoon) {
+          debtsInFlight = true;
+          api.get<any>('/debts', { params, headers: { 'X-Silent-Error': 'true' } }).then(async response => {
+            const debts = dedupeById(extractDebts(response.data));
+            if (debts && debts.length > 0) {
+              console.log(`[DebtService] 后台刷新成功，获取 ${debts.length} 条数据`);
+              await db.debts.bulkPut(debts);
+            }
+            debtsLastFetchAt = Date.now();
+            debtsInFlight = false;
+          }).catch(err => {
+            console.warn('[DebtService] 后台刷新债务失败', err);
+            // 即使失败也更新时间戳，防止短时间内反复重试
+            debtsLastFetchAt = Date.now();
+            debtsInFlight = false;
+          });
+        } else {
+          console.log('[DebtService] 跳过快速重复刷新（防抖生效）');
+        }
       }
     }
 
@@ -168,6 +207,10 @@ const debtService = {
    * 获取单个债务
    */
   getDebt: async (id: string) => {
+    /**
+     * 获取债务详情（优先实时网络，回写本地）
+     * 保证确认还款后列表进度立即更新
+     */
     const localDebt = await db.debts.get(id);
 
     // 内部帮助函数：从响应中提取债务详情
@@ -183,12 +226,16 @@ const debtService = {
     };
 
     if (offlineSyncService.isOnline()) {
-      api.get<any>(`/debts/${id}`).then(response => {
+      try {
+        const response = await api.get<any>(`/debts/${id}`);
         const debt = extractDebt(response.data);
         if (debt) {
-          db.debts.put(debt);
+          await db.debts.put(debt);
+          return debt;
         }
-      }).catch(err => console.warn(`[DebtService] 后台刷新债务详情失败: ${id}`, err));
+      } catch (err) {
+        console.warn(`[DebtService] 在线获取债务详情失败，返回本地缓存: ${id}`, err);
+      }
     }
 
     return localDebt;
@@ -421,6 +468,11 @@ const debtService = {
    * 获取债务统计
    */
   getDebtStatistics: async () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[DebtService] 未认证，跳过债务统计请求');
+      return {};
+    }
     const response = await api.get<any>('/debts/statistics');
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段

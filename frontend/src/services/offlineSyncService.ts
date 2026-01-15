@@ -1,20 +1,56 @@
 import { db, SyncQueueItem } from '../db/db';
 import api from './api';
 
+export type SyncEventType = 'start' | 'progress' | 'complete' | 'error';
+export type SyncEventData = {
+  total?: number;
+  processed?: number;
+  success?: boolean;
+  item?: SyncQueueItem;
+  error?: any;
+};
+export type SyncListener = (event: SyncEventType, data?: SyncEventData) => void;
+
 /**
  * 离线同步服务
  * 负责管理本地数据与服务器数据的同步逻辑
  */
 export const offlineSyncService = {
+  listeners: new Set<SyncListener>(),
+
+  on(listener: SyncListener) {
+    this.listeners.add(listener);
+  },
+
+  off(listener: SyncListener) {
+    this.listeners.delete(listener);
+  },
+
+  notify(event: SyncEventType, data?: SyncEventData) {
+    this.listeners.forEach(listener => {
+      try {
+        listener(event, data);
+      } catch (e) {
+        console.error('[OfflineSync] 事件监听器执行失败:', e);
+      }
+    });
+  },
+
   /**
    * 同步状态锁，防止并发同步
+
    */
   isSyncing: false,
+  /**
+   * 服务禁用标识，登出后立即停用所有同步入口
+   */
+  disabled: false,
 
   /**
    * 检查是否具备认证条件
    */
   isAuthenticated(): boolean {
+    if (this.disabled) return false;
     const token = localStorage.getItem('accessToken');
     if (!token) return false;
 
@@ -59,6 +95,15 @@ export const offlineSyncService = {
       }
     }
   },
+  /**
+   * 停止服务（登出时调用）
+   * 清理内部状态并禁止后续同步入口
+   */
+  shutdown(): void {
+    this.disabled = true;
+    this.isSyncing = false;
+    console.log('[OfflineSync] 已停止离线同步服务');
+  },
 
   /**
    * 检查网络连接状态
@@ -75,6 +120,8 @@ export const offlineSyncService = {
 
     this.isSyncing = true;
     let needsRefreshLocalCache = false;
+    let processedCount = 0;
+
     try {
       // 1. 获取所有挂起的变更
       let pendingItems = await db.syncQueue.orderBy('timestamp').toArray();
@@ -97,6 +144,8 @@ export const offlineSyncService = {
       if (pendingItems.length === 0) return;
       console.log(`[OfflineSync] 发现 ${pendingItems.length} 个待同步项`);
 
+      this.notify('start', { total: pendingItems.length });
+
       for (const item of pendingItems) {
         // 再次检查该项是否还在队列中（防止并发调用时的竞争）
         const exists = await db.syncQueue.get(item.id!);
@@ -109,6 +158,9 @@ export const offlineSyncService = {
           if (item.id) {
             await db.syncQueue.delete(item.id);
             console.log(`[OfflineSync] 同步成功并移除项: ${item.id}`);
+            
+            processedCount++;
+            this.notify('progress', { total: pendingItems.length, processed: processedCount, success: true, item });
           }
           if (item.entity === 'DEBT') {
             needsRefreshLocalCache = true;
@@ -127,19 +179,17 @@ export const offlineSyncService = {
 
         // 如果是 404 (不存在) 或 403 (无权限)，可能永远无法同步成功
         // 特别是在删除操作时，如果服务器上已经不存在，视为同步成功（目标已达成）
-        if (status === 404 || status === 403) {
+        if (status === 404) {
           if (item.action === 'DELETE') {
-            console.log(`[OfflineSync] 同步项 (ID: ${item.id}, DELETE ${item.entity}) 在服务器上已不存在或无权限，视为同步成功`);
+            console.log(`[OfflineSync] 同步项 (ID: ${item.id}, DELETE ${item.entity}) 目标不存在，视为同步成功`);
           } else {
-            if (status === 404 && item.entity === 'DEBT') {
+            if (item.entity === 'DEBT') {
               try {
                 await db.debts.delete(item.entityId);
                 console.warn(`[OfflineSync] 债务不存在，已清理本地债务并移除同步项: debtId=${item.entityId}, queueId=${item.id}`);
               } catch (e) {
                 console.warn(`[OfflineSync] 清理本地债务失败: debtId=${item.entityId}, queueId=${item.id}`, e);
               }
-            } else {
-              console.warn(`[OfflineSync] 同步项失败 (ID: ${item.id})，状态码 ${status} (${errorMessage})，将其从队列移除`);
             }
           }
           if (item.entity === 'DEBT') {
@@ -147,6 +197,11 @@ export const offlineSyncService = {
           }
           if (item.id) await db.syncQueue.delete(item.id);
           continue; 
+        }
+
+        if (status === 403 || status === 401) {
+          console.warn(`[OfflineSync] 认证或权限失败 (ID: ${item.id})，状态码 ${status} (${errorMessage})，暂停本轮同步并保留队列`);
+          break;
         }
 
         // 只有不是 404/403 的异常才打印严重错误日志
@@ -226,6 +281,7 @@ export const offlineSyncService = {
     }
     } finally {
       this.isSyncing = false;
+      this.notify('complete', { total: processedCount });
       if (needsRefreshLocalCache) {
         try {
           await this.refreshLocalCache();
@@ -411,20 +467,14 @@ export const offlineSyncService = {
         break;
       }
       case 'DELETE':
-        try {
-          await api.delete(`${endpoint}/${entityId}`, {
-            headers: { 
-              'X-Silent-Error': 'true',
-              'X-Sync-Action': 'DELETE',
-              'X-Entity-ID': entityId
-            },
-            validateStatus: (status) => (status >= 200 && status < 300) || status === 404 || status === 403
-          });
-        } catch (e) {
-          // 已经在 validateStatus 中处理了 404/403，通常不会走到这里，
-          // 但为了彻底静默浏览器控制台的红字报错（如果是网络层面的 404），
-          // 这里的 try-catch 是最后的保障。
-        }
+        await api.delete(`${endpoint}/${entityId}`, {
+          headers: { 
+            'X-Silent-Error': 'true',
+            'X-Sync-Action': 'DELETE',
+            'X-Entity-ID': entityId
+          },
+          validateStatus: (status) => (status >= 200 && status < 300) || status === 404
+        });
         break;
     }
   },

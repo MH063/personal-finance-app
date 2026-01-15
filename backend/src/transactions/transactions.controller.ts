@@ -81,15 +81,18 @@ export class TransactionsController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: '删除交易记录' })
-  @ApiResponse({ status: 200, description: '删除成功' })
+  @ApiOperation({ summary: '永久删除交易记录', description: '物理删除交易记录，操作不可恢复。' })
+  @ApiResponse({ status: 200, description: '删除成功（物理删除）' })
   async remove(@Request() req: any, @Param('id', ParseUUIDPipe) id: string) {
     return this.transactionsService.remove(req.user.id, id);
   }
 
   @Post('batch-delete')
-  @ApiOperation({ summary: '批量删除交易记录' })
-  @ApiResponse({ status: 200, description: '删除成功' })
+  @ApiOperation({
+    summary: '批量永久删除交易记录',
+    description: '批量物理删除交易记录，操作不可恢复。',
+  })
+  @ApiResponse({ status: 200, description: '删除成功（物理删除）' })
   async batchRemove(@Request() req: any, @Body() dto: BatchDeleteDto) {
     return this.transactionsService.batchRemove(req.user.id, dto);
   }

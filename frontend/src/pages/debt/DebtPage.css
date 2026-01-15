@@ -99,7 +99,8 @@
 }
 
 .debt-page .glass-table .ant-spin-container::after {
-  background: rgba(0, 0, 0, 0.15) !important;
+  background: transparent !important;
+  display: none !important;
 }
 
 .debt-page .glass-table .ant-spin-blur {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Form, Input, Button, App as AntdApp } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
@@ -6,6 +6,7 @@ import { useDispatch } from 'react-redux';
 import { login } from '@store/slices/authSlice';
 import { useSafeBackground } from '../hooks/useSafeBackground';
 import WindowControls from '../components/layout/WindowControls';
+import { silenceAuthErrors } from '../services/api';
 import './LoginPage.css';
 
 const LoginPage = () => {
@@ -19,6 +20,10 @@ const LoginPage = () => {
 
   const pageBg = useSafeBackground(`https://picsum.photos/1920/1080?random=${pageSeed}`);
   const panelBg = useSafeBackground(`https://picsum.photos/900/1200?random=${panelSeed}`);
+
+  useEffect(() => {
+    silenceAuthErrors(5000);
+  }, []);
 
   const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);

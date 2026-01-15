@@ -202,7 +202,7 @@ export class TransactionsService {
       sortOrder = 'desc',
     } = query;
 
-    const where: FindOptionsWhere<Transaction> = { isDeleted: false };
+    const where: FindOptionsWhere<Transaction> = {};
 
     // 如果指定了账本 ID，先验证权限
     if (ledgerId) {
@@ -277,7 +277,7 @@ export class TransactionsService {
    */
   async findOne(userId: string, id: string): Promise<Transaction> {
     const transaction = await this.transactionRepository.findOne({
-      where: { id, isDeleted: false },
+      where: { id },
       relations: ['category', 'ledger'],
     });
 
@@ -393,7 +393,7 @@ export class TransactionsService {
   }
 
   /**
-   * 删除交易记录（软删除）
+   * 删除交易记录（物理删除）
    */
   async remove(userId: string, id: string): Promise<void> {
     this.logger.log(`用户 ${userId} 删除交易记录: ${id}`);
@@ -415,9 +415,7 @@ export class TransactionsService {
       throw new ForbiddenException('此交易关联至债务记录，请前往债务管理模块进行删除');
     }
 
-    transaction.isDeleted = true;
-    transaction.deletedAt = new Date();
-    await this.transactionRepository.save(transaction);
+    await this.transactionRepository.remove(transaction);
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(transaction.ledgerId, 'TRANSACTION_DELETED', { id }, userId);
@@ -444,7 +442,6 @@ export class TransactionsService {
       where: {
         id: In(dto.ids),
         userId,
-        isDeleted: false,
         metadata: Raw((alias) => `${alias} @> :meta`, {
           meta: JSON.stringify({ isDebtLink: true }),
         }),
@@ -457,10 +454,10 @@ export class TransactionsService {
       );
     }
 
-    const result = await this.transactionRepository.update(
-      { id: In(dto.ids), userId, isDeleted: false },
-      { isDeleted: true, deletedAt: new Date() },
-    );
+    const result = await this.transactionRepository.delete({
+      id: In(dto.ids),
+      userId,
+    });
 
     if (result.affected === 0) {
       throw new NotFoundException('未找到要删除的交易记录');
@@ -503,7 +500,6 @@ export class TransactionsService {
         id: In(dto.ids),
         userId,
         type: Not(category.type as any),
-        isDeleted: false,
       },
     });
 
@@ -512,7 +508,7 @@ export class TransactionsService {
     }
 
     const result = await this.transactionRepository.update(
-      { id: In(dto.ids), userId, isDeleted: false },
+      { id: In(dto.ids), userId },
       { categoryId: dto.categoryId },
     );
 
@@ -543,11 +539,16 @@ export class TransactionsService {
   async updateLinkedDebtEntryTransaction(
     userId: string,
     debtId: string,
-    patch: { amount?: number; description?: string; paymentMethod?: PaymentMethod },
+    patch: {
+      amount?: number;
+      description?: string;
+      paymentMethod?: PaymentMethod;
+      transactionDate?: string | Date;
+    },
   ): Promise<{ updatedCount: number; ids: string[] }> {
     if (!debtId) return { updatedCount: 0, ids: [] };
 
-    const where: any = { userId, isDeleted: false };
+    const where: any = { userId };
     where.metadata = Raw(
       (alias) => `${alias} @> :meta AND NOT (jsonb_exists(${alias}, 'paymentId'))`,
       { meta: JSON.stringify({ debtId }) },
@@ -575,6 +576,17 @@ export class TransactionsService {
       if (patch.paymentMethod !== undefined && tx.paymentMethod !== patch.paymentMethod) {
         tx.paymentMethod = patch.paymentMethod as any;
         changedFields.push('paymentMethod');
+      }
+
+      if (patch.transactionDate !== undefined) {
+        const nextDate = new Date(patch.transactionDate);
+        if (!Number.isNaN(nextDate.getTime())) {
+          const currentTime = tx.transactionDate ? new Date(tx.transactionDate).getTime() : 0;
+          if (currentTime !== nextDate.getTime()) {
+            tx.transactionDate = nextDate as any;
+            changedFields.push('transactionDate');
+          }
+        }
       }
 
       if (changedFields.length === 0) continue;
@@ -616,7 +628,7 @@ export class TransactionsService {
   ): Promise<{ updatedCount: number; ids: string[] }> {
     if (!paymentId) return { updatedCount: 0, ids: [] };
 
-    const where: any = { userId, isDeleted: false };
+    const where: any = { userId };
     where.metadata = Raw((alias) => `${alias} @> :meta`, { meta: JSON.stringify({ paymentId }) });
 
     const linkedTxs = await this.transactionRepository.find({ where });
@@ -691,7 +703,7 @@ export class TransactionsService {
     const { debtId, paymentId } = criteria;
     if (!debtId && !paymentId) return false;
 
-    const where: any = { userId, isDeleted: false };
+    const where: any = { userId };
     if (paymentId) {
       where.metadata = Raw((alias) => `${alias} @> :meta`, { meta: JSON.stringify({ paymentId }) });
     } else if (debtId) {
@@ -719,7 +731,7 @@ export class TransactionsService {
 
     this.logger.log(`删除关联交易: userId=${userId}, criteria=${JSON.stringify(criteria)}`);
 
-    const where: any = { userId, isDeleted: false };
+    const where: any = { userId };
 
     if (paymentId) {
       // 这里的 Raw 语法取决于数据库类型，PostgreSQL 使用 @>
@@ -732,11 +744,8 @@ export class TransactionsService {
 
     if (linkedTxs.length > 0) {
       const ids = linkedTxs.map((tx) => tx.id);
-      await this.transactionRepository.update(
-        { id: In(ids) },
-        { isDeleted: true, deletedAt: new Date() },
-      );
-      this.logger.log(`已软删除 ${linkedTxs.length} 条关联交易记录`);
+      await this.transactionRepository.delete({ id: In(ids) });
+      this.logger.log(`已物理删除 ${linkedTxs.length} 条关联交易记录`);
 
       // 发送实时更新通知
       this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_DELETED', { ids }, userId);

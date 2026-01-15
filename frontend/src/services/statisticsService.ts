@@ -5,6 +5,11 @@ const statisticsService = {
    * 获取收支概览统计
    */
   getOverview: async (params?: any) => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[StatisticsService] 未认证，跳过概览请求');
+      return {};
+    }
     const response = await api.get<any>('/statistics/overview', { params });
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段
@@ -17,6 +22,11 @@ const statisticsService = {
    * 获取趋势数据 (映射到后端的 overview 接口，因为它包含了月度趋势)
    */
   getTrend: async (params?: any) => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[StatisticsService] 未认证，跳过趋势请求');
+      return {};
+    }
     const response = await api.get<any>('/statistics/overview', { params });
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段
@@ -29,6 +39,11 @@ const statisticsService = {
    * 获取分类统计 (映射到后端的 overview 接口，因为它包含了分类占比)
    */
   getCategoryStats: async (params?: any) => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[StatisticsService] 未认证，跳过分类统计请求');
+      return {};
+    }
     const response = await api.get<any>('/statistics/overview', { params });
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段
@@ -41,6 +56,11 @@ const statisticsService = {
    * 获取资产净值统计
    */
   getNetWorth: async () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[StatisticsService] 未认证，跳过净值统计请求');
+      return {};
+    }
     const response = await api.get<any>('/statistics/overview');
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段
@@ -53,6 +73,11 @@ const statisticsService = {
    * 获取预算执行情况 (映射到后端的 health 接口)
    */
   getBudgetStats: async (params?: any) => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[StatisticsService] 未认证，跳过预算健康请求');
+      return {};
+    }
     const response = await api.get<any>('/statistics/health', { 
       params: { period: params?.timeRange || 'month' } 
     });
@@ -67,6 +92,11 @@ const statisticsService = {
    * 获取债务统计
    */
   getDebtStats: async () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[StatisticsService] 未认证，跳过债务统计请求');
+      return {};
+    }
     const response = await api.get<any>('/statistics/debts');
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段

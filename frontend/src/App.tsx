@@ -34,7 +34,8 @@ const PrivateRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   
   // 认证状态变更时初始化离线同步服务
   React.useEffect(() => {
-    if (isAuthenticated) {
+    const token = localStorage.getItem('accessToken');
+    if (isAuthenticated && token) {
       console.log('[App] 用户已认证，初始化离线同步服务');
       offlineSyncService.init().catch(err => console.error('[App] 初始化同步服务失败:', err));
     }

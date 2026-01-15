@@ -51,9 +51,11 @@ export const updateCategory = createAsyncThunk(
 
 export const deleteCategory = createAsyncThunk(
   'categories/delete',
-  async (id: string, { rejectWithValue }) => {
+  async (arg: string | { id: string; options?: { force?: boolean; migrateTo?: string } }, { rejectWithValue }) => {
+    const id = typeof arg === 'string' ? arg : arg.id;
+    const options = typeof arg === 'string' ? undefined : arg.options;
     try {
-      await categoryService.deleteCategory(id);
+      await categoryService.deleteCategory(id, options);
       // 发送通知
       collaborativeService.emit('ledgerUpdate', { type: 'category_deleted', id });
       return id;

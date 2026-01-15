@@ -7,10 +7,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, OptimisticLockVersionMismatchError, Not, IsNull } from 'typeorm';
+import { Repository, OptimisticLockVersionMismatchError, Not, IsNull, DataSource } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Debt, DebtType, DebtStatus, RepaymentDayAdjustment } from '../entities/debt.entity';
 import { DebtPayment, PaymentStatus } from '../entities/debt-payment.entity';
+import { Transaction, PaymentMethod as TxPaymentMethod } from '../entities/transaction.entity';
 import { TransactionLog, LogAction, EntityType } from '../entities/transaction-log.entity';
 import { UserSetting } from '../entities/user-setting.entity';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -65,6 +66,7 @@ export class DebtsService {
     @Inject(forwardRef(() => TransactionsService))
     private readonly transactionsService: TransactionsService,
     private readonly categoriesService: CategoriesService,
+    private readonly dataSource: DataSource,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
@@ -459,15 +461,20 @@ export class DebtsService {
     if (!debt.interestRate || Number(debt.interestRate) <= 0) return 0;
     if (debt.status === DebtStatus.PAID) return 0; // 已还清则不再计算利息（或显示为0）
 
-    // 如果没有创建时间，无法计算
-    if (!debt.createdAt) return 0;
+    // 使用借款日期计算利息，如果不存在则退而求其次使用创建日期
+    const baseDate = debt.loanDate || debt.createdAt;
+    if (!baseDate) return 0;
 
+    // 将起始日期和当前日期都标准化为当天 00:00:00 进行计算，排除时分秒干扰
     const now = new Date();
-    const startDate = new Date(debt.createdAt);
+    now.setHours(0, 0, 0, 0);
 
-    // 计算天数差异
-    const diffTime = Math.abs(now.getTime() - startDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const startDate = new Date(baseDate);
+    startDate.setHours(0, 0, 0, 0);
+
+    // 计算天数差异：只有日期跨度达到 24 小时的整数倍才算一天
+    const diffTime = now.getTime() - startDate.getTime();
+    const diffDays = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
     // 简单利息计算：剩余本金 * 年利率 * (天数/365)
     // interestRate 是百分比，所以要除以 100
@@ -537,10 +544,93 @@ export class DebtsService {
       throw new OptimisticLockVersionMismatchError('Debt', updateDto.version, debt.version);
     }
 
+    // 记录是否更改了借款日期（用于联动交易日期）
+    let loanDateChanged = false;
+    if (updateDto.loanDate !== undefined) {
+      try {
+        const nextLoanDate = new Date(updateDto.loanDate);
+        const prevLoanDate = debt.loanDate ? new Date(debt.loanDate) : null;
+        if (!Number.isNaN(nextLoanDate.getTime())) {
+          if (!prevLoanDate || !this.isSameDay(nextLoanDate, prevLoanDate)) {
+            loanDateChanged = true;
+          }
+        }
+      } catch {}
+    }
+
     // 移除 version，防止 Object.assign 覆盖实体中的 version，让 TypeORM 自动管理
     const { version: _version, ...updateData } = updateDto;
-    Object.assign(debt, updateData);
-    const updatedDebt = await this.debtRepository.save(debt);
+
+    // 使用事务保证一致性：更新债务 + 联动更新交易日期
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    let updatedDebt: Debt;
+    try {
+      Object.assign(debt, updateData);
+      updatedDebt = await queryRunner.manager.getRepository(Debt).save(debt);
+
+      const shouldSyncLinkedTx =
+        updateDto.originalAmount !== undefined ||
+        updateDto.debtorName !== undefined ||
+        updateDto.description !== undefined ||
+        updateDto.paymentMethod !== undefined ||
+        loanDateChanged;
+
+      if (shouldSyncLinkedTx) {
+        const txRepo = queryRunner.manager.getRepository(Transaction);
+        const linkedTxs = await txRepo.find({
+          where: {
+            userId,
+            // metadata 包含 debtId 且不包含 paymentId
+            metadata: Not(IsNull()),
+          },
+        });
+        for (const tx of linkedTxs) {
+          const meta = tx.metadata || {};
+          if (meta.debtId !== updatedDebt.id || meta.paymentId) continue;
+          let changed = false;
+          const debtLabel = updatedDebt.debtType === DebtType.BORROW ? '借入' : '借出';
+          const nextDescription = `[债务关联] ${debtLabel}：${updatedDebt.debtorName}${updatedDebt.description ? ' - ' + updatedDebt.description : ''}`;
+          if ((tx.description || '') !== nextDescription) {
+            tx.description = nextDescription;
+            changed = true;
+          }
+          const nextAmount = Number(updatedDebt.originalAmount);
+          if (Number(tx.amount) !== nextAmount) {
+            (tx as any).amount = nextAmount as any;
+            changed = true;
+          }
+          const nextMethod = (updatedDebt.paymentMethod ||
+            PaymentMethod.OTHER) as unknown as TxPaymentMethod;
+          if (tx.paymentMethod !== nextMethod) {
+            tx.paymentMethod = nextMethod;
+            changed = true;
+          }
+          if (loanDateChanged && updatedDebt.loanDate) {
+            const nextDate = new Date(updatedDebt.loanDate);
+            if (!Number.isNaN(nextDate.getTime())) {
+              const currentTime = tx.transactionDate ? new Date(tx.transactionDate).getTime() : 0;
+              if (currentTime !== nextDate.getTime()) {
+                tx.transactionDate = nextDate;
+                changed = true;
+              }
+            }
+          }
+          if (changed) {
+            const saved = await txRepo.save(tx);
+            this.ledgerGateway.notifyUpdate(saved.ledgerId, 'TRANSACTION_UPDATED', saved, userId);
+          }
+        }
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
 
     // 记录操作日志
     await this.logRepository.save({
@@ -552,27 +642,6 @@ export class DebtsService {
       changedFields: Object.keys(updateData),
       userId,
     });
-
-    const shouldSyncLinkedTx =
-      updateDto.originalAmount !== undefined ||
-      updateDto.debtorName !== undefined ||
-      updateDto.description !== undefined ||
-      updateDto.paymentMethod !== undefined;
-
-    if (shouldSyncLinkedTx) {
-      try {
-        const debtLabel = updatedDebt.debtType === DebtType.BORROW ? '借入' : '借出';
-        const nextDescription = `[债务关联] ${debtLabel}：${updatedDebt.debtorName}${updatedDebt.description ? ' - ' + updatedDebt.description : ''}`;
-
-        await this.transactionsService.updateLinkedDebtEntryTransaction(userId, updatedDebt.id, {
-          amount: Number(updatedDebt.originalAmount),
-          description: nextDescription,
-          paymentMethod: updatedDebt.paymentMethod || PaymentMethod.OTHER,
-        });
-      } catch (txError: any) {
-        this.logger.error(`更新债务关联交易流水失败: ${txError.message}`);
-      }
-    }
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'DEBT_UPDATED', updatedDebt, userId);
@@ -912,7 +981,10 @@ export class DebtsService {
             amount: Number(debt.originalAmount),
             type: txType,
             categoryId: category?.id,
-            transactionDate: debt.createdAt.toISOString(),
+            transactionDate: (debt.loanDate
+              ? new Date(debt.loanDate)
+              : debt.createdAt
+            ).toISOString(),
             description: canonicalDescription,
             paymentMethod: canonicalPaymentMethod,
             metadata: {
@@ -929,6 +1001,10 @@ export class DebtsService {
               amount: Number(debt.originalAmount),
               description: canonicalDescription,
               paymentMethod: canonicalPaymentMethod,
+              transactionDate: (debt.loanDate
+                ? new Date(debt.loanDate)
+                : debt.createdAt
+              ).toISOString(),
             },
           );
           debtsSynced += updatedCount;

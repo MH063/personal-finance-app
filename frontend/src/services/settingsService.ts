@@ -5,12 +5,30 @@ const settingsService = {
    * 获取用户设置
    */
   getSettings: async () => {
-    const response = await api.get<any>('/settings');
-    const result = response.data;
-    // 根据 Rule 5: 优先获取嵌套的 data 字段
-    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-      ? result.data 
-      : result;
+    try {
+      const response = await api.get<any>('/settings');
+      const result = response.data;
+      // 根据 Rule 5: 优先获取嵌套的 data 字段
+      return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
+        ? result.data 
+        : result;
+    } catch (error: any) {
+      // 优雅处理 404 错误，返回默认设置
+      if (error.response && error.response.status === 404) {
+        console.warn('[SettingsService] 未找到用户设置，使用默认配置');
+        return {
+          theme: 'light',
+          notificationSettings: {
+            debtReminder: true,
+            reminderAdvanceDays: 3,
+            billReminder: true,
+            budgetAlert: true
+          },
+          dashboardLayout: []
+        };
+      }
+      throw error;
+    }
   },
 
   /**

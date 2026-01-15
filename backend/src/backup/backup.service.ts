@@ -906,7 +906,7 @@ export class BackupService {
     // 3. 获取交易数据
     if (backupType === BackupType.FULL || backupType === BackupType.TRANSACTIONS) {
       data.data.transactions = await this.transactionRepository.find({
-        where: { userId, isDeleted: false },
+        where: { userId },
       });
     }
 

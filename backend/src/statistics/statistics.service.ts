@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, TreeRepository } from 'typeorm';
+import { Workbook } from 'exceljs';
 import {
   subDays,
   subMonths,
@@ -59,7 +60,6 @@ export class StatisticsService {
 
     const whereConditions: any = {
       userId,
-      isDeleted: false,
       transactionDate: Between(startDateStr, endDateStr),
     };
 
@@ -192,7 +192,6 @@ export class StatisticsService {
     const prevTransactions = await this.transactionRepository.find({
       where: {
         userId,
-        isDeleted: false,
         transactionDate: Between(prevStartDate, prevEndDate),
       },
     });
@@ -354,6 +353,80 @@ export class StatisticsService {
   }
 
   /**
+   * 导出概览报表为 Excel
+   */
+  async exportOverviewExcel(userId: string, query: any): Promise<Buffer> {
+    this.logger.log(`[Export] 开始生成Excel报表, user=${userId}, query=${JSON.stringify(query)}`);
+    const { startDate, endDate } = await this.resolveDateRange(userId, query);
+    const startDateStr = format(startDate, 'yyyy-MM-dd');
+    const endDateStr = format(endDate, 'yyyy-MM-dd');
+
+    const overview = await this.getOverview(userId, {
+      timeRange: query?.timeRange || 'month',
+      startDate: startDateStr,
+      endDate: endDateStr,
+      type: query?.type,
+      categoryId: query?.categoryId,
+    } as any);
+
+    const wb = new Workbook();
+    wb.creator = 'Personal Finance App';
+    wb.created = new Date();
+    wb.modified = new Date();
+
+    // 概览
+    const sheetOverview = wb.addWorksheet('概览');
+    sheetOverview.addRow(['财务统计报表']).font = { size: 16, bold: true };
+    sheetOverview.addRow([]);
+    sheetOverview.addRow(['统计周期', `${startDateStr} 至 ${endDateStr}`]);
+    sheetOverview.addRow(['本期总收入', overview.totalIncome]);
+    sheetOverview.addRow(['本期总支出', overview.totalExpense]);
+    sheetOverview.addRow(['本期结余', overview.netIncome]);
+    sheetOverview.addRow(['交易笔数', overview.transactionCount]);
+    sheetOverview.addRow(['平均每日', overview.averageDaily]);
+    sheetOverview.addRow(['收入较上期(%)', overview.incomeComparison]);
+    sheetOverview.addRow(['支出较上期(%)', overview.expenseComparison]);
+
+    if (overview.budgetInfo) {
+      sheetOverview.addRow([]);
+      sheetOverview.addRow(['预算信息']).font = { bold: true };
+      sheetOverview.addRow(['总预算', overview.budgetInfo.totalBudget]);
+      sheetOverview.addRow(['已使用', overview.budgetInfo.usedBudget]);
+      sheetOverview.addRow(['剩余', overview.budgetInfo.remainingBudget]);
+      sheetOverview.addRow(['使用率(%)', overview.budgetInfo.usagePercentage]);
+      if (typeof overview.budgetInfo.budgetUsageComparison === 'number') {
+        sheetOverview.addRow(['与上期对比(%)', overview.budgetInfo.budgetUsageComparison]);
+      }
+    }
+
+    // 分类占比
+    const sheetCategory = wb.addWorksheet('分类占比');
+    sheetCategory.addRow(['分类名称', '金额', '占比(%)', '笔数', '趋势', '颜色']);
+    (overview.categoryBreakdown || []).forEach((c: any) => {
+      sheetCategory.addRow([
+        c.categoryName,
+        c.amount,
+        c.percentage,
+        c.transactionCount,
+        c.trend,
+        c.categoryColor,
+      ]);
+    });
+
+    // 月度趋势
+    const sheetTrend = wb.addWorksheet('月度趋势');
+    sheetTrend.addRow(['月份', '收入', '支出', '净收入', '交易笔数']);
+    (overview.monthlyTrends || []).forEach((m: any) => {
+      sheetTrend.addRow([m.month, m.income, m.expense, m.netIncome, m.transactionCount]);
+    });
+
+    const raw = await wb.xlsx.writeBuffer();
+    const buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as ArrayBuffer);
+    this.logger.log(`[Export] Excel报表生成完成, bufferSize=${buffer.byteLength}`);
+    return buffer;
+  }
+
+  /**
    * 获取图表数据
    */
   async getChartData(userId: string, query: ChartQueryDto) {
@@ -362,7 +435,6 @@ export class StatisticsService {
     const transactions = await this.transactionRepository.find({
       where: {
         userId,
-        isDeleted: false,
         transactionDate: Between(startDate, endDate),
       },
       relations: ['category'],
@@ -425,14 +497,12 @@ export class StatisticsService {
       this.transactionRepository.find({
         where: {
           userId,
-          isDeleted: false,
           transactionDate: Between(currentPeriod.start, currentPeriod.end),
         },
       }),
       this.transactionRepository.find({
         where: {
           userId,
-          isDeleted: false,
           transactionDate: Between(previousPeriod.start, previousPeriod.end),
         },
       }),

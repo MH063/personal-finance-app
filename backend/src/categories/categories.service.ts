@@ -6,8 +6,10 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { TreeRepository, OptimisticLockVersionMismatchError } from 'typeorm';
+import { TreeRepository, OptimisticLockVersionMismatchError, Repository } from 'typeorm';
 import { Category, CategoryType } from '../entities/category.entity';
+import { Transaction } from '../entities/transaction.entity';
+import { Budget } from '../entities/budget.entity';
 import { CreateCategoryDto, UpdateCategoryDto, CategoryQueryDto } from './dto/category.dto';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
 
@@ -22,6 +24,10 @@ export class CategoriesService {
   constructor(
     @InjectRepository(Category)
     private readonly categoryRepository: TreeRepository<Category>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
+    @InjectRepository(Budget)
+    private readonly budgetRepository: Repository<Budget>,
     private readonly ledgerGateway: LedgerGateway,
   ) {}
 
@@ -31,19 +37,17 @@ export class CategoriesService {
   async create(userId: string, createCategoryDto: CreateCategoryDto): Promise<Category> {
     this.logger.log(`用户 ${userId} 创建分类: ${createCategoryDto.name}`);
 
-    // 检查是否存在同名分类
-    const existingCategory = await this.categoryRepository.findOne({
-      where: {
-        userId,
-        name: createCategoryDto.name,
-        type: createCategoryDto.type,
-      },
-    });
+    // 检查是否存在同名分类 (不区分大小写)
+    // 注意：对于中文是精确匹配，对于英文是不区分大小写匹配，使用 LOWER() 可以同时满足
+    const existingCategory = await this.categoryRepository
+      .createQueryBuilder('category')
+      .where('category.userId = :userId', { userId })
+      .andWhere('category.type = :type', { type: createCategoryDto.type })
+      .andWhere('LOWER(category.name) = LOWER(:name)', { name: createCategoryDto.name })
+      .getOne();
 
     if (existingCategory) {
-      throw new ConflictException(
-        `已存在名为“${createCategoryDto.name}”的${createCategoryDto.type === 'income' ? '收入' : '支出'}分类`,
-      );
+      throw new ConflictException(`该分类已存在，请使用现有分类或输入不同的名称`);
     }
 
     if (createCategoryDto.parentId) {
@@ -143,18 +147,15 @@ export class CategoriesService {
 
     // 检查名称是否重复
     if (updateCategoryDto.name && updateCategoryDto.name !== category.name) {
-      const existingCategory = await this.categoryRepository.findOne({
-        where: {
-          userId,
-          name: updateCategoryDto.name,
-          type: category.type, // 类型不能修改，所以用原类型的
-        },
-      });
+      const existingCategory = await this.categoryRepository
+        .createQueryBuilder('category')
+        .where('category.userId = :userId', { userId })
+        .andWhere('category.type = :type', { type: category.type })
+        .andWhere('LOWER(category.name) = LOWER(:name)', { name: updateCategoryDto.name })
+        .getOne();
 
       if (existingCategory && existingCategory.id !== id) {
-        throw new ConflictException(
-          `已存在名为“${updateCategoryDto.name}”的${category.type === 'income' ? '收入' : '支出'}分类`,
-        );
+        throw new ConflictException(`该分类已存在，请使用现有分类或输入不同的名称`);
       }
     }
 
@@ -199,8 +200,12 @@ export class CategoriesService {
   /**
    * 删除分类
    */
-  async remove(userId: string, id: string): Promise<void> {
-    this.logger.log(`用户 ${userId} 删除分类: ${id}`);
+  async remove(
+    userId: string,
+    id: string,
+    options: { force?: boolean; migrateTo?: string } = {},
+  ): Promise<void> {
+    this.logger.log(`用户 ${userId} 删除分类: ${id}, options: ${JSON.stringify(options)}`);
 
     const category = await this.findOne(userId, id);
 
@@ -214,6 +219,38 @@ export class CategoriesService {
 
     if (childCount > 0) {
       throw new BadRequestException('该分类下存在子分类，请先删除子分类');
+    }
+
+    // 检查关联交易
+    const transactionCount = await this.transactionRepository.count({
+      where: { categoryId: id },
+    });
+
+    if (transactionCount > 0) {
+      if (options.force) {
+        this.logger.log(`强制删除分类 ${id} 及其关联的 ${transactionCount} 条交易`);
+        await this.transactionRepository.delete({ categoryId: id });
+      } else if (options.migrateTo) {
+        this.logger.log(`迁移分类 ${id} 的 ${transactionCount} 条交易到 ${options.migrateTo}`);
+        // 验证目标分类
+        if (options.migrateTo === id) {
+          throw new BadRequestException('迁移目标不能是当前分类');
+        }
+        const targetCategory = await this.findOne(userId, options.migrateTo);
+        if (targetCategory.type !== category.type) {
+          throw new BadRequestException('迁移目标分类类型必须一致');
+        }
+        await this.transactionRepository.update(
+          { categoryId: id },
+          { categoryId: options.migrateTo },
+        );
+      } else {
+        // 返回特定错误格式，以便前端识别并弹出选择框
+        // 这里抛出 BadRequestException，message 包含特定关键词或结构
+        throw new BadRequestException(
+          `该分类下有 ${transactionCount} 条关联交易，请选择强制删除或迁移数据`,
+        );
+      }
     }
 
     await this.categoryRepository.remove(category);
@@ -369,5 +406,192 @@ export class CategoriesService {
       { name: '借出款', type, color: '#722ED1', icon: 'lend', sortOrder: 9 },
       { name: '其他支出', type, color: '#8C8C8C', icon: 'other', sortOrder: 10 },
     ];
+  }
+
+  /**
+   * 归一化分类名称（去除首尾空格，内部空白统一为单个空格，并转小写）
+   */
+  private normalizeName(name: string): string {
+    return (name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  }
+
+  /**
+   * 查找重复分类
+   */
+  async findDuplicates(userId: string): Promise<any[]> {
+    const categories = await this.categoryRepository.find({
+      where: { userId, isSystem: false },
+      order: { createdAt: 'ASC' },
+    });
+
+    const groups = new Map<string, Category[]>();
+
+    categories.forEach((cat) => {
+      const key = `${cat.type}_${this.normalizeName(cat.name)}`;
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(cat);
+    });
+
+    const duplicates: any[] = [];
+    groups.forEach((cats, key) => {
+      if (cats.length > 1) {
+        duplicates.push({
+          key,
+          name: cats[0].name,
+          type: cats[0].type,
+          count: cats.length,
+          categories: cats,
+        });
+      }
+    });
+
+    return duplicates;
+  }
+
+  /**
+   * 清理重复分类 (保留创建时间最早的)
+   */
+  async cleanupDuplicates(userId: string): Promise<{ deletedCount: number; details: any[] }> {
+    const duplicates = await this.findDuplicates(userId);
+    let deletedCount = 0;
+    const details: any[] = [];
+
+    for (const group of duplicates) {
+      // 保留第一个 (最早的，因为查询时按 createdAt ASC 排序)
+      const [keep, ...remove] = group.categories;
+
+      if (remove.length > 0) {
+        const idsToRemove = remove.map((c: Category) => c.id);
+
+        // 批量删除
+        await this.categoryRepository.delete(idsToRemove);
+
+        deletedCount += idsToRemove.length;
+        details.push({
+          kept: { id: keep.id, name: keep.name },
+          removed: idsToRemove,
+          type: group.type,
+        });
+
+        this.logger.log(
+          `自动清理重复分类: 保留 ${keep.name}(${keep.id}), 删除 ${idsToRemove.join(', ')}`,
+        );
+
+        // 通知
+        this.ledgerGateway.notifyUpdate(
+          null,
+          'CATEGORY_BATCH_DELETED',
+          { ids: idsToRemove },
+          userId,
+        );
+      }
+    }
+
+    return { deletedCount, details };
+  }
+
+  /**
+   * 合并重复分类
+   * 策略：
+   * 1) 优先保留系统分类（若存在）
+   * 2) 否则保留创建时间最早的分类
+   * 3) 将交易与预算中引用的重复分类，统一迁移到保留分类
+   * 4) 删除重复分类
+   */
+  async mergeDuplicates(
+    userId: string,
+    options?: { preferSystem?: boolean },
+  ): Promise<{
+    mergedGroups: number;
+    movedTransactions: number;
+    movedBudgets: number;
+    deletedCount: number;
+    details: Array<{ kept: { id: string; name: string }; removed: string[]; type: string }>;
+  }> {
+    const { preferSystem = true } = options || {};
+    const categories = await this.categoryRepository.find({
+      where: { userId },
+      order: { createdAt: 'ASC' },
+    });
+
+    // 分组（包含系统与非系统，以便优先保留系统分类）
+    const groups = new Map<string, Category[]>();
+    categories.forEach((cat) => {
+      const key = `${cat.type}_${this.normalizeName(cat.name)}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(cat);
+    });
+
+    let mergedGroups = 0;
+    let movedTransactions = 0;
+    let movedBudgets = 0;
+    let deletedCount = 0;
+    const details: Array<{ kept: { id: string; name: string }; removed: string[]; type: string }> =
+      [];
+
+    for (const [, cats] of groups) {
+      if (cats.length <= 1) continue;
+      mergedGroups++;
+
+      // 选择保留者
+      let keep: Category | undefined;
+      if (preferSystem) {
+        keep = cats.find((c) => c.isSystem) || cats[0];
+      } else {
+        keep = cats[0];
+      }
+      const remove = cats.filter((c) => c.id !== keep!.id);
+      if (remove.length === 0) continue;
+
+      const idsToRemove = remove.map((c: Category) => c.id);
+
+      // 迁移交易记录到保留分类
+      for (const rid of idsToRemove) {
+        const result = await this.transactionRepository
+          .createQueryBuilder()
+          .update()
+          .set({ categoryId: keep!.id })
+          .where('user_id = :userId AND category_id = :rid', { userId, rid })
+          .execute();
+        movedTransactions += result.affected || 0;
+      }
+
+      // 迁移预算到保留分类
+      for (const rid of idsToRemove) {
+        const result = await this.budgetRepository
+          .createQueryBuilder()
+          .update()
+          .set({ categoryId: keep!.id })
+          .where('user_id = :userId AND category_id = :rid', { userId, rid })
+          .execute();
+        movedBudgets += result.affected || 0;
+      }
+
+      // 删除重复分类
+      await this.categoryRepository.delete(idsToRemove);
+      deletedCount += idsToRemove.length;
+
+      details.push({
+        kept: { id: keep!.id, name: keep!.name },
+        removed: idsToRemove,
+        type: keep!.type,
+      });
+
+      this.logger.log(
+        `合并重复分类: 保留 ${keep!.name}(${keep!.id}), 删除 ${idsToRemove.join(', ')}, 迁移交易 ${movedTransactions} 条, 迁移预算 ${movedBudgets} 条`,
+      );
+
+      // 实时通知
+      this.ledgerGateway.notifyUpdate(
+        null,
+        'CATEGORY_MERGED',
+        { keptId: keep!.id, removed: idsToRemove },
+        userId,
+      );
+    }
+
+    return { mergedGroups, movedTransactions, movedBudgets, deletedCount, details };
   }
 }

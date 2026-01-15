@@ -89,6 +89,11 @@ export class ExportReportDto {
   @IsEnum(ReportFormat)
   format: ReportFormat;
 
+  @ApiPropertyOptional({ enum: TimeRange, default: TimeRange.MONTH })
+  @IsEnum(TimeRange)
+  @IsOptional()
+  timeRange?: TimeRange = TimeRange.MONTH;
+
   @ApiPropertyOptional({ enum: ['summary', 'detailed', 'category'] })
   @IsString()
   @IsOptional()

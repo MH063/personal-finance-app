@@ -36,6 +36,21 @@ describe('DebtsService 还款日期校验', () => {
       create: jest.fn().mockResolvedValue({ id: 'cat1' }),
     } as any;
 
+    const dataSource = {
+      createQueryRunner: jest.fn().mockReturnValue({
+        connect: jest.fn(),
+        startTransaction: jest.fn(),
+        manager: {
+          getRepository: jest.fn().mockReturnValue({
+            save: jest.fn(),
+          }),
+        },
+        commitTransaction: jest.fn(),
+        rollbackTransaction: jest.fn(),
+        release: jest.fn(),
+      }),
+    } as any;
+
     const service = new DebtsService(
       debtRepository,
       paymentRepository,
@@ -45,6 +60,7 @@ describe('DebtsService 还款日期校验', () => {
       ledgerGateway,
       transactionsService,
       categoriesService,
+      dataSource,
     );
 
     return {
