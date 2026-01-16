@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import * as natural from 'natural';
 import * as ss from 'simple-statistics';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Transaction } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
 import { Debt, DebtStatus } from '../entities/debt.entity';
@@ -11,6 +13,10 @@ import { Debt, DebtStatus } from '../entities/debt.entity';
 export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
   private classifier: natural.BayesClassifier;
+  private readonly MODEL_DIR = path.join(process.cwd(), 'storage', 'ai-models');
+  private readonly MODEL_FILE = path.join(this.MODEL_DIR, 'classifier.json');
+  private readonly META_FILE = path.join(this.MODEL_DIR, 'metadata.json');
+  private readonly RETRAIN_THRESHOLD = 10; // 新增多少条数据触发重训
 
   constructor(
     @InjectRepository(Transaction)
@@ -21,29 +27,96 @@ export class AiService implements OnModuleInit {
     private readonly debtRepository: Repository<Debt>,
   ) {
     this.classifier = new natural.BayesClassifier();
+    this.ensureModelDir();
+  }
+
+  private ensureModelDir() {
+    if (!fs.existsSync(this.MODEL_DIR)) {
+      fs.mkdirSync(this.MODEL_DIR, { recursive: true });
+    }
   }
 
   async onModuleInit() {
-    console.log('[AiService] 初始化中...');
-    await this.trainClassifier();
-    console.log('[AiService] 初始化完成，分类器已就绪');
+    this.logger.log('[AiService] 初始化中...');
+    const loaded = await this.loadModel();
+    if (loaded) {
+      this.logger.log('[AiService] 已加载本地模型，检查增量更新...');
+      await this.trainClassifier(loaded.count);
+    } else {
+      this.logger.log('[AiService] 无本地模型，开始全量训练...');
+      await this.trainClassifier();
+    }
+    this.logger.log('[AiService] 初始化完成，分类器已就绪');
+  }
+
+  /**
+   * 保存模型到本地
+   */
+  private async saveModel(count: number) {
+    try {
+      // natural.BayesClassifier 可以序列化为 JSON
+      const data = JSON.stringify(this.classifier);
+      await fs.promises.writeFile(this.MODEL_FILE, data, 'utf8');
+
+      const meta = {
+        lastTrainedAt: new Date(),
+        transactionCount: count,
+      };
+      await fs.promises.writeFile(this.META_FILE, JSON.stringify(meta), 'utf8');
+      this.logger.log(`[AiService] 模型已保存 (样本数: ${count})`);
+    } catch (error) {
+      this.logger.error('[AiService] 模型保存失败:', error);
+    }
+  }
+
+  /**
+   * 加载本地模型
+   */
+  private async loadModel(): Promise<{ count: number } | null> {
+    try {
+      if (fs.existsSync(this.MODEL_FILE) && fs.existsSync(this.META_FILE)) {
+        const data = await fs.promises.readFile(this.MODEL_FILE, 'utf8');
+        const metaRaw = await fs.promises.readFile(this.META_FILE, 'utf8');
+        const meta = JSON.parse(metaRaw);
+
+        // 恢复分类器
+        this.classifier = natural.BayesClassifier.restore(JSON.parse(data));
+        this.logger.log(`[AiService] 本地模型加载成功 (上次训练: ${meta.lastTrainedAt})`);
+        return { count: meta.transactionCount || 0 };
+      }
+    } catch (error) {
+      this.logger.error('[AiService] 模型加载失败:', error);
+    }
+    return null;
   }
 
   /**
    * 训练分类器
+   * @param lastCount 上次训练时的样本数 (如果存在)
    */
-  async trainClassifier() {
+  async trainClassifier(lastCount: number = 0) {
     try {
-      console.log('[AiService] 开始训练分类器...');
+      const totalCount = await this.transactionRepository.count();
+
+      // 如果数据量没有显著增加，且已有模型，则跳过训练
+      if (lastCount > 0 && totalCount - lastCount < this.RETRAIN_THRESHOLD) {
+        this.logger.log(
+          `[AiService] 新增数据不足阈值 (${totalCount - lastCount} < ${this.RETRAIN_THRESHOLD})，跳过训练`,
+        );
+        return;
+      }
+
+      this.logger.log('[AiService] 开始训练分类器...');
       const transactions = await this.transactionRepository.find({
         relations: ['category'],
       });
 
       if (transactions.length < 5) {
-        console.warn('[AiService] 交易数据过少，跳过训练');
+        this.logger.warn('[AiService] 交易数据过少，跳过训练');
         return;
       }
 
+      // 重新创建并训练
       this.classifier = new natural.BayesClassifier();
 
       for (const tx of transactions) {
@@ -53,9 +126,12 @@ export class AiService implements OnModuleInit {
       }
 
       this.classifier.train();
-      console.log(`[AiService] 训练完成，样本数: ${transactions.length}`);
+      this.logger.log(`[AiService] 训练完成，样本数: ${transactions.length}`);
+
+      // 保存模型
+      await this.saveModel(transactions.length);
     } catch (error) {
-      console.error('[AiService] 训练失败:', error);
+      this.logger.error('[AiService] 训练失败:', error);
     }
   }
 

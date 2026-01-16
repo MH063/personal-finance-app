@@ -125,6 +125,28 @@ function registerIpcHandlers() {
   ipcMain.handle('get-app-version', () => {
     return app.getVersion();
   });
+  
+  ipcMain.handle('get-api-base-url', () => {
+    try {
+      const os = require('os');
+      const interfaces = os.networkInterfaces();
+      let localIp = '127.0.0.1';
+      for (const devName in interfaces) {
+        const iface = interfaces[devName];
+        for (let i = 0; i < iface.length; i++) {
+          const alias = iface[i];
+          if (alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal) {
+            localIp = alias.address;
+            break;
+          }
+        }
+        if (localIp !== '127.0.0.1') break;
+      }
+      return `http://${localIp}:4000/api/v1`;
+    } catch (e) {
+      return `http://127.0.0.1:4000/api/v1`;
+    }
+  });
 
   ipcMain.handle('show-notification', async (event, { title, body }) => {
     showNotification(title, body);

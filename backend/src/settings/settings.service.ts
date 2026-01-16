@@ -70,7 +70,7 @@ export class SettingsService {
     }
 
     // 移除 dto 中的 notificationSettings，防止 Object.assign 覆盖上面的合并结果
-    const { notificationSettings, ...otherProps } = dto;
+    const { notificationSettings: _notificationSettings, ...otherProps } = dto;
     Object.assign(settings, otherProps);
 
     const savedSettings = await this.userSettingRepository.save(settings);

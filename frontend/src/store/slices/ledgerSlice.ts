@@ -11,9 +11,9 @@ export interface LedgerState {
 
 export const fetchLedgers = createAsyncThunk(
   'ledgers/fetchAll',
-  async (_, { rejectWithValue }) => {
+  async (options: { silent?: boolean } | undefined = undefined, { rejectWithValue }) => {
     try {
-      const data = await ledgerService.getLedgers();
+      const data = await ledgerService.getLedgers(options);
       return data;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || '获取账本列表失败');

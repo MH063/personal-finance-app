@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, TreeRepository } from 'typeorm';
+import { Repository, MoreThanOrEqual, LessThanOrEqual, TreeRepository } from 'typeorm';
 import { Workbook } from 'exceljs';
 import {
   subDays,
@@ -31,6 +31,10 @@ import {
 export class StatisticsService {
   private readonly logger = new Logger(StatisticsService.name);
 
+  // Simple in-memory cache
+  private cache = new Map<string, { data: any; timestamp: number }>();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
   constructor(
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
@@ -43,181 +47,257 @@ export class StatisticsService {
   ) {}
 
   /**
-   * 获取财务概览数据
+   * Helper to get/set cache
+   */
+  private async getCached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.data;
+    }
+    const data = await fetcher();
+    this.cache.set(key, { data, timestamp: Date.now() });
+    return data;
+  }
+
+  /**
+   * 失效指定用户的统计缓存
+   */
+  public invalidateUserCache(userId: string): void {
+    try {
+      let removed = 0;
+      const prefixes = [`overview:${userId}:`, `chart:${userId}:`];
+      for (const key of Array.from(this.cache.keys())) {
+        if (prefixes.some((p) => key.startsWith(p))) {
+          this.cache.delete(key);
+          removed++;
+        }
+      }
+      this.logger.log(`[Cache] 已清理用户统计缓存: userId=${userId}, keys=${removed}`);
+    } catch (e: any) {
+      this.logger.warn(`[Cache] 清理用户统计缓存失败: userId=${userId}, err=${e?.message || e}`);
+    }
+  }
+
+  /**
+   * 获取财务概览数据 (Optimized)
    */
   async getOverview(userId: string, query: StatisticsQueryDto): Promise<OverviewData> {
-    const range = await this.resolveDateRange(userId, query);
-    const { startDate, endDate } = range;
+    const cacheKey = `overview:${userId}:${JSON.stringify(query)}`;
 
-    // 使用格式化的日期字符串，确保与数据库中的 DATE 类型匹配
-    const startDateStr = format(startDate, 'yyyy-MM-dd');
-    const endDateStr = format(endDate, 'yyyy-MM-dd');
+    return this.getCached(cacheKey, async () => {
+      const range = await this.resolveDateRange(userId, query);
+      const { startDate, endDate } = range;
+      const startDateStr = format(startDate, 'yyyy-MM-dd HH:mm:ss');
+      const endDateStr = format(endDate, 'yyyy-MM-dd HH:mm:ss');
 
-    const type = (query as any).type;
-    const categoryId = (query as any).categoryId;
+      this.logger.log(`获取概览数据 (Optimized): ${userId}, ${startDateStr} - ${endDateStr}`);
 
-    this.logger.log(`获取概览数据: ${userId}, ${startDateStr} - ${endDateStr}`);
+      // 1. Aggregate Totals
+      const totalsQuery = this.transactionRepository
+        .createQueryBuilder('t')
+        .select('SUM(CASE WHEN t.type = :income THEN t.amount ELSE 0 END)', 'totalIncome')
+        .addSelect('SUM(CASE WHEN t.type = :expense THEN t.amount ELSE 0 END)', 'totalExpense')
+        .addSelect('COUNT(CASE WHEN t.type = :income THEN 1 END)', 'incomeCount')
+        .addSelect('COUNT(CASE WHEN t.type = :expense THEN 1 END)', 'expenseCount')
+        .addSelect('COUNT(t.id)', 'transactionCount')
+        .where('t.userId = :userId', { userId })
+        .andWhere('t.transactionDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+        .setParameters({ income: TransactionType.INCOME, expense: TransactionType.EXPENSE });
 
-    const whereConditions: any = {
-      userId,
-      transactionDate: Between(startDateStr, endDateStr),
-    };
-
-    if (type) {
-      whereConditions.type = type;
-    }
-
-    if (categoryId) {
-      whereConditions.categoryId = categoryId;
-    }
-
-    const transactions = await this.transactionRepository.find({
-      where: whereConditions,
-      relations: ['category'],
-      order: { transactionDate: 'ASC' },
-    });
-
-    let totalIncome = 0;
-    let totalExpense = 0;
-    let incomeCount = 0;
-    let expenseCount = 0;
-    const categoryMap = new Map<
-      string,
-      { amount: number; count: number; color: string; name: string; type: TransactionType }
-    >();
-    const monthlyData = new Map<string, { income: number; expense: number; count: number }>();
-
-    // 初始化日期范围内的所有月份，确保趋势图完整
-    const allMonths = eachMonthOfInterval({ start: startDate, end: endDate });
-    allMonths.forEach((date) => {
-      const monthKey = format(date, 'yyyy-MM');
-      monthlyData.set(monthKey, { income: 0, expense: 0, count: 0 });
-    });
-
-    for (const transaction of transactions) {
-      if (transaction.type === TransactionType.INCOME) {
-        totalIncome += Number(transaction.amount);
-        incomeCount++;
-      } else {
-        totalExpense += Number(transaction.amount);
-        expenseCount++;
+      if (query.type) {
+        totalsQuery.andWhere('t.type = :type', { type: query.type });
+      }
+      if (query.categoryId) {
+        totalsQuery.andWhere('t.categoryId = :categoryId', { categoryId: query.categoryId });
       }
 
-      const monthKey = format(new Date(transaction.transactionDate), 'yyyy-MM');
-      if (!monthlyData.has(monthKey)) {
-        monthlyData.set(monthKey, { income: 0, expense: 0, count: 0 });
-      }
-      const monthData = monthlyData.get(monthKey)!;
-      monthData.count++;
+      const totals = await totalsQuery.getRawOne();
+      const totalIncome = Number(totals.totalIncome || 0);
+      const totalExpense = Number(totals.totalExpense || 0);
+      const incomeCount = Number(totals.incomeCount || 0);
+      const expenseCount = Number(totals.expenseCount || 0);
+      const transactionCount = Number(totals.transactionCount || 0);
+      const totalAmount = totalIncome + totalExpense;
 
-      if (transaction.type === TransactionType.INCOME) {
-        monthData.income += Number(transaction.amount);
-      } else {
-        monthData.expense += Number(transaction.amount);
+      // 2. Category Breakdown
+      const categoryQuery = this.transactionRepository
+        .createQueryBuilder('t')
+        .leftJoin('t.category', 'c')
+        .select('t.category_id', 'categoryId')
+        .addSelect('c.name', 'categoryName')
+        .addSelect('c.color', 'categoryColor')
+        .addSelect('t.type', 'type')
+        .addSelect('SUM(t.amount)', 'amount')
+        .addSelect('COUNT(t.id)', 'count')
+        .where('t.userId = :userId', { userId })
+        .andWhere('t.transactionDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+        .groupBy('t.category_id')
+        .addGroupBy('c.name')
+        .addGroupBy('c.color')
+        .addGroupBy('t.type');
+
+      if (query.type) {
+        categoryQuery.andWhere('t.type = :type', { type: query.type });
+      }
+      if (query.categoryId) {
+        categoryQuery.andWhere('t.category_id = :categoryId', { categoryId: query.categoryId });
       }
 
-      if (transaction.categoryId) {
-        const existing = categoryMap.get(transaction.categoryId) || {
-          amount: 0,
-          count: 0,
-          color: '#8C8C8C',
-          name: '未分类',
-          type: transaction.type,
+      const categoryRows = await categoryQuery.getRawMany();
+
+      const categoryBreakdown: CategoryBreakdown[] = categoryRows
+        .map((row) => ({
+          categoryId: row.categoryId || 'uncategorized',
+          categoryName: row.categoryName || '未分类',
+          categoryColor: row.categoryColor || '#8C8C8C',
+          amount: Number(row.amount),
+          percentage:
+            totalAmount > 0 ? Number(((Number(row.amount) / totalAmount) * 100).toFixed(2)) : 0,
+          transactionCount: Number(row.count),
+          trend: 0,
+          type: row.type,
+        }))
+        .sort((a, b) => b.amount - a.amount);
+
+      // Top Categories
+      const incomeCategories = categoryBreakdown.filter((c) => c.type === TransactionType.INCOME);
+      const expenseCategories = categoryBreakdown.filter((c) => c.type === TransactionType.EXPENSE);
+
+      const topIncomeCategory =
+        incomeCategories.length > 0 ? incomeCategories[0].categoryName : '无';
+      const topIncomeCategoryPercentage =
+        totalIncome > 0 && incomeCategories.length > 0
+          ? Number(((incomeCategories[0].amount / totalIncome) * 100).toFixed(2))
+          : 0;
+
+      const topExpenseCategory =
+        expenseCategories.length > 0 ? expenseCategories[0].categoryName : '无';
+      const topExpenseCategoryPercentage =
+        totalExpense > 0 && expenseCategories.length > 0
+          ? Number(((expenseCategories[0].amount / totalExpense) * 100).toFixed(2))
+          : 0;
+
+      // 3. Monthly Trends
+      // Use SQL date_trunc or to_char depending on DB. Assuming Postgres based on to_char usage in original code.
+      const monthlyQuery = this.transactionRepository
+        .createQueryBuilder('t')
+        .select("to_char(t.transaction_date, 'YYYY-MM')", 'month')
+        .addSelect('SUM(CASE WHEN t.type = :income THEN t.amount ELSE 0 END)', 'income')
+        .addSelect('SUM(CASE WHEN t.type = :expense THEN t.amount ELSE 0 END)', 'expense')
+        .addSelect('COUNT(t.id)', 'count')
+        .where('t.user_id = :userId', { userId })
+        .andWhere('t.transaction_date BETWEEN :startDate AND :endDate', { startDate, endDate })
+        .groupBy("to_char(t.transaction_date, 'YYYY-MM')")
+        .orderBy('month', 'ASC')
+        .setParameters({ income: TransactionType.INCOME, expense: TransactionType.EXPENSE });
+
+      if (query.type) {
+        monthlyQuery.andWhere('t.type = :type', { type: query.type });
+      }
+      if (query.categoryId) {
+        monthlyQuery.andWhere('t.category_id = :categoryId', { categoryId: query.categoryId });
+      }
+
+      const monthlyRows = await monthlyQuery.getRawMany();
+      const monthlyDataMap = new Map(monthlyRows.map((r) => [r.month, r]));
+
+      // Fill in all months
+      const allMonths = eachMonthOfInterval({ start: startDate, end: endDate });
+      const monthlyTrends: MonthlyTrend[] = allMonths.map((date) => {
+        const monthKey = format(date, 'yyyy-MM');
+        const data = monthlyDataMap.get(monthKey) || { income: 0, expense: 0, count: 0 };
+        const income = Number(data.income);
+        const expense = Number(data.expense);
+        return {
+          month: monthKey,
+          income,
+          expense,
+          netIncome: income - expense,
+          transactionCount: Number(data.count),
         };
-        existing.amount += Number(transaction.amount);
-        existing.count++;
-        if (transaction.category) {
-          existing.color = transaction.category.color;
-          existing.name = transaction.category.name;
-        }
-        categoryMap.set(transaction.categoryId, existing);
-      }
-    }
+      });
 
-    const totalAmount = totalIncome + totalExpense;
-    const categoryBreakdown: CategoryBreakdown[] = Array.from(categoryMap.entries())
-      .map(([id, data]) => ({
-        categoryId: id,
-        categoryName: data.name,
-        categoryColor: data.color,
-        amount: data.amount,
-        percentage: totalAmount > 0 ? Number(((data.amount / totalAmount) * 100).toFixed(2)) : 0,
-        transactionCount: data.count,
-        trend: 0,
-      }))
-      .sort((a, b) => b.amount - a.amount);
+      // 4. Comparison with Previous Period
+      const duration = endDate.getTime() - startDate.getTime();
+      const prevStartDate = new Date(startDate.getTime() - duration - 86400000);
+      const prevEndDate = new Date(startDate.getTime() - 86400000);
 
-    // 计算主要收入源
-    const incomeCategories = Array.from(categoryMap.values())
-      .filter((c) => c.type === TransactionType.INCOME)
-      .sort((a, b) => b.amount - a.amount);
+      const prevTotals = await this.transactionRepository
+        .createQueryBuilder('t')
+        .select('SUM(CASE WHEN t.type = :income THEN t.amount ELSE 0 END)', 'totalIncome')
+        .addSelect('SUM(CASE WHEN t.type = :expense THEN t.amount ELSE 0 END)', 'totalExpense')
+        .where('t.user_id = :userId', { userId })
+        .andWhere('t.transaction_date BETWEEN :prevStartDate AND :prevEndDate', {
+          prevStartDate,
+          prevEndDate,
+        })
+        .setParameters({ income: TransactionType.INCOME, expense: TransactionType.EXPENSE })
+        .getRawOne();
 
-    const topIncomeCategory = incomeCategories.length > 0 ? incomeCategories[0].name : '无';
-    const topIncomeCategoryPercentage =
-      totalIncome > 0 && incomeCategories.length > 0
-        ? Number(((incomeCategories[0].amount / totalIncome) * 100).toFixed(2))
-        : 0;
+      const prevTotalIncome = Number(prevTotals.totalIncome || 0);
+      const prevTotalExpense = Number(prevTotals.totalExpense || 0);
 
-    // 计算最大开支项
-    const expenseCategories = Array.from(categoryMap.values())
-      .filter((c) => c.type === TransactionType.EXPENSE)
-      .sort((a, b) => b.amount - a.amount);
+      const incomeComparison =
+        prevTotalIncome > 0
+          ? Number((((totalIncome - prevTotalIncome) / prevTotalIncome) * 100).toFixed(2))
+          : totalIncome > 0
+            ? 100
+            : 0;
 
-    const topExpenseCategory = expenseCategories.length > 0 ? expenseCategories[0].name : '无';
-    const topExpenseCategoryPercentage =
-      totalExpense > 0 && expenseCategories.length > 0
-        ? Number(((expenseCategories[0].amount / totalExpense) * 100).toFixed(2))
-        : 0;
+      const expenseComparison =
+        prevTotalExpense > 0
+          ? Number((((totalExpense - prevTotalExpense) / prevTotalExpense) * 100).toFixed(2))
+          : totalExpense > 0
+            ? 100
+            : 0;
 
-    const monthlyTrends: MonthlyTrend[] = Array.from(monthlyData.entries())
-      .map(([month, data]) => ({
-        month,
-        income: data.income,
-        expense: data.expense,
-        netIncome: data.income - data.expense,
-        transactionCount: data.count,
-      }))
-      .sort((a, b) => a.month.localeCompare(b.month));
-
-    const days = Math.ceil(
-      (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24),
-    );
-    const averageDaily = days > 0 ? totalExpense / days : 0;
-
-    // --- 计算同比数据 ---
-    const rangeDuration = new Date(endDate).getTime() - new Date(startDate).getTime();
-    const prevStartDate = new Date(new Date(startDate).getTime() - rangeDuration - 86400000); // 减去时长和一天
-    const prevEndDate = new Date(new Date(startDate).getTime() - 86400000);
-
-    const prevTransactions = await this.transactionRepository.find({
-      where: {
+      // 5. Budget Info (Optimized)
+      const budgetInfo = await this.getBudgetAnalysis(
         userId,
-        transactionDate: Between(prevStartDate, prevEndDate),
-      },
+        startDateStr,
+        endDateStr,
+        totalExpense,
+        prevTotalExpense,
+        prevStartDate,
+        prevEndDate,
+      );
+
+      const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const averageDaily = days > 0 ? totalExpense / days : 0;
+
+      return {
+        totalIncome,
+        totalExpense,
+        netIncome: totalIncome - totalExpense,
+        transactionCount,
+        averageDaily,
+        categoryBreakdown,
+        monthlyTrends,
+        incomeComparison,
+        expenseComparison,
+        incomeCount,
+        expenseCount,
+        topIncomeCategory,
+        topIncomeCategoryPercentage,
+        topExpenseCategory,
+        topExpenseCategoryPercentage,
+        budgetInfo,
+      };
     });
+  }
 
-    let prevTotalIncome = 0;
-    let prevTotalExpense = 0;
-    for (const t of prevTransactions) {
-      if (t.type === TransactionType.INCOME) prevTotalIncome += Number(t.amount);
-      else prevTotalExpense += Number(t.amount);
-    }
-
-    const incomeComparison =
-      prevTotalIncome > 0
-        ? Number((((totalIncome - prevTotalIncome) / prevTotalIncome) * 100).toFixed(2))
-        : totalIncome > 0
-          ? 100
-          : 0;
-
-    const expenseComparison =
-      prevTotalExpense > 0
-        ? Number((((totalExpense - prevTotalExpense) / prevTotalExpense) * 100).toFixed(2))
-        : totalExpense > 0
-          ? 100
-          : 0;
-
-    // 4. 获取预算进度
+  /**
+   * Optimized Budget Analysis
+   */
+  private async getBudgetAnalysis(
+    userId: string,
+    startDateStr: string,
+    endDateStr: string,
+    currentTotalExpense: number,
+    prevTotalExpense: number,
+    prevStartDate: Date,
+    prevEndDate: Date,
+  ) {
     const budgets = await this.budgetRepository.find({
       where: {
         userId,
@@ -227,7 +307,80 @@ export class StatisticsService {
       },
     });
 
-    // 获取上期预算以进行对比
+    if (budgets.length === 0) return null;
+
+    // Get all relevant category stats for the period
+    // We already calculated categoryBreakdown, but that was for the whole query range.
+    // Budgets might have specific start/end dates, but typically we align budget checking with the query range for "Monthly Budget".
+    // Assuming the user wants to see how they are doing against budgets in this period.
+
+    // To be precise, we should query expenses grouped by category for the exact period.
+    // We can reuse the previous categoryQuery logic but we need to ensure we have data for all subcategories.
+
+    // Optimization: Fetch all expenses grouped by category_id for the period
+    const categoryExpensesRaw = await this.transactionRepository
+      .createQueryBuilder('t')
+      .select('t.category_id', 'categoryId')
+      .addSelect('SUM(t.amount)', 'amount')
+      .where('t.userId = :userId', { userId })
+      .andWhere('t.type = :type', { type: TransactionType.EXPENSE })
+      .andWhere('t.transactionDate BETWEEN :startDate AND :endDate', {
+        startDate: startDateStr,
+        endDate: endDateStr,
+      })
+      .groupBy('t.category_id')
+      .getRawMany();
+
+    const categoryExpenseMap = new Map<string, number>();
+    categoryExpensesRaw.forEach((r) => categoryExpenseMap.set(r.categoryId, Number(r.amount)));
+
+    const activeBudgets = await Promise.all(
+      budgets.map(async (budget) => {
+        try {
+          const category = await this.categoryRepository.findOne({
+            where: { id: budget.categoryId },
+          });
+          if (!category) return null;
+
+          // Get descendants to sum up their expenses too
+          const descendants = await this.categoryRepository.findDescendants(category);
+          const categoryIds = [category.id, ...descendants.map((d) => d.id)];
+
+          let usedAmount = 0;
+          categoryIds.forEach((id) => {
+            usedAmount += categoryExpenseMap.get(id) || 0;
+          });
+
+          const budgetAmount = Number(budget.amount);
+
+          return {
+            id: budget.id,
+            categoryId: budget.categoryId,
+            categoryName: category.name,
+            categoryColor: category.color || '#1890ff',
+            amount: budgetAmount,
+            usedAmount,
+            remainingAmount: Math.max(0, budgetAmount - usedAmount),
+            usagePercentage:
+              budgetAmount > 0 ? Math.min(100, (usedAmount / budgetAmount) * 100) : 0,
+            startDate: format(new Date(budget.startDate), 'yyyy-MM-dd'),
+            endDate: format(new Date(budget.endDate), 'yyyy-MM-dd'),
+          };
+        } catch (err) {
+          this.logger.error(`Budget analysis failed for budget ${budget.id}`, err);
+          return null;
+        }
+      }),
+    );
+
+    const validBudgets = activeBudgets.filter((b) => b !== null);
+    if (validBudgets.length === 0) return null;
+
+    const totalBudget = validBudgets.reduce((sum, b) => sum + b!.amount, 0);
+    const usedBudget = validBudgets.reduce((sum, b) => sum + b!.usedAmount, 0);
+    const usagePercentage = totalBudget > 0 ? (usedBudget / totalBudget) * 100 : 0;
+
+    // Previous period usage (simplified as per original code)
     const prevBudgets = await this.budgetRepository.find({
       where: {
         userId,
@@ -237,118 +390,20 @@ export class StatisticsService {
       },
     });
 
-    console.log(
-      `[StatisticsService] 找到 ${budgets.length} 个活跃预算, 上期 ${prevBudgets.length} 个`,
-    );
-
-    let budgetInfo = null;
-    if (budgets.length > 0) {
-      // 找到最近到期或使用率最高的预算
-      const budgetDetails = await Promise.all(
-        budgets.map(async (budget) => {
-          try {
-            const category = await this.categoryRepository.findOne({
-              where: { id: budget.categoryId },
-            });
-            if (category) {
-              const descendants = await this.categoryRepository.findDescendants(category);
-              const categoryIds = [category.id, ...descendants.map((d) => d.id)];
-
-              const categoryTransactions = transactions.filter(
-                (t) => t.type === TransactionType.EXPENSE && categoryIds.includes(t.categoryId),
-              );
-
-              const categoryUsed = categoryTransactions.reduce(
-                (sum, t) => sum + Number(t.amount),
-                0,
-              );
-              const budgetAmount = Number(budget.amount);
-
-              console.log(
-                `[StatisticsService] 预算 ${category.name}: 已用 ${categoryUsed}, 总额 ${budgetAmount}, 类别数 ${categoryIds.length}, 相关交易数 ${categoryTransactions.length}`,
-              );
-
-              return {
-                ...budget,
-                categoryName: category.name,
-                categoryColor: category.color,
-                usedAmount: categoryUsed,
-                usagePercentage: budgetAmount > 0 ? (categoryUsed / budgetAmount) * 100 : 0,
-              };
-            }
-          } catch (err) {
-            console.error(`[StatisticsService] 计算预算 ${budget.id} 进度失败:`, err);
-          }
-          return null;
-        }),
-      );
-
-      const activeBudgets = budgetDetails.filter((b) => b !== null);
-      if (activeBudgets.length > 0) {
-        // 计算总预算汇总
-        const totalBudget = activeBudgets.reduce((sum, b) => sum + Number(b!.amount), 0);
-        const usedBudget = activeBudgets.reduce((sum, b) => sum + (b as any).usedAmount, 0);
-        const usagePercentage = totalBudget > 0 ? (usedBudget / totalBudget) * 100 : 0;
-
-        // 计算上期使用率
-        let prevUsagePercentage = 0;
-        if (prevBudgets.length > 0) {
-          const prevTotalBudget = prevBudgets.reduce((sum, b) => sum + Number(b.amount), 0);
-          const prevUsedBudget = prevTotalExpense; // 简化处理：上期总支出作为上期预算已用（如果上期也有预算的话）
-          prevUsagePercentage = prevTotalBudget > 0 ? (prevUsedBudget / prevTotalBudget) * 100 : 0;
-        }
-
-        budgetInfo = {
-          totalBudget,
-          usedBudget,
-          remainingBudget: Math.max(0, totalBudget - usedBudget),
-          usagePercentage: Math.min(100, usagePercentage),
-          budgetUsageComparison:
-            prevUsagePercentage > 0
-              ? Number((usagePercentage - prevUsagePercentage).toFixed(2))
-              : 0,
-          budgets: activeBudgets
-            .map((b) => ({
-              id: b!.id,
-              categoryId: b!.categoryId,
-              categoryName: (b as any).categoryName,
-              categoryColor: (b as any).categoryColor || '#1890ff',
-              amount: Number(b!.amount),
-              usedAmount: (b as any).usedAmount,
-              remainingAmount: Math.max(0, Number(b!.amount) - (b as any).usedAmount),
-              usagePercentage:
-                Number(b!.amount) > 0
-                  ? Math.min(100, ((b as any).usedAmount / Number(b!.amount)) * 100)
-                  : 0,
-              startDate: format(new Date(b!.startDate), 'yyyy-MM-dd'),
-              endDate: format(new Date(b!.endDate), 'yyyy-MM-dd'),
-            }))
-            .sort((a, b) => b.usagePercentage - a.usagePercentage), // 按使用率排序
-        };
-      } else {
-        console.log(`[StatisticsService] 活跃预算列表为空（可能分类已删除或计算出错）`);
-      }
-    } else {
-      console.log(`[StatisticsService] 未找到在范围 [${startDateStr}, ${endDateStr}] 内的活跃预算`);
+    let prevUsagePercentage = 0;
+    if (prevBudgets.length > 0) {
+      const prevTotalBudget = prevBudgets.reduce((sum, b) => sum + Number(b.amount), 0);
+      prevUsagePercentage = prevTotalBudget > 0 ? (prevTotalExpense / prevTotalBudget) * 100 : 0;
     }
 
     return {
-      totalIncome,
-      totalExpense,
-      netIncome: totalIncome - totalExpense,
-      transactionCount: transactions.length,
-      averageDaily,
-      categoryBreakdown,
-      monthlyTrends,
-      incomeComparison,
-      expenseComparison,
-      incomeCount,
-      expenseCount,
-      topIncomeCategory,
-      topIncomeCategoryPercentage,
-      topExpenseCategory,
-      topExpenseCategoryPercentage,
-      budgetInfo,
+      totalBudget,
+      usedBudget,
+      remainingBudget: Math.max(0, totalBudget - usedBudget),
+      usagePercentage: Math.min(100, usagePercentage),
+      budgetUsageComparison:
+        prevUsagePercentage > 0 ? Number((usagePercentage - prevUsagePercentage).toFixed(2)) : 0,
+      budgets: validBudgets.sort((a, b) => (b?.usagePercentage || 0) - (a?.usagePercentage || 0)),
     };
   }
 
@@ -356,7 +411,7 @@ export class StatisticsService {
    * 导出概览报表为 Excel
    */
   async exportOverviewExcel(userId: string, query: any): Promise<Buffer> {
-    this.logger.log(`[Export] 开始生成Excel报表, user=${userId}, query=${JSON.stringify(query)}`);
+    this.logger.log(`[Export] 开始生成Excel报表, user=${userId}`);
     const { startDate, endDate } = await this.resolveDateRange(userId, query);
     const startDateStr = format(startDate, 'yyyy-MM-dd');
     const endDateStr = format(endDate, 'yyyy-MM-dd');
@@ -421,127 +476,105 @@ export class StatisticsService {
     });
 
     const raw = await wb.xlsx.writeBuffer();
-    const buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as ArrayBuffer);
-    this.logger.log(`[Export] Excel报表生成完成, bufferSize=${buffer.byteLength}`);
-    return buffer;
+    return Buffer.isBuffer(raw) ? raw : Buffer.from(raw as ArrayBuffer);
   }
 
   /**
-   * 获取图表数据
+   * 获取图表数据 (Optimized)
    */
   async getChartData(userId: string, query: ChartQueryDto) {
-    const { startDate, endDate } = await this.resolveDateRange(userId, query);
+    const cacheKey = `chart:${userId}:${JSON.stringify(query)}`;
 
-    const transactions = await this.transactionRepository.find({
-      where: {
-        userId,
-        transactionDate: Between(startDate, endDate),
-      },
-      relations: ['category'],
-      order: { transactionDate: 'ASC' },
+    return this.getCached(cacheKey, async () => {
+      const { startDate, endDate } = await this.resolveDateRange(userId, query);
+
+      // Daily Trends for Line Chart
+      const dailyStats = await this.transactionRepository
+        .createQueryBuilder('t')
+        .select("to_char(t.transaction_date, 'YYYY-MM-DD')", 'date')
+        .addSelect('SUM(CASE WHEN t.type = :income THEN t.amount ELSE 0 END)', 'income')
+        .addSelect('SUM(CASE WHEN t.type = :expense THEN t.amount ELSE 0 END)', 'expense')
+        .where('t.userId = :userId', { userId })
+        .andWhere('t.transactionDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+        .groupBy("to_char(t.transaction_date, 'YYYY-MM-DD')")
+        .orderBy('date', 'ASC')
+        .setParameters({ income: TransactionType.INCOME, expense: TransactionType.EXPENSE })
+        .getRawMany();
+
+      const incomeData = dailyStats.map((s) => ({ date: s.date, value: Number(s.income) }));
+      const expenseData = dailyStats.map((s) => ({ date: s.date, value: Number(s.expense) }));
+
+      // Category Data for Pie Chart (Expense Only)
+      const categoryStats = await this.transactionRepository
+        .createQueryBuilder('t')
+        .leftJoin('t.category', 'c')
+        .select('c.name', 'name')
+        .addSelect('SUM(t.amount)', 'value')
+        .where('t.userId = :userId', { userId })
+        .andWhere('t.type = :expense', { expense: TransactionType.EXPENSE })
+        .andWhere('t.transactionDate BETWEEN :startDate AND :endDate', { startDate, endDate })
+        .groupBy('c.name')
+        .getRawMany();
+
+      const pieData = categoryStats.map((s) => ({
+        name: s.name || '未分类',
+        value: Number(s.value),
+        color: '#FF6B6B', // Frontend should probably assign colors, but keeping legacy behavior
+      }));
+
+      return {
+        lineChart: {
+          income: incomeData,
+          expense: expenseData,
+        },
+        pieChart: pieData,
+      };
     });
-
-    const incomeData: { date: string; value: number }[] = [];
-    const expenseData: { date: string; value: number }[] = [];
-    const pieData: { name: string; value: number; color: string }[] = [];
-
-    const categoryMap = new Map<string, number>();
-
-    for (const transaction of transactions) {
-      const date = format(new Date(transaction.transactionDate), 'yyyy-MM-dd');
-
-      if (transaction.type === TransactionType.INCOME) {
-        const existing = incomeData.find((d) => d.date === date);
-        if (existing) {
-          existing.value += Number(transaction.amount);
-        } else {
-          incomeData.push({ date, value: Number(transaction.amount) });
-        }
-      } else {
-        const existing = expenseData.find((d) => d.date === date);
-        if (existing) {
-          existing.value += Number(transaction.amount);
-        } else {
-          expenseData.push({ date, value: Number(transaction.amount) });
-        }
-      }
-
-      if (transaction.type === TransactionType.EXPENSE) {
-        const categoryName = transaction.category?.name || '未分类';
-        const current = categoryMap.get(categoryName) || 0;
-        categoryMap.set(categoryName, current + Number(transaction.amount));
-      }
-    }
-
-    categoryMap.forEach((value, name) => {
-      pieData.push({ name, value, color: '#FF6B6B' });
-    });
-
-    return {
-      lineChart: {
-        income: incomeData.sort((a, b) => a.date.localeCompare(b.date)),
-        expense: expenseData.sort((a, b) => a.date.localeCompare(b.date)),
-      },
-      pieChart: pieData,
-    };
   }
 
   /**
-   * 获取财务健康指标
+   * 获取财务健康指标 (Optimized)
    */
   async getFinancialHealth(userId: string, period: string = 'month'): Promise<FinancialHealth> {
     const currentPeriod = this.getPeriodRange(period, new Date());
     const previousPeriod = this.getPreviousPeriod(period, new Date());
 
-    const [currentTransactions, previousTransactions] = await Promise.all([
-      this.transactionRepository.find({
-        where: {
-          userId,
-          transactionDate: Between(currentPeriod.start, currentPeriod.end),
-        },
-      }),
-      this.transactionRepository.find({
-        where: {
-          userId,
-          transactionDate: Between(previousPeriod.start, previousPeriod.end),
-        },
-      }),
+    const getPeriodStats = async (start: Date, end: Date) => {
+      const stats = await this.transactionRepository
+        .createQueryBuilder('t')
+        .select('SUM(CASE WHEN t.type = :income THEN t.amount ELSE 0 END)', 'income')
+        .addSelect('SUM(CASE WHEN t.type = :expense THEN t.amount ELSE 0 END)', 'expense')
+        .where('t.userId = :userId', { userId })
+        .andWhere('t.transactionDate BETWEEN :start AND :end', { start, end })
+        .setParameters({ income: TransactionType.INCOME, expense: TransactionType.EXPENSE })
+        .getRawOne();
+      return {
+        income: Number(stats.income || 0),
+        expense: Number(stats.expense || 0),
+      };
+    };
+
+    const [current, previous] = await Promise.all([
+      getPeriodStats(currentPeriod.start, currentPeriod.end),
+      getPeriodStats(previousPeriod.start, previousPeriod.end),
     ]);
 
-    let currentIncome = 0;
-    let currentExpense = 0;
-    let previousIncome = 0;
-    let previousExpense = 0;
-
-    for (const t of currentTransactions) {
-      if (t.type === TransactionType.INCOME) {
-        currentIncome += Number(t.amount);
-      } else {
-        currentExpense += Number(t.amount);
-      }
-    }
-
-    for (const t of previousTransactions) {
-      if (t.type === TransactionType.INCOME) {
-        previousIncome += Number(t.amount);
-      } else {
-        previousExpense += Number(t.amount);
-      }
-    }
-
     const savingsRate =
-      currentIncome > 0
-        ? Number((((currentIncome - currentExpense) / currentIncome) * 100).toFixed(2))
+      current.income > 0
+        ? Number((((current.income - current.expense) / current.income) * 100).toFixed(2))
         : 0;
+
     const expenseRatio =
-      currentIncome > 0 ? Number(((currentExpense / currentIncome) * 100).toFixed(2)) : 0;
+      current.income > 0 ? Number(((current.expense / current.income) * 100).toFixed(2)) : 0;
+
     const incomeGrowth =
-      previousIncome > 0
-        ? Number((((currentIncome - previousIncome) / previousIncome) * 100).toFixed(2))
+      previous.income > 0
+        ? Number((((current.income - previous.income) / previous.income) * 100).toFixed(2))
         : 0;
+
     const expenseGrowth =
-      previousExpense > 0
-        ? Number((((currentExpense - previousExpense) / previousExpense) * 100).toFixed(2))
+      previous.expense > 0
+        ? Number((((current.expense - previous.expense) / previous.expense) * 100).toFixed(2))
         : 0;
 
     let healthScore = 50;
@@ -595,41 +628,46 @@ export class StatisticsService {
   }
 
   /**
-   * 获取债务概览
+   * 获取债务概览 (Optimized)
    */
   async getDebtOverview(userId: string) {
-    const debts = await this.debtRepository.find({
-      where: { userId },
-    });
+    const stats = await this.debtRepository
+      .createQueryBuilder('d')
+      .select(
+        'SUM(CASE WHEN d.debt_type = :borrow THEN d.remaining_amount ELSE 0 END)',
+        'totalBorrowed',
+      )
+      .addSelect(
+        'SUM(CASE WHEN d.debt_type = :lend THEN d.remaining_amount ELSE 0 END)',
+        'totalLent',
+      )
+      .addSelect('COUNT(CASE WHEN d.debt_type = :borrow THEN 1 END)', 'borrowedCount')
+      .addSelect('COUNT(CASE WHEN d.debt_type = :lend THEN 1 END)', 'lentCount')
+      .addSelect('COUNT(CASE WHEN d.status != :paid THEN 1 END)', 'pendingCount')
+      .addSelect(
+        'COUNT(CASE WHEN d.status != :paid AND d.due_date < :now THEN 1 END)',
+        'overdueCount',
+      )
+      .where('d.userId = :userId', { userId })
+      .setParameters({
+        borrow: DebtType.BORROW,
+        lend: DebtType.LEND,
+        paid: DebtStatus.PAID,
+        now: new Date(),
+      })
+      .getRawOne();
 
-    let totalBorrowed = 0;
-    let totalLent = 0;
-    let pendingCount = 0;
-    let overdueCount = 0;
-
-    for (const debt of debts) {
-      if (debt.debtType === DebtType.BORROW) {
-        totalBorrowed += Number(debt.remainingAmount);
-      } else {
-        totalLent += Number(debt.remainingAmount);
-      }
-
-      if (debt.status !== DebtStatus.PAID) {
-        pendingCount++;
-        if (debt.dueDate && new Date(debt.dueDate) < new Date()) {
-          overdueCount++;
-        }
-      }
-    }
+    const totalBorrowed = Number(stats.totalBorrowed || 0);
+    const totalLent = Number(stats.totalLent || 0);
 
     return {
       totalBorrowed,
       totalLent,
       netDebt: totalBorrowed - totalLent,
-      pendingCount,
-      overdueCount,
-      borrowedCount: debts.filter((d) => d.debtType === DebtType.BORROW).length,
-      lentCount: debts.filter((d) => d.debtType === DebtType.LEND).length,
+      pendingCount: Number(stats.pendingCount || 0),
+      overdueCount: Number(stats.overdueCount || 0),
+      borrowedCount: Number(stats.borrowedCount || 0),
+      lentCount: Number(stats.lentCount || 0),
     };
   }
 

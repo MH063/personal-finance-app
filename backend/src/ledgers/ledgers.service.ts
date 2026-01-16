@@ -132,6 +132,8 @@ export class LedgersService {
     return updatedLedger;
   }
 
+  // 默认账本逻辑已移除
+
   /**
    * 添加成员到账本
    */
@@ -223,10 +225,6 @@ export class LedgersService {
     // 只有所有者可以删除账本
     if (ledger.ownerId !== userId) {
       throw new ForbiddenException('只有所有者可以删除账本');
-    }
-
-    if (ledger.isDefault) {
-      throw new ForbiddenException('不能删除默认账本');
     }
 
     // 1. 手动删除关联的交易记录（满足用户需求：同时删除交易记录）

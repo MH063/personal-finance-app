@@ -13,6 +13,7 @@ import { Transaction, TransactionType } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
 import { CreateBudgetDto, UpdateBudgetDto } from './dto/budget.dto';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
+import { StatisticsService } from '../statistics/statistics.service';
 
 @Injectable()
 export class BudgetsService {
@@ -26,6 +27,7 @@ export class BudgetsService {
     @InjectRepository(Category)
     private readonly categoryRepository: TreeRepository<Category>,
     private readonly ledgerGateway: LedgerGateway,
+    private readonly statisticsService: StatisticsService,
   ) {}
 
   async create(userId: string, createBudgetDto: CreateBudgetDto): Promise<Budget> {
@@ -47,6 +49,8 @@ export class BudgetsService {
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'BUDGET_CREATED', savedBudget, userId);
+    // 失效统计缓存，确保概览预算信息实时更新
+    this.invalidateStatistics(userId);
 
     return savedBudget;
   }
@@ -121,6 +125,8 @@ export class BudgetsService {
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'BUDGET_UPDATED', updatedBudget, userId);
+    // 失效统计缓存，确保概览预算信息实时更新
+    this.invalidateStatistics(userId);
 
     return updatedBudget;
   }
@@ -133,6 +139,8 @@ export class BudgetsService {
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'BUDGET_DELETED', { id }, userId);
+    // 失效统计缓存，确保概览预算信息实时更新
+    this.invalidateStatistics(userId);
   }
 
   /**
@@ -189,5 +197,16 @@ export class BudgetsService {
       remainingAmount,
       usagePercentage: Math.round(usagePercentage * 100) / 100,
     };
+  }
+
+  /**
+   * 失效统计缓存（统一入口）
+   */
+  private invalidateStatistics(userId: string): void {
+    try {
+      this.statisticsService.invalidateUserCache(userId);
+    } catch (e: any) {
+      this.logger.warn(`统计缓存失效调用失败: userId=${userId}, err=${e?.message || e}`);
+    }
   }
 }

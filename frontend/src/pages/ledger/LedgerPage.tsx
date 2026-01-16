@@ -37,7 +37,7 @@ const LedgerPage: React.FC = () => {
       console.log('监听到实时更新:', data);
       // 账本更新或重连同步时刷新
       if (data.type?.includes('LEDGER') || data.type?.includes('MEMBER') || data.type === 'RECONNECTED_SYNC') {
-        dispatch(fetchLedgers());
+        dispatch(fetchLedgers({ silent: true }));
       }
     };
     
@@ -49,6 +49,13 @@ const LedgerPage: React.FC = () => {
       collaborativeService.off('globalUpdate', handleUpdate);
       // 注意：这里不执行 disconnect，以保持全局连接活跃
     };
+  }, [dispatch]);
+  
+  useEffect(() => {
+    const timer = setInterval(() => {
+      dispatch(fetchLedgers({ silent: true }));
+    }, 10000);
+    return () => clearInterval(timer);
   }, [dispatch]);
 
   const handleAddLedger = useCallback(() => {
@@ -117,6 +124,8 @@ const LedgerPage: React.FC = () => {
     setMemberModalVisible(true);
   }, []);
 
+  // 已移除默认账本逻辑
+
   // 成员管理 Modal
   
   const currentUserRole = useMemo(() => {
@@ -181,7 +190,7 @@ const LedgerPage: React.FC = () => {
       render: (text: string, record: Ledger) => (
         <Space>
           <span style={{ fontWeight: 600 }}>{text}</span>
-          {record.isDefault && <Tag color="blue">默认</Tag>}
+          {/* 默认账本标签已移除 */}
           {record.type === 'shared' ? <Tag color="green">共享</Tag> : <Tag color="orange">私有</Tag>}
         </Space>
       ),
@@ -217,7 +226,7 @@ const LedgerPage: React.FC = () => {
         const isOwner = userRole === 'owner';
         const isAdmin = userRole === 'admin';
         const canEdit = isOwner || isAdmin;
-        const isDefault = record.isDefault === true;
+        // 默认账本逻辑已移除
 
         return (
           <Space size="small" wrap>
@@ -236,38 +245,25 @@ const LedgerPage: React.FC = () => {
             >
               成员
             </Button>
-            {isDefault ? (
-              <Tooltip title="默认账本不能删除，您可以创建新账本并设置为默认">
+            <Popconfirm
+              title="确定要删除该账本吗？"
+              description="删除账本将同时删除其中的所有交易记录。"
+              onConfirm={() => handleDeleteLedger(record.id)}
+              disabled={!isOwner}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Tooltip title={!isOwner ? "只有所有者可以删除账本" : ""}>
                 <Button 
                   type="text" 
                   danger 
                   icon={<DeleteOutlined />} 
-                  disabled
+                  disabled={!isOwner}
                 >
                   删除
                 </Button>
               </Tooltip>
-            ) : (
-              <Popconfirm
-                title="确定要删除该账本吗？"
-                description="删除账本将同时删除其中的所有交易记录。"
-                onConfirm={() => handleDeleteLedger(record.id)}
-                disabled={!isOwner}
-                okText="确定"
-                cancelText="取消"
-              >
-                <Tooltip title={!isOwner ? "只有所有者可以删除账本" : ""}>
-                  <Button 
-                    type="text" 
-                    danger 
-                    icon={<DeleteOutlined />} 
-                    disabled={!isOwner}
-                  >
-                    删除
-                  </Button>
-                </Tooltip>
-              </Popconfirm>
-            )}
+            </Popconfirm>
           </Space>
         );
       },

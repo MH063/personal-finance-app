@@ -38,49 +38,59 @@ export interface LedgerMember {
 export const ledgerService = {
   /**
    * 获取用户的所有账本
+   * 在线优先：在线且已认证时直接请求服务端，覆盖本地并返回服务端数据；离线时返回本地缓存
    */
-  getLedgers: async () => {
-    // 始终尝试先从本地数据库读取
+  /**
+   * 获取用户的所有账本
+   */
+  getLedgers: async (options?: { silent?: boolean }) => {
     const localLedgers = await db.ledgers.toArray();
+    const token = localStorage.getItem('accessToken');
 
-    // 如果在线，静默刷新本地缓存
-    if (offlineSyncService.isOnline()) {
-      api.get<any>('/ledgers').then(response => {
+    if (offlineSyncService.isOnline() && token) {
+      try {
+        console.log('[LedgerService] 在线获取账本列表（服务端优先）');
+        const response = await api.get<any>('/ledgers', options?.silent ? { headers: { 'X-Silent-Loading': 'true', 'X-Silent-Error': 'true' } } : undefined);
         const result = response.data;
         const data = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
           ? result.data 
           : result;
         
         if (data) {
-          // 处理双层嵌套 { ledgers: [] } 或直接是数组 []
           const ledgers = Array.isArray(data) ? data : (data.ledgers || []);
-          db.ledgers.bulkPut(ledgers);
+          await db.ledgers.clear();
+          await db.ledgers.bulkPut(ledgers);
+          return ledgers;
         }
-      }).catch(err => console.warn('后台刷新账本失败', err));
+      } catch (err) {
+        console.warn('[LedgerService] 在线获取账本失败，回退本地数据', err);
+      }
     }
-
     return localLedgers;
   },
 
   /**
    * 获取账本详情
+   * 在线优先：在线时返回服务端详情并同步本地；离线返回本地缓存
    */
   getLedger: async (id: string) => {
     const localLedger = await db.ledgers.get(id);
-    
-    if (offlineSyncService.isOnline()) {
-      api.get<any>(`/ledgers/${id}`).then(response => {
+    const token = localStorage.getItem('accessToken');
+    if (offlineSyncService.isOnline() && token) {
+      try {
+        const response = await api.get<any>(`/ledgers/${id}`);
         const result = response.data;
         const data = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
           ? result.data 
           : result;
-        
         if (data) {
-          db.ledgers.put(data);
+          await db.ledgers.put(data);
+          return data;
         }
-      }).catch(err => console.warn(`后台刷新账本详情失败: ${id}`, err));
+      } catch (err) {
+        console.warn(`[LedgerService] 在线获取账本详情失败，返回本地缓存: ${id}`, err);
+      }
     }
-
     return localLedger;
   },
 

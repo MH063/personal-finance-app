@@ -20,6 +20,7 @@ import { Category } from '../entities/category.entity';
 import { Ledger, LedgerMember, LedgerType } from '../entities/ledger.entity';
 import { TransactionLog, LogAction, EntityType } from '../entities/transaction-log.entity';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
+import { StatisticsService } from '../statistics/statistics.service';
 import {
   CreateTransactionDto,
   UpdateTransactionDto,
@@ -52,6 +53,7 @@ export class TransactionsService {
     @InjectRepository(TransactionLog)
     private readonly logRepository: Repository<TransactionLog>,
     private readonly ledgerGateway: LedgerGateway,
+    private readonly statisticsService: StatisticsService,
   ) {}
 
   /**
@@ -77,6 +79,12 @@ export class TransactionsService {
     return category;
   }
 
+  /**
+   * 解析用于创建交易的账本ID
+   * 优先使用显式传入并校验权限；未传入时：
+   * - 若用户已有账本，使用最早创建的账本作为归属；
+   * - 若用户没有账本，自动创建一个私有账本并加入成员。
+   */
   private async resolveLedgerIdForCreate(userId: string, ledgerId?: string): Promise<string> {
     if (ledgerId) {
       const membership = await this.ledgerMemberRepository.findOne({
@@ -88,11 +96,6 @@ export class TransactionsService {
       return ledgerId;
     }
 
-    const defaultLedger = await this.ledgerRepository.findOne({
-      where: { ownerId: userId, isDefault: true },
-    });
-    if (defaultLedger) return defaultLedger.id;
-
     const ownedLedgers = await this.ledgerRepository.find({
       where: { ownerId: userId },
       order: { createdAt: 'ASC' },
@@ -101,9 +104,6 @@ export class TransactionsService {
     const fallbackLedger = ownedLedgers[0];
 
     if (fallbackLedger) {
-      fallbackLedger.isDefault = true;
-      await this.ledgerRepository.save(fallbackLedger);
-
       const existingMember = await this.ledgerMemberRepository.findOne({
         where: { ledgerId: fallbackLedger.id, userId },
       });
@@ -117,7 +117,7 @@ export class TransactionsService {
         );
       }
 
-      this.logger.warn(`用户 ${userId} 缺失默认账本，已自动修复为: ${fallbackLedger.id}`);
+      this.logger.warn(`用户 ${userId} 未指定账本，已使用最早创建的账本: ${fallbackLedger.id}`);
       return fallbackLedger.id;
     }
 
@@ -126,7 +126,6 @@ export class TransactionsService {
         name: '我的私有账本',
         ownerId: userId,
         type: LedgerType.PRIVATE,
-        isDefault: true,
       }),
     );
 
@@ -138,7 +137,7 @@ export class TransactionsService {
       }),
     );
 
-    this.logger.warn(`用户 ${userId} 缺失默认账本，已自动创建: ${createdLedger.id}`);
+    this.logger.warn(`用户 ${userId} 无账本，已自动创建新账本: ${createdLedger.id}`);
     return createdLedger.id;
   }
 
@@ -177,6 +176,8 @@ export class TransactionsService {
     });
 
     this.logger.log(`交易记录创建成功: ${savedTransaction.id}`);
+    // 失效统计缓存，确保概览实时更新
+    this.invalidateStatistics(userId);
     return this.findOne(userId, savedTransaction.id);
   }
 
@@ -389,6 +390,8 @@ export class TransactionsService {
       userId,
     });
 
+    // 失效统计缓存，确保概览实时更新
+    this.invalidateStatistics(userId);
     return this.findOne(userId, id);
   }
 
@@ -429,6 +432,8 @@ export class TransactionsService {
     });
 
     this.logger.log(`交易记录删除成功: ${id}`);
+    // 失效统计缓存，确保概览实时更新
+    this.invalidateStatistics(userId);
   }
 
   /**
@@ -474,6 +479,8 @@ export class TransactionsService {
       userId,
     });
 
+    // 失效统计缓存，确保概览实时更新
+    this.invalidateStatistics(userId);
     return { deletedCount: result.affected || 0 };
   }
 
@@ -533,6 +540,8 @@ export class TransactionsService {
       userId,
     });
 
+    // 失效统计缓存，确保概览实时更新
+    this.invalidateStatistics(userId);
     return { updatedCount: result.affected || 0 };
   }
 
@@ -607,6 +616,10 @@ export class TransactionsService {
       });
     }
 
+    // 失效统计缓存，确保概览实时更新
+    if (ids.length > 0) {
+      this.invalidateStatistics(userId);
+    }
     if (ids.length > 0) {
       this.logger.log(
         `已更新债务关联交易: userId=${userId}, debtId=${debtId}, count=${ids.length}`,
@@ -684,6 +697,10 @@ export class TransactionsService {
       });
     }
 
+    // 失效统计缓存，确保概览实时更新
+    if (ids.length > 0) {
+      this.invalidateStatistics(userId);
+    }
     if (ids.length > 0) {
       this.logger.log(
         `已更新还款关联交易: userId=${userId}, paymentId=${paymentId}, count=${ids.length}`,
@@ -749,6 +766,8 @@ export class TransactionsService {
 
       // 发送实时更新通知
       this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_DELETED', { ids }, userId);
+      // 失效统计缓存，确保概览实时更新
+      this.invalidateStatistics(userId);
     }
   }
 
@@ -775,5 +794,16 @@ export class TransactionsService {
     const data: Record<string, any> = { ...(transaction as any) };
     delete (data as any).user;
     return data;
+  }
+
+  /**
+   * 失效统计缓存（统一入口）
+   */
+  private invalidateStatistics(userId: string): void {
+    try {
+      this.statisticsService.invalidateUserCache(userId);
+    } catch (e: any) {
+      this.logger.warn(`统计缓存失效调用失败: userId=${userId}, err=${e?.message || e}`);
+    }
   }
 }

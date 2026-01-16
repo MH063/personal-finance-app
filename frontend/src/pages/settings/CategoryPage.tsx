@@ -489,14 +489,37 @@ const CategoryPage: React.FC = () => {
         </Radio.Group>
         
         {deleteOption === 'migrate' && (
-          <div style={{ marginTop: 16, paddingLeft: 24 }}>
-            <div style={{ marginBottom: 8 }}>选择目标分类：</div>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="请选择目标分类"
-              value={migrateTargetId}
-              onChange={setMigrateTargetId}
-            >
+            <div style={{ marginTop: 16, paddingLeft: 24 }}>
+              <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>选择目标分类：</span>
+                <Button 
+                  size="small" 
+                  type="link" 
+                  onClick={() => {
+                    const currentType = categories.find(t => t.id === conflictData?.id)?.type || 'expense';
+                    // 优先找 "其他" 类别的系统分类，如果没有则找任意系统分类，再没有则找第一个非当前分类
+                    const defaultCat = categories.find(c => 
+                      c.type === currentType && 
+                      c.id !== conflictData?.id && 
+                      (c.name.includes('其他') || c.isSystem)
+                    );
+                    if (defaultCat) {
+                      setMigrateTargetId(defaultCat.id);
+                      message.info(`已自动选择: ${defaultCat.name}`);
+                    } else {
+                      message.warning('未找到合适的默认分类，请手动选择');
+                    }
+                  }}
+                >
+                  一键选择默认分类
+                </Button>
+              </div>
+              <Select
+                style={{ width: '100%' }}
+                placeholder="请选择目标分类"
+                value={migrateTargetId}
+                onChange={setMigrateTargetId}
+              >
               {categories
                 .filter(c => c.id !== conflictData?.id && c.type === (categories.find(t => t.id === conflictData?.id)?.type || 'expense'))
                 .map(c => (

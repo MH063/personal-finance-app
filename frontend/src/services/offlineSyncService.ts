@@ -432,6 +432,8 @@ export const offlineSyncService = {
         // 更新时移除 id 和时间戳，ID 已经在 URL 中了
         const updateData = this.cleanPayload(data);
         
+        // 默认账本逻辑已移除，不再进行特殊处理
+        
         // 针对特定实体的特殊处理
         if (entity === 'DEBT') {
           // Debt UPDATE 允许 remainingAmount、status、originalAmount

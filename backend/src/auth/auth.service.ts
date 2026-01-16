@@ -9,7 +9,6 @@ import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, QueryFailedError } from 'typeorm';
 import { User, UserStatus } from '../entities/user.entity';
-import { Ledger, LedgerType, LedgerMember } from '../entities/ledger.entity';
 import {
   RegisterDto,
   LoginDto,
@@ -46,10 +45,6 @@ export class AuthService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(UserSetting)
     private readonly userSettingRepository: Repository<UserSetting>,
-    @InjectRepository(Ledger)
-    private readonly ledgerRepository: Repository<Ledger>,
-    @InjectRepository(LedgerMember)
-    private readonly ledgerMemberRepository: Repository<LedgerMember>,
     private readonly jwtService: JwtService,
   ) {}
 
@@ -84,9 +79,6 @@ export class AuthService {
 
       // 创建默认设置
       await this.createDefaultSettings(user.id);
-
-      // 创建默认私有账本
-      await this.createDefaultLedger(user.id);
 
       const tokens = await this.generateTokens(user);
       return {
@@ -382,27 +374,7 @@ export class AuthService {
     await this.userSettingRepository.save(settings);
   }
 
-  /**
-   * 创建默认私有账本
-   */
-  private async createDefaultLedger(userId: string): Promise<void> {
-    const ledger = this.ledgerRepository.create({
-      name: '我的私有账本',
-      ownerId: userId,
-      type: LedgerType.PRIVATE,
-      isDefault: true,
-    });
-
-    const savedLedger = await this.ledgerRepository.save(ledger);
-
-    const member = this.ledgerMemberRepository.create({
-      ledgerId: savedLedger.id,
-      userId: userId,
-      role: 'owner',
-    });
-
-    await this.ledgerMemberRepository.save(member);
-  }
+  // 默认账本逻辑已移除
 
   /**
    * 清理用户敏感信息

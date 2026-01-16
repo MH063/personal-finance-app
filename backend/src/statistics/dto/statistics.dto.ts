@@ -126,6 +126,7 @@ export interface CategoryBreakdown {
   percentage: number;
   transactionCount: number;
   trend: number;
+  type: TransactionType;
 }
 
 export interface OverviewData {

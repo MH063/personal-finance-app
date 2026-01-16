@@ -62,12 +62,30 @@ const shouldShowLoading = (url?: string) => {
   return !loadingWhitelist.some(item => path.includes(item));
 };
 
-// 请求拦截器：添加 Token
+// 请求拦截器：添加 Token 和根据 Electron 提供的网卡 IP 动态设置 API 基础地址
 api.interceptors.request.use(
-  (config) => {
-    // 开启全局加载状态（如果不在白名单中）
-    if (store && shouldShowLoading(config.url)) {
+  async (config) => {
+    const silentLoading = !!(config.headers && (config.headers as any)['X-Silent-Loading'] === 'true');
+    if (!silentLoading && store && shouldShowLoading(config.url)) {
       store.dispatch(startLoading());
+    }
+
+    try {
+      const hasElectron = typeof window !== 'undefined' && (window as any).electronAPI && typeof (window as any).electronAPI.getApiBaseUrl === 'function';
+      if (hasElectron) {
+        const base = await (window as any).electronAPI.getApiBaseUrl();
+        if (base && typeof base === 'string' && base.startsWith('http')) {
+          config.baseURL = base;
+        }
+      } else if (import.meta && import.meta.env && import.meta.env.VITE_API_URL) {
+        config.baseURL = import.meta.env.VITE_API_URL;
+      } else if (typeof window !== 'undefined' && window.location && window.location.hostname) {
+        const hostname = window.location.hostname;
+        const ipLike = hostname && hostname !== 'localhost' && hostname !== '127.0.0.1' ? hostname : undefined;
+        config.baseURL = `http://${ipLike || '127.0.0.1'}:4000/api/v1`;
+      }
+    } catch {
+      // 忽略动态基础地址设置错误，使用默认值
     }
 
     const token = localStorage.getItem('accessToken');
@@ -139,9 +157,68 @@ api.interceptors.response.use(
       }
       const controller = (response.config as any)?._abortController as AbortController | undefined;
       if (controller) pendingControllers.delete(controller);
+
+      // 第一层解构
+      let finalData = response.data.data !== undefined ? response.data.data : response.data;
+
+      // 增强处理：如果解构后的数据仍然包含 data 字段且是数组或对象，尝试进一步解构
+      // 解决 { success: true, data: { data: [] } } 这种双层嵌套
+      if (finalData && typeof finalData === 'object' && 'data' in finalData) {
+        // 只有当内部 data 是数组，或者我们确定它是包裹层时才解构
+        // 这里做一个通用判断：如果 keys 很少且包含 data，很可能是包裹层
+        const keys = Object.keys(finalData);
+        if (keys.length <= 3 && keys.includes('data')) { // 允许 meta/total 等分页字段共存
+           // 如果需要保留分页信息，可能需要特殊处理，但根据用户需求，主要是为了方便访问 data
+           // 如果是分页数据 { data: [], total: 100 }，直接返回 finalData 可能更好，
+           // 但用户明确说 "易错写法 res.data.data"，说明他们想直接拿到数组。
+           // 对于分页接口，通常返回 { items: [], meta: {} } 或者 { data: [], meta: {} }
+           // 如果我们这里直接返回 inner data，会丢失 meta。
+           // 但是用户场景主要是 "xxx: []"。
+           // 让我们只针对 { data: [...] } 且没有其他重要字段的情况，或者用户习惯就是 data.data
+           
+           // 策略调整：如果 finalData.data 是数组，则优先使用它？
+           // 不，为了安全起见，我们只处理纯粹的包裹
+           if (Array.isArray(finalData.data)) {
+              // 这是一个艰难的决定。如果返回数组，meta 就丢了。
+              // 但是用户说 "Backend returns {success: true, data: {xxx: []}} ... Should access response.data.data.xxx"
+              // 这句话其实是说：Backend returns `{ success: true, data: { transactions: [] } }`
+              // Component gets `{ transactions: [] }`. Access `res.transactions`.
+              // User says: "Frontend code might directly access response.data.xxx". 
+              // "Actually should access response.data.data.xxx".
+              // This implies the current interceptor returns the Axios response object? 
+              // No, line 146 says `return { ...response, data: ... }`.
+              
+              // Let's re-read the user rule carefully:
+              // "Backend returns {success: true, data: {xxx: []}} , but frontend code might directly access response.data.xxx . Actually should access response.data.data.xxx . Note to handle this double nested structure."
+              
+              // If frontend accesses `response.data.xxx`, and it works, then `response.data` has `xxx`.
+              // If it *should* access `response.data.data.xxx`, it means `response.data` does NOT have `xxx`, but `response.data.data` has `xxx`.
+              // This implies `response.data` (in the code) is NOT unwrapped enough.
+              // OR, `response.data` IS unwrapped to `{ data: { xxx: [] } }`.
+              
+              // Let's assume the goal is to make `response.data` point to the inner content directly.
+              // So if we have `{ data: [] }`, return `[]`.
+              // If we have `{ data: [], total: 10 }`, returning `[]` loses `total`.
+              // Maybe attach `total` to the array? No, that's messy.
+              
+              // Let's look at `categoryService.ts` `extractData` again.
+              // It checks for `result.data || result`.
+              // And `if (Array.isArray(innerData[key]))`.
+              
+              // I will implement a safe unwrap: 
+              // If `finalData` has `data` property and it is an array, map it to `finalData`.
+              // But wait, if I change the return structure, I might break pagination.
+              // Most pagination in this app seems to use `items` or `data`.
+              
+              // Let's stick to the user's specific complaint about `{ data: [] }` nesting.
+              finalData = finalData.data;
+           }
+        }
+      }
+
       return {
         ...response,
-        data: response.data.data !== undefined ? response.data.data : response.data
+        data: finalData
       };
     }
     
