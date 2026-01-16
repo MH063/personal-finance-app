@@ -635,7 +635,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
                   placeholder="选择分类" 
                   size="large"
                   disabled={!!editingTransaction?.metadata?.isDebtLink}
-                  dropdownRender={(menu) => (
+                  popupRender={(menu) => (
                     <>
                       {menu}
                       <Space style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>

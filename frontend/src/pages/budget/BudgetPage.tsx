@@ -315,7 +315,7 @@ const BudgetPage: React.FC = () => {
             <Select 
               placeholder="选择预算适用的支出分类" 
               disabled={!!editingBudget}
-              dropdownRender={(menu) => (
+              popupRender={(menu) => (
                 <>
                   {menu}
                   <Space style={{ padding: '8px', borderTop: '1px solid #f0f0f0' }}>
