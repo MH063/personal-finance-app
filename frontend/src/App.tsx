@@ -10,6 +10,7 @@ import { offlineSyncService } from './services/offlineSyncService';
 import LoginPage from '@pages/LoginPage';
 import RegisterPage from '@pages/RegisterPage';
 const DashboardPage = lazy(() => import('@pages/dashboard/DashboardPage'));
+const TransactionsPage = lazy(() => import('@pages/transactions/TransactionsPage'));
 
 // 优化点：对统计页、备份页等启用懒加载
 const IncomePage = lazy(() => import('@pages/income/IncomePage'));
@@ -77,6 +78,7 @@ const App: React.FC = () => {
           }
         >
           <Route index element={<DashboardPage />} />
+          <Route path="transactions" element={<TransactionsPage />} />
           <Route path="income" element={<IncomePage />} />
           <Route path="expense" element={<ExpensePage />} />
           <Route path="debt" element={<DebtPage />} />

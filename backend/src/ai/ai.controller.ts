@@ -1,7 +1,8 @@
-import { Controller, Get, Query, UseGuards, Post, Request, HttpCode } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards, Post, Request, HttpCode, Body } from '@nestjs/common';
 import { AiService } from './ai.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { BatchPredictDto } from './dto/ai.dto';
 
 @ApiTags('智能分析')
 @ApiBearerAuth()
@@ -15,6 +16,14 @@ export class AiController {
   async predictCategory(@Query('description') description: string) {
     const categoryId = await this.aiService.predictCategory(description);
     return { categoryId };
+  }
+
+  @ApiOperation({ summary: '批量预测交易分类' })
+  @Post('batch-predict-category')
+  @HttpCode(200)
+  async batchPredictCategory(@Body() dto: BatchPredictDto) {
+    const categoryIds = await this.aiService.batchPredictCategory(dto.descriptions);
+    return { categoryIds };
   }
 
   @ApiOperation({ summary: '获取智能财务健康分析' })

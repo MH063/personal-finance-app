@@ -10,7 +10,10 @@ const statisticsService = {
       console.log('[StatisticsService] 未认证，跳过概览请求');
       return {};
     }
-    const response = await api.get<any>('/statistics/overview', { params });
+    const response = await api.get<any>('/statistics/overview', { 
+      params, 
+      headers: params?.silent ? { 'X-Silent-Loading': 'true' } : undefined 
+    });
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段
     return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
@@ -27,7 +30,10 @@ const statisticsService = {
       console.log('[StatisticsService] 未认证，跳过趋势请求');
       return {};
     }
-    const response = await api.get<any>('/statistics/overview', { params });
+    const response = await api.get<any>('/statistics/overview', { 
+      params, 
+      headers: params?.silent ? { 'X-Silent-Loading': 'true' } : undefined 
+    });
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段
     return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
@@ -44,7 +50,10 @@ const statisticsService = {
       console.log('[StatisticsService] 未认证，跳过分类统计请求');
       return {};
     }
-    const response = await api.get<any>('/statistics/overview', { params });
+    const response = await api.get<any>('/statistics/overview', { 
+      params, 
+      headers: params?.silent ? { 'X-Silent-Loading': 'true' } : undefined 
+    });
     const result = response.data;
     // 根据 Rule 5: 优先获取嵌套的 data 字段
     return (result && typeof result === 'object' && 'success' in result && 'data' in result) 

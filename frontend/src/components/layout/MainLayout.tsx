@@ -87,8 +87,16 @@ const MainLayout = () => {
     };
 
     // 仅记录日志，状态由 offlineSyncService 驱动
-    const handleUpdate = () => {
-      console.log('[MainLayout] Received data update notification');
+    const handleUpdate = (data: any) => {
+      console.log('[MainLayout] Received data update notification', data);
+      if (data?.type === 'NEW_NOTIFICATION') {
+        dispatch(fetchNotifications({ limit: 5 }));
+        
+        // 显示桌面通知（如果支持）
+        if (data?.data?.title && data?.data?.content && window.electronAPI?.showNotification) {
+           window.electronAPI.showNotification(data.data.title, data.data.content);
+        }
+      }
     };
 
     collaborativeService.on('connect', handleConnect);
@@ -118,7 +126,7 @@ const MainLayout = () => {
       collaborativeService.off('settingsUpdate', handleUpdate);
       offlineSyncService.off(handleSyncEvent);
     };
-  }, []);
+  }, [dispatch]);
 
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
@@ -356,6 +364,7 @@ const MainLayout = () => {
 
   const coreItems = [
     { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
+    { key: '/transactions', icon: <AccountBookOutlined />, label: '交易管理' },
     { key: '/income', icon: <RiseOutlined />, label: '收入管理' },
     { key: '/expense', icon: <FallOutlined />, label: '支出管理' },
     { key: '/debt', icon: <AccountBookOutlined />, label: '债务管理' },

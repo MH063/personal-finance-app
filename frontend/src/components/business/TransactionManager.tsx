@@ -1,16 +1,18 @@
 import React, { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useMemo } from 'react';
-import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App as AntdApp, Row, Col, Popconfirm, Alert } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icons';
+ import { Table, Card, Button, Space, Tag, Modal, Form, Input, InputNumber, Select, DatePicker, App as AntdApp, Row, Col, Popconfirm, Alert } from 'antd';
+ import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined, ImportOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
 import { fetchTransactions, createTransaction, updateTransaction, deleteTransaction, batchDeleteTransactions } from '../../store/slices/transactionSlice';
+import { fetchOverview } from '../../store/slices/statisticsSlice';
 import { fetchCategories } from '../../store/slices/categorySlice';
 import { fetchLedgers } from '../../store/slices/ledgerSlice';
 import { aiService } from '../../services/aiService';
 import { collaborativeService } from '../../services/collaborativeService';
 import type { Transaction } from '../../services/transactionService';
+ import ImportTransactionsModal from './ImportTransactionsModal';
 import './TransactionManager.css';
 
 const { Option } = Select;
@@ -32,6 +34,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [filterLoading, setFilterLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
+  const [importModalVisible, setImportModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [predicting, setPredicting] = useState(false);
   const [filters, setFilters] = useState({ categoryId: '', ledgerId: '', startDate: '', endDate: '' });
@@ -480,16 +483,25 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
               </Button>
             )}
             {showHeader && (
-              <Button 
-                type="primary" 
-                icon={<PlusOutlined />} 
-                onClick={handleAdd}
-                className="add-button"
-                size="large"
-                style={{ backgroundColor: themeColor, borderColor: themeColor }}
-              >
-                添加新记录
-              </Button>
+              <>
+                <Button 
+                  icon={<ImportOutlined />} 
+                  onClick={() => setImportModalVisible(true)}
+                  size="large"
+                >
+                  导入
+                </Button>
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  onClick={handleAdd}
+                  className="add-button"
+                  size="large"
+                  style={{ backgroundColor: themeColor, borderColor: themeColor }}
+                >
+                  添加新记录
+                </Button>
+              </>
             )}
           </Space>
         ) : null}
@@ -729,6 +741,15 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         </Form>
       </Modal>
 
+      <ImportTransactionsModal
+        visible={importModalVisible}
+        onCancel={() => setImportModalVisible(false)}
+        onSuccess={() => {
+          setImportModalVisible(false);
+          dispatch(fetchTransactions({ type, ...filters, silent: true }) as any);
+          dispatch(fetchOverview({ timeRange: 'month', silent: true }) as any);
+        }}
+      />
     </div>
   );
 });

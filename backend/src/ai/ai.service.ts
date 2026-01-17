@@ -151,6 +151,22 @@ export class AiService implements OnModuleInit {
   }
 
   /**
+   * 批量预测分类
+   */
+  async batchPredictCategory(descriptions: string[]): Promise<(string | null)[]> {
+    if (!this.classifier || descriptions.length === 0) return descriptions.map(() => null);
+    
+    return descriptions.map(desc => {
+      try {
+        if (!desc) return null;
+        return this.classifier.classify(desc);
+      } catch (error) {
+        return null;
+      }
+    });
+  }
+
+  /**
    * 综合财务健康度分析
    * 结合收支比、债务比、储蓄率
    */

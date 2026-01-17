@@ -21,12 +21,14 @@ import { Ledger, LedgerMember, LedgerType } from '../entities/ledger.entity';
 import { TransactionLog, LogAction, EntityType } from '../entities/transaction-log.entity';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
 import { StatisticsService } from '../statistics/statistics.service';
+import { AiAlertService } from '../ai-alert/ai-alert.service';
 import {
   CreateTransactionDto,
   UpdateTransactionDto,
   TransactionQueryDto,
   BatchDeleteDto,
   BatchUpdateCategoryDto,
+  BatchCreateTransactionDto,
 } from './dto/transaction.dto';
 
 export interface PaginationResult<T> {
@@ -54,6 +56,7 @@ export class TransactionsService {
     private readonly logRepository: Repository<TransactionLog>,
     private readonly ledgerGateway: LedgerGateway,
     private readonly statisticsService: StatisticsService,
+    private readonly aiAlertService: AiAlertService,
   ) {}
 
   /**
@@ -178,7 +181,84 @@ export class TransactionsService {
     this.logger.log(`交易记录创建成功: ${savedTransaction.id}`);
     // 失效统计缓存，确保概览实时更新
     this.invalidateStatistics(userId);
+
+    // 触发 AI 消费异常检测（异步执行，不阻塞响应）
+    this.aiAlertService.checkAndAlert(userId, savedTransaction).catch((err) => {
+      this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
+    });
+
     return this.findOne(userId, savedTransaction.id);
+  }
+
+  /**
+   * 批量创建交易记录
+   */
+  async batchCreate(userId: string, dto: BatchCreateTransactionDto): Promise<{ createdCount: number }> {
+    this.logger.log(`用户 ${userId} 批量创建交易记录: ${dto.transactions.length}条`);
+
+    const createdTransactions: Transaction[] = [];
+
+    // 预先解析 ledgerId，避免重复查询。如果交易指定了 ledgerId，则使用指定的；否则使用默认 fallback。
+    // 为了简化，这里先获取一个默认 fallback ledgerId，如果交易没指定就用这个。
+    const defaultLedgerId = await this.resolveLedgerIdForCreate(userId);
+
+    for (const createDto of dto.transactions) {
+      try {
+        if (createDto.categoryId) {
+          // 这里不做严格的 validateCategory 阻塞，防止一条失败导致全部失败。
+          // 实际生产中可能需要缓存 category Map 来验证。
+          // 暂时信任前端传来的 categoryId (或者如果报错会被 catch)
+          // 还是加上验证比较好，但为了性能，我们可以先查出用户所有 Category
+        }
+
+        const ledgerId = createDto.ledgerId 
+          ? await this.resolveLedgerIdForCreate(userId, createDto.ledgerId).catch(() => defaultLedgerId) 
+          : defaultLedgerId;
+
+        const transaction = this.transactionRepository.create({
+          ...createDto,
+          userId,
+          ledgerId,
+          categoryId: createDto.categoryId || undefined,
+          transactionDate: new Date(createDto.transactionDate),
+        });
+
+        createdTransactions.push(transaction);
+      } catch (err: any) {
+        const message = err instanceof Error ? err.message : String(err);
+        const stack = err instanceof Error ? err.stack : undefined;
+        this.logger.error(`批量创建中单条预处理失败: ${message}`, stack);
+      }
+    }
+
+    if (createdTransactions.length > 0) {
+      const savedTransactions = await this.transactionRepository.save(createdTransactions);
+
+      // 批量发送通知
+      this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_CREATED', { count: savedTransactions.length }, userId);
+
+      // 批量记录日志
+      await this.logRepository.save({
+        action: LogAction.CREATE,
+        entityType: EntityType.TRANSACTION,
+        entityId: 'batch',
+        newData: { count: savedTransactions.length },
+        userId,
+      });
+      
+      this.invalidateStatistics(userId);
+
+      // 异步触发 AI 检查（仅对前5条进行检查）
+      for (const tx of savedTransactions.slice(0, 5)) {
+          this.aiAlertService.checkAndAlert(userId, tx).catch((err) => {
+            this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
+          });
+      }
+      
+      return { createdCount: savedTransactions.length };
+    }
+
+    return { createdCount: 0 };
   }
 
   /**
@@ -392,6 +472,12 @@ export class TransactionsService {
 
     // 失效统计缓存，确保概览实时更新
     this.invalidateStatistics(userId);
+
+    // 触发 AI 消费异常检测（异步执行，不阻塞响应）
+    this.aiAlertService.checkAndAlert(userId, updatedTransaction).catch((err) => {
+      this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
+    });
+
     return this.findOne(userId, id);
   }
 

@@ -9,6 +9,8 @@ import {
   Max,
   MaxLength,
   IsObject,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -201,6 +203,14 @@ export class BatchUpdateCategoryDto {
   @ApiProperty({ description: '新的分类ID' })
   @IsUUID()
   categoryId: string;
+}
+
+export class BatchCreateTransactionDto {
+  @ApiProperty({ description: '交易列表', type: [CreateTransactionDto] })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateTransactionDto)
+  transactions: CreateTransactionDto[];
 }
 
 export class ImportTransactionsDto {

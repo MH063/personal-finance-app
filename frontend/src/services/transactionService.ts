@@ -49,6 +49,7 @@ export interface TransactionQuery {
   ledgerId?: string;
   minAmount?: number;
   maxAmount?: number;
+  silent?: boolean;
 }
 
 export const transactionService = {
@@ -93,7 +94,10 @@ export const transactionService = {
     // 如果在线，静默刷新本地缓存
     if (offlineSyncService.isOnline()) {
       const fetchRemoteAndUpsert = async () => {
-        const response = await api.get<any>('/transactions', { params: query });
+        const response = await api.get<any>('/transactions', { 
+          params: query, 
+          headers: query.silent ? { 'X-Silent-Loading': 'true' } : undefined 
+        });
         const payload = response.data;
         const txData = extractTxArray(payload);
         if (txData.length > 0) {
@@ -140,33 +144,61 @@ export const transactionService = {
     if (data.categoryId) {
       category = await db.categories.get(data.categoryId);
     }
-
-    const newTransaction = {
-      ...data,
+    
+    const newTx: Transaction = {
       id,
-      category, // 回填分类信息
+      amount: Number(data.amount),
+      type: data.type || 'expense',
+      description: data.description || '',
+      paymentMethod: data.paymentMethod || 'other',
+      merchant: data.merchant || '',
+      transactionDate: data.transactionDate || new Date().toISOString(),
+      categoryId: data.categoryId || '',
+      ledgerId: data.ledgerId,
+      category,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-    } as Transaction;
+      version: 1
+    };
 
-    // 1. 保存到本地数据库
-    await db.transactions.add(newTransaction);
+    // 乐观更新
+    await db.transactions.add(newTx);
 
-    // 2. 添加到同步队列
-    await db.syncQueue.add({
-      action: 'CREATE',
-      entity: 'TRANSACTION',
-      entityId: id,
-      data: newTransaction,
-      timestamp: Date.now(),
+    // 后台同步
+    api.post('/transactions', data).then(async (res) => {
+      // 更新为服务器返回的真实数据
+      await db.transactions.put(res.data);
+    }).catch(err => {
+      console.error('[TransactionService] 创建交易失败，加入离线队列', err);
+      offlineSyncService.addToQueue({
+        type: 'CREATE_TRANSACTION',
+        payload: data,
+        id: id
+      });
     });
 
-    // 3. 如果在线，触发同步
-    if (offlineSyncService.isOnline()) {
-        await offlineSyncService.syncPendingChanges().catch(() => {});
-      }
+    return newTx;
+  },
 
-    return newTransaction;
+  batchCreateTransactions: async (
+    transactions: Partial<Transaction>[],
+    options: { silent?: boolean } = { silent: true }
+  ) => {
+    // 乐观更新（可选，因为批量数据量大，可能导致卡顿，这里选择直接走 API，成功后再更新本地）
+    // 或者先走 API，返回成功后再批量写入本地 DB
+    try {
+      const response = await api.post(
+        '/transactions/batch-create',
+        { transactions },
+        options.silent ? { headers: { 'X-Silent-Loading': 'true' } } : undefined
+      );
+      // 触发一次全量或增量拉取，或者手动将返回的 transaction 存入本地
+      // 简单起见，强制刷新列表
+      return response.data;
+    } catch (error) {
+      console.error('Batch create failed', error);
+      throw error;
+    }
   },
 
   updateTransaction: async (id: string, data: Partial<Transaction>) => {

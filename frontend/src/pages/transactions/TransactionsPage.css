@@ -1,0 +1,7 @@
+ .transactions-card .ant-card-head-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+ .transactions-card .ant-tabs {
+  margin-top: -8px;
+}

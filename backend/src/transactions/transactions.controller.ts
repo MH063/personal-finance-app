@@ -31,6 +31,7 @@ import {
   TransactionQueryDto,
   BatchDeleteDto,
   BatchUpdateCategoryDto,
+  BatchCreateTransactionDto,
 } from './dto/transaction.dto';
 import { Transaction } from '../entities/transaction.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -49,6 +50,13 @@ export class TransactionsController {
   @ApiResponse({ status: 201, description: '创建成功' })
   async create(@Request() req: any, @Body() createDto: CreateTransactionDto) {
     return this.transactionsService.create(req.user.id, createDto);
+  }
+
+  @Post('batch-create')
+  @ApiOperation({ summary: '批量创建交易记录' })
+  @ApiResponse({ status: 200, description: '批量创建成功' })
+  async batchCreate(@Request() req: any, @Body() dto: BatchCreateTransactionDto) {
+    return this.transactionsService.batchCreate(req.user.id, dto);
   }
 
   @Get()
