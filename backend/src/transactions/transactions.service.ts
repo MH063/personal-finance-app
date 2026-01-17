@@ -14,6 +14,7 @@ import {
   OptimisticLockVersionMismatchError,
   Raw,
   FindOptionsWhere,
+  ArrayContains,
 } from 'typeorm';
 import { Transaction, TransactionType, PaymentMethod } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
@@ -281,6 +282,10 @@ export class TransactionsService {
       paymentMethod,
       sortBy = 'transactionDate',
       sortOrder = 'desc',
+      tag,
+      reconciled,
+      isAdjustment,
+      isTransfer,
     } = query;
 
     const where: FindOptionsWhere<Transaction> = {};
@@ -326,6 +331,22 @@ export class TransactionsService {
 
     if (paymentMethod) {
       where.paymentMethod = paymentMethod;
+    }
+
+    if (tag) {
+      where.tags = ArrayContains([tag]);
+    }
+
+    if (reconciled !== undefined) {
+      where.reconciled = reconciled;
+    }
+
+    if (isAdjustment !== undefined) {
+      where.isAdjustment = isAdjustment;
+    }
+
+    if (isTransfer !== undefined) {
+      where.isTransfer = isTransfer;
     }
 
     if (minAmount !== undefined && maxAmount !== undefined) {

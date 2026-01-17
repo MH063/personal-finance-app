@@ -1,7 +1,278 @@
- .transactions-card .ant-card-head-title {
-  font-size: 18px;
-  font-weight: 600;
+.audit-workbench {
+  padding: 24px;
+  background-color: transparent;
+  min-height: 100vh;
 }
- .transactions-card .ant-tabs {
-  margin-top: -8px;
+
+.workbench-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  background: var(--color-bg-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-glass-border);
+  padding: 16px 24px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.view-switcher {
+  display: flex;
+  background: transparent;
+  border: 1px solid var(--color-glass-border);
+  padding: 6px;
+  border-radius: 999px;
+  gap: 6px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-glass);
+}
+
+.view-option {
+  padding: 6px 16px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.65);
+  cursor: pointer;
+  border-radius: 999px;
+  transition: all 0.2s;
+  position: relative;
+  line-height: 22px;
+}
+
+.view-option:hover {
+  color: var(--primary-300);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.view-option.active {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--primary-400);
+  font-weight: 600;
+  border: 1px solid var(--primary-500);
+  box-shadow: var(--shadow-md);
+}
+
+.workbench-content {
+  background: var(--color-bg-glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-glass-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+/* Header actions button group: glass + pill style */
+.workbench-header .header-right .ant-btn {
+  height: 36px !important;
+  border-radius: 999px !important;
+  background: var(--color-bg-glass) !important;
+  border: 1px solid var(--color-glass-border) !important;
+  color: white !important;
+  box-shadow: none !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.workbench-header .header-right .ant-btn:hover {
+  background: var(--color-bg-glass-heavy) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.workbench-header .header-right .ant-btn-primary {
+  height: 36px !important;
+  border-radius: 999px !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+/* Table Styles */
+.audit-table .ant-pro-table-search {
+  padding: 24px 24px 0;
+  margin-bottom: 0;
+  background: transparent !important;
+}
+
+.audit-table .ant-form-item-control-input,
+.audit-table .ant-form-item-control-input-content {
+  display: flex;
+  align-items: center;
+}
+
+.audit-table .ant-input-affix-wrapper,
+.audit-table .ant-select-selector,
+.audit-table .ant-picker,
+.audit-table .ant-input-number {
+  background: transparent !important;
+  border: 1px solid var(--color-glass-border) !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  height: 36px !important;
+}
+
+.audit-table .ant-input,
+.audit-table .ant-picker-input > input {
+  padding: 0 14px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.audit-table .ant-select-selector {
+  padding: 0 12px !important;
+}
+
+.audit-table .ant-select-selection-item,
+.audit-table .ant-select-selection-placeholder {
+  line-height: 34px !important;
+}
+
+.audit-table .ant-input:hover,
+.audit-table .ant-select-selector:hover,
+.audit-table .ant-picker:hover,
+.audit-table .ant-input-number:hover {
+  border-color: var(--modal-ui-hover-border) !important;
+}
+
+.audit-table .ant-input:focus,
+.audit-table .ant-input-affix-wrapper-focused,
+.audit-table .ant-select-focused .ant-select-selector,
+.audit-table .ant-picker-focused,
+.audit-table .ant-input-number-focused {
+  border-color: var(--modal-ui-hover-border) !important;
+  box-shadow: none !important;
+}
+
+.audit-table .ant-input-prefix,
+.audit-table .ant-input-suffix,
+.audit-table .ant-picker-suffix {
+  color: rgba(255, 255, 255, 0.45) !important;
+}
+
+.audit-table .ant-card,
+.audit-table .ant-card-body {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.audit-table .ant-table {
+  background: transparent !important;
+}
+
+.audit-table .ant-table-container {
+  background: transparent !important;
+  border-color: var(--color-glass-border) !important;
+}
+
+.audit-table .ant-table-content,
+.audit-table .ant-table-wrapper,
+.audit-table .ant-spin-nested-loading,
+.audit-table .ant-spin-container {
+  background: transparent !important;
+}
+
+.audit-table .ant-table-thead > tr > th {
+  background: transparent !important;
+  border-color: var(--color-glass-border) !important;
+}
+
+.status-indicator {
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.3s;
+  display: flex;
+  justify-content: center;
+}
+
+.audit-table .ant-table-tbody > tr > td {
+  background: transparent !important;
+  border-color: var(--color-glass-border) !important;
+}
+
+.audit-table .ant-table-header,
+.audit-table .ant-table-body {
+  background: transparent !important;
+}
+
+.status-indicator.pending {
+  color: #d1d5db;
+}
+
+.status-indicator.pending:hover {
+  color: #f59e0b;
+}
+
+.status-indicator.reconciled {
+  color: #10b981;
+}
+
+.audit-table .ant-table-placeholder {
+  background: transparent !important;
+}
+
+.amount-cell {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+}
+
+.amount-cell.income {
+  color: #059669;
+}
+
+.amount-cell.expense {
+  color: #374151;
+}
+
+.merchant-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.merchant-name {
+  font-weight: 500;
+  color: #111827;
+}
+
+.description-text {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* Ant Design Overrides for Dense/Professional Look */
+.audit-table .ant-table-thead > tr > th {
+  background: transparent !important;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+.audit-table .ant-table-tbody > tr > td {
+  padding: 8px 16px !important; /* Dense padding */
+}
+
+.audit-table .ant-table-tbody > tr:hover > td {
+  background: var(--color-bg-glass) !important;
 }

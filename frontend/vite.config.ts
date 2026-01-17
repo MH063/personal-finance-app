@@ -70,6 +70,7 @@ export default defineConfig({
     })
   ],
   resolve: {
+    dedupe: ['react', 'react-dom', 'react-router-dom'],
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@components': path.resolve(__dirname, './src/components'),

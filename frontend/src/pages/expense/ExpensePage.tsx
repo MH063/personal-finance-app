@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+ import { useEffect, useRef, useState } from 'react';
+ import type { FC } from 'react';
 import { Typography, Button, Row, Col, Card, Statistic, Progress } from 'antd';
 import { PlusOutlined, ArrowDownOutlined, NumberOutlined, WalletOutlined, PercentageOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
@@ -14,7 +15,7 @@ const { Title, Text } = Typography;
 /**
  * 支出管理页面
  */
-const ExpensePage: React.FC = () => {
+ const ExpensePage: FC = () => {
   const transactionManagerRef = useRef<any>(null);
   const dispatch = useDispatch();
   const { overview } = useSelector((state: RootState) => state.statistics);

@@ -829,8 +829,8 @@ const BackupPage: React.FC = () => {
         destroyOnHidden
         className="custom-modal"
         centered
-        maskClosable={true}
-        keyboard={true}
+        maskClosable={false}
+        keyboard={false}
       >
         <Form form={form} layout="vertical" onFinish={handleCreateBackup} initialValues={{ backupType: 'full', encrypt: true }}>
           <Form.Item name="backupType" label="备份类型" rules={[{ required: true }]}>
@@ -862,8 +862,8 @@ const BackupPage: React.FC = () => {
         destroyOnHidden
         className="custom-modal"
         centered
-        maskClosable={true}
-        keyboard={true}
+        maskClosable={false}
+        keyboard={false}
       >
         <div className="restore-warning">
           <Text type="warning" strong>⚠️ 警告：</Text>

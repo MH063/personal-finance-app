@@ -62,6 +62,29 @@ export class CreateTransactionDto {
   @IsUUID()
   @IsOptional()
   ledgerId?: string;
+
+  @ApiPropertyOptional({ description: '标签列表', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[];
+
+  @ApiPropertyOptional({ description: '是否已核对' })
+  @IsOptional()
+  reconciled?: boolean;
+
+  @ApiPropertyOptional({ description: '是否为余额调整' })
+  @IsOptional()
+  isAdjustment?: boolean;
+
+  @ApiPropertyOptional({ description: '是否为转账' })
+  @IsOptional()
+  isTransfer?: boolean;
+
+  @ApiPropertyOptional({ description: '目标账本ID（仅转账时有效）' })
+  @IsUUID()
+  @IsOptional()
+  toLedgerId?: string;
 }
 
 export class UpdateTransactionDto {
@@ -114,6 +137,29 @@ export class UpdateTransactionDto {
   @IsOptional()
   metadata?: Record<string, any>;
 
+  @ApiPropertyOptional({ description: '标签列表', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[];
+
+  @ApiPropertyOptional({ description: '是否已核对' })
+  @IsOptional()
+  reconciled?: boolean;
+
+  @ApiPropertyOptional({ description: '是否为余额调整' })
+  @IsOptional()
+  isAdjustment?: boolean;
+
+  @ApiPropertyOptional({ description: '是否为转账' })
+  @IsOptional()
+  isTransfer?: boolean;
+
+  @ApiPropertyOptional({ description: '目标账本ID（仅转账时有效）' })
+  @IsUUID()
+  @IsOptional()
+  toLedgerId?: string;
+
   @ApiPropertyOptional({ description: '版本号' })
   @IsNumber()
   @IsOptional()
@@ -151,10 +197,32 @@ export class TransactionQueryDto {
   @IsOptional()
   type?: TransactionType;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: '分类ID' })
   @IsUUID()
   @IsOptional()
   categoryId?: string;
+
+  @ApiPropertyOptional({ description: '账本ID' })
+  @IsUUID()
+  @IsOptional()
+  ledgerId?: string;
+
+  @ApiPropertyOptional({ description: '标签包含' })
+  @IsString()
+  @IsOptional()
+  tag?: string;
+
+  @ApiPropertyOptional({ description: '是否已核对' })
+  @IsOptional()
+  reconciled?: boolean;
+
+  @ApiPropertyOptional({ description: '是否为余额调整' })
+  @IsOptional()
+  isAdjustment?: boolean;
+
+  @ApiPropertyOptional({ description: '是否为转账' })
+  @IsOptional()
+  isTransfer?: boolean;
 
   @ApiPropertyOptional({ description: '最小金额' })
   @Type(() => Number)
@@ -172,11 +240,6 @@ export class TransactionQueryDto {
   @IsEnum(PaymentMethod)
   @IsOptional()
   paymentMethod?: PaymentMethod;
-
-  @ApiPropertyOptional({ description: '账本ID' })
-  @IsUUID()
-  @IsOptional()
-  ledgerId?: string;
 
   @ApiPropertyOptional({ description: '排序字段', default: 'transactionDate' })
   @IsString()

@@ -31,6 +31,7 @@ import { useSafeBackground } from '../../hooks/useSafeBackground';
 import { collaborativeService } from '../../services/collaborativeService';
 import { cancelPendingRequests, silenceAuthErrors } from '../../services/api';
 import { offlineSyncService, SyncListener } from '../../services/offlineSyncService';
+import { resetLoading } from '../../store/slices/appSlice';
 import WindowControls from './WindowControls';
 import SyncMonitor from './SyncMonitor';
 import './MainLayout.css';
@@ -55,6 +56,30 @@ const MainLayout = () => {
 
   const [syncStatus, setSyncStatus] = useState<'connected' | 'disconnected' | 'syncing'>('disconnected');
   const [syncMonitorVisible, setSyncMonitorVisible] = useState(false);
+
+  /**
+   * 路由切换清理操作
+   * 关闭所有未关闭的 Modal 并重置全局加载状态，避免遮罩层或 Spin 残留导致页面交互“锁定”
+   */
+  const routeCleanup = React.useCallback(() => {
+    try {
+      console.log('[MainLayout] 路由切换，执行清理：关闭弹窗并重置加载状态', location.pathname);
+      Modal.destroyAll();
+      dispatch(resetLoading());
+    } catch (e) {
+      console.warn('[MainLayout] 路由切换清理异常', e);
+    }
+  }, [dispatch, location.pathname]);
+
+  useEffect(() => {
+    routeCleanup();
+    // 取消上一页面的未完成请求，避免残留 loading
+    try {
+      cancelPendingRequests('Route change');
+    } catch (e) {
+      console.warn('[MainLayout] 取消未完成请求异常', e);
+    }
+  }, [routeCleanup]);
 
   useEffect(() => {
     // 初始化实时协作

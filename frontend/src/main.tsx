@@ -1,3 +1,6 @@
+import dayjs from 'dayjs';
+import 'dayjs/locale/zh-cn';
+import localeData from 'dayjs/plugin/localeData';
 import ReactDOM from 'react-dom/client';
 import { HashRouter } from 'react-router-dom';
 import { Provider } from 'react-redux';
@@ -8,6 +11,10 @@ import './assets/styles/index.css';
 import './assets/styles/variable-fonts.css';
 import { AppProviders } from './AppProviders';
 import { registerSW } from 'virtual:pwa-register';
+
+dayjs.extend(localeData);
+dayjs.locale('zh-cn');
+console.log('已启用中文日期本地化');
 
 // 注册 PWA Service Worker
 const updateSW = registerSW({

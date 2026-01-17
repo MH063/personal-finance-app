@@ -303,8 +303,8 @@ const BudgetPage: React.FC = () => {
         destroyOnHidden
         className="custom-modal"
         centered
-        maskClosable={true}
-        keyboard={true}
+        maskClosable={false}
+        keyboard={false}
       >
         <Form form={form} layout="vertical" initialValues={{ status: BudgetStatus.ACTIVE }}>
           <Form.Item

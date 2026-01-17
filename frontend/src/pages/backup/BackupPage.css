@@ -105,11 +105,11 @@
 
 /* 原始搜索框样式 - 彻底去装饰 */
 .raw-search-input {
-  border-radius: 4px 0 0 4px !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important; /* 使用统一的浅色边框 */
-  background: rgba(255, 255, 255, 0.05) !important; /* 稍微透一点底色，避免纯白突兀 */
+  border-radius: 999px 0 0 999px !important;
+  border: 1px solid var(--color-glass-border) !important;
+  background: transparent !important;
   color: white !important;
-  height: 32px !important;
+  height: 36px !important;
   box-shadow: none !important; /* 彻底移除内阴影/投影 */
 }
 
@@ -118,9 +118,9 @@
 .raw-search-input.ant-input-affix-wrapper:hover,
 .raw-search-input.ant-input-affix-wrapper:focus,
 .raw-search-input.ant-input-affix-wrapper-focused {
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border: 1px solid var(--color-glass-border) !important;
   box-shadow: none !important;
-  background: rgba(255, 255, 255, 0.05) !important;
+  background: transparent !important;
   padding: 0 !important; /* 移除容器内边距，让内部 input 填满 */
   display: flex !important;
   align-items: center !important;
@@ -131,7 +131,7 @@
   border: none !important; /* 移除内层 Input 的边框 */
   color: white !important;
   box-shadow: none !important;
-  height: 32px !important; /* 与外层高度一致 */
+  height: 36px !important; /* 与外层高度一致 */
   padding: 0 12px !important; /* 给予充足的左右边距 */
   font-size: 14px !important;
   flex: 1 !important; /* 填满剩余空间 */
@@ -148,22 +148,26 @@
 }
 
 .raw-search-btn {
-  border-radius: 0 4px 4px 0 !important;
-  height: 32px !important;
+  border-radius: 0 999px 999px 0 !important;
+  height: 36px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   padding: 0 15px !important;
-  border: 1px solid var(--primary-500) !important;
+  border: 1px solid var(--color-glass-border) !important;
   border-left: none !important; /* 与输入框无缝衔接 */
   box-shadow: none !important;
+  background: transparent !important;
+  color: white !important;
 }
 
 .filter-select .ant-select-selector {
-  background: rgba(0, 0, 0, 0.2) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: transparent !important;
+  border-color: var(--color-glass-border) !important;
   color: white !important;
-  border-radius: 8px !important;
+  border-radius: 999px !important;
+  height: 36px !important;
+  box-shadow: none !important;
 }
 
 .record-count {

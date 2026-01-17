@@ -316,8 +316,8 @@ const LedgerPage: React.FC = () => {
         destroyOnHidden
         className="custom-modal"
         centered
-        maskClosable={true}
-        keyboard={true}
+        maskClosable={false}
+        keyboard={false}
       >
         <Form form={form} layout="vertical" onFinish={handleModalSubmit}>
           <Form.Item name="name" label="账本名称" rules={[{ required: true, message: '请输入账本名称' }]}>
@@ -345,8 +345,8 @@ const LedgerPage: React.FC = () => {
         destroyOnHidden
         className="custom-modal"
         centered
-        maskClosable={true}
-        keyboard={true}
+        maskClosable={false}
+        keyboard={false}
       >
         <div className="member-management">
           {canManageMembers && (

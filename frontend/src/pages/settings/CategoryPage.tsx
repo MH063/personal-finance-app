@@ -405,8 +405,8 @@ const CategoryPage: React.FC = () => {
         destroyOnHidden
         className="custom-modal"
         centered
-        maskClosable={true}
-        keyboard={true}
+        maskClosable={false}
+        keyboard={false}
       >
         <Form form={form} layout="vertical" onFinish={handleModalSubmit}>
           <Form.Item 
@@ -460,6 +460,8 @@ const CategoryPage: React.FC = () => {
         okText="确认删除"
         cancelText="取消"
         okButtonProps={{ danger: true }}
+        maskClosable={false}
+        keyboard={false}
       >
         <Alert
           message="存在关联数据"

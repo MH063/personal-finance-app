@@ -16,6 +16,7 @@ import { Ledger } from './ledger.entity';
 export enum TransactionType {
   INCOME = 'income',
   EXPENSE = 'expense',
+  TRANSFER = 'transfer',
 }
 
 export enum PaymentMethod {
@@ -59,6 +60,21 @@ export class Transaction {
 
   @Column({ name: 'transaction_date', type: 'timestamp' })
   transactionDate: Date;
+
+  @Column({ name: 'tags', type: 'text', array: true, default: '{}' })
+  tags: string[];
+
+  @Column({ name: 'reconciled', type: 'boolean', default: false })
+  reconciled: boolean;
+
+  @Column({ name: 'is_adjustment', type: 'boolean', default: false })
+  isAdjustment: boolean;
+
+  @Column({ name: 'is_transfer', type: 'boolean', default: false })
+  isTransfer: boolean;
+
+  @Column({ name: 'to_ledger_id', nullable: true })
+  toLedgerId: string;
 
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any>;

@@ -621,8 +621,8 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         className="custom-modal"
         width={600}
         centered
-        maskClosable={true}
-        keyboard={true}
+        maskClosable={false}
+        keyboard={false}
         okButtonProps={{ 
           style: { backgroundColor: themeColor, borderColor: themeColor },
           size: 'large',

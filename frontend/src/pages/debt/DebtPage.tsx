@@ -797,8 +797,8 @@ const DebtPage: React.FC = () => {
         destroyOnHidden
         className="custom-modal"
         centered
-        maskClosable={true}
-        keyboard={true}
+        maskClosable={false}
+        keyboard={false}
       >
         <Form 
           form={form} 
@@ -979,8 +979,8 @@ const DebtPage: React.FC = () => {
         destroyOnHidden
         className="custom-modal"
         centered
-        maskClosable={true}
-        keyboard={true}
+        maskClosable={false}
+        keyboard={false}
       >
         <Form form={paymentForm} layout="vertical" onFinish={handlePaymentSubmit} className="modern-form">
           <div className="payment-info-card" style={{ marginBottom: 24, padding: 16, backgroundColor: 'rgba(59, 130, 246, 0.05)', borderRadius: 12, border: '1px solid rgba(59, 130, 246, 0.1)' }}>

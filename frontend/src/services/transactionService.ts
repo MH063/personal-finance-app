@@ -18,7 +18,7 @@ export interface Ledger {
 export interface Transaction {
   id: string;
   amount: number;
-  type: 'income' | 'expense';
+  type: 'income' | 'expense' | 'transfer';
   description: string;
   paymentMethod: string;
   merchant: string;
@@ -30,6 +30,11 @@ export interface Transaction {
   createdAt: string;
   updatedAt: string;
   version?: number;
+  tags?: string[];
+  reconciled?: boolean;
+  isAdjustment?: boolean;
+  isTransfer?: boolean;
+  toLedgerId?: string;
 }
 
 export interface PaginatedTransactions {
@@ -50,6 +55,10 @@ export interface TransactionQuery {
   minAmount?: number;
   maxAmount?: number;
   silent?: boolean;
+  tag?: string;
+  reconciled?: boolean;
+  isAdjustment?: boolean;
+  isTransfer?: boolean;
 }
 
 export const transactionService = {
@@ -59,6 +68,32 @@ export const transactionService = {
     const page = query.page || 1;
     const limit = query.limit || 10;
     const offset = (page - 1) * limit;
+    // 仅允许服务端接收的查询键，移除 AntD ProTable 默认的 current/pageSize
+    const allowedKeys: (keyof TransactionQuery)[] = [
+      'page',
+      'limit',
+      'startDate',
+      'endDate',
+      'type',
+      'categoryId',
+      'ledgerId',
+      'minAmount',
+      'maxAmount',
+      'tag',
+      'reconciled',
+      'isAdjustment',
+      'isTransfer',
+    ];
+    const sanitizedParams: Record<string, any> = {};
+    for (const key of allowedKeys) {
+      const val = (query as any)[key];
+      if (val !== undefined && val !== null && val !== '') {
+        sanitizedParams[key] = val;
+      }
+    }
+    // 强制写入分页（避免 params 中意外包含 current/pageSize）
+    sanitizedParams.page = page;
+    sanitizedParams.limit = limit;
 
     const applyLocalFilters = (items: Transaction[]) => {
       let data = items;
@@ -95,7 +130,7 @@ export const transactionService = {
     if (offlineSyncService.isOnline()) {
       const fetchRemoteAndUpsert = async () => {
         const response = await api.get<any>('/transactions', { 
-          params: query, 
+          params: sanitizedParams, 
           headers: query.silent ? { 'X-Silent-Loading': 'true' } : undefined 
         });
         const payload = response.data;

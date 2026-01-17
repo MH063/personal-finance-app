@@ -30,11 +30,21 @@ interface ParsedTransaction {
 
 interface ImportTransactionsModalProps {
   visible: boolean;
-  onCancel: () => void;
+  onCancel?: () => void;
+  onClose?: () => void;
   onSuccess: () => void;
 }
 
-const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visible, onCancel, onSuccess }) => {
+/**
+ * 导入账单弹窗
+ * 负责解析 CSV、调用 AI 分类并批量导入交易；关闭时销毁节点以防遮罩残留
+ */
+/**
+ * 导入账单弹窗
+ * 负责解析 CSV、调用 AI 分类并批量导入交易；关闭时销毁节点以防遮罩残留
+ * 兼容 onClose/onCancel 两种关闭回调，统一用于右上角关闭与遮罩关闭
+ */
+const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visible, onCancel, onClose, onSuccess }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [parsing, setParsing] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedTransaction[]>([]);
@@ -362,10 +372,12 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
     <Modal
       title="导入账单"
       open={visible}
-      onCancel={onCancel}
+      onCancel={() => (onClose || onCancel)?.()}
       footer={null}
       width={900}
       destroyOnClose
+      maskClosable={false}
+      keyboard={false}
       className="import-modal"
     >
       <Steps current={currentStep} className="mb-6">
@@ -446,7 +458,7 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
           <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a', marginBottom: 24 }} />
           <h2>导入成功</h2>
           <p>成功导入 {importResult?.success} 条交易记录</p>
-          <Button type="primary" onClick={onCancel}>
+          <Button type="primary" onClick={() => (onClose || onCancel)?.()}>
             关闭
           </Button>
         </div>
