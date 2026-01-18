@@ -1,19 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { aiService } from '../../services/aiService';
 import { createSession, getCurrentSession, setCurrentSessionId, appendMessage, setPaused, listSessions, deleteSessions } from '../../services/aiSessionService';
 import type { AiMessage } from '../../db/db';
 import { useDesignSystem } from '../design-system/DesignSystemContext';
 import './AiAssistant.css';
-import { Tooltip, App as AntdApp } from 'antd';
+import { Tooltip, Modal } from 'antd';
 
 /**
  * AI 财务助手悬浮窗组件
  * 依赖设计系统的 Design Tokens 构建配色，避免直接访问 theme.colors 导致的 undefined
  */
 const AiAssistant: React.FC = () => {
-  const { modal } = AntdApp.useApp();
   const { tokens, theme } = useDesignSystem();
   // 基于 Design Tokens 构造本组件使用的颜色表
   const colors = {
@@ -26,21 +26,93 @@ const AiAssistant: React.FC = () => {
   };
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([
-    { role: 'assistant', content: '您好！我是您的智能财务助手。您可以问我“上个月花了多少钱”或“最近有什么大额支出”等问题。' }
-  ]);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ state: string; progress?: number; message?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [fastMode, setFastMode] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(true);
   const [currentSessionId, setCurrentSession] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [stickBottom, setStickBottom] = useState(true);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const snapshotMessages = React.useCallback((msgs: { role: 'user' | 'assistant'; content: string }[], sid: string | null) => {
+    try {
+      localStorage.setItem('aiSnapshotMessages', JSON.stringify(msgs));
+      if (sid) localStorage.setItem('aiSnapshotSessionId', sid);
+      const last = msgs[msgs.length - 1];
+      if (last) {
+        localStorage.setItem('aiLastMessageRole', last.role);
+        localStorage.setItem('aiSessionUpdatedAt', String(Date.now()));
+      }
+    } catch (e) {
+      console.warn('[AiAssistant] 快照写入失败', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('aiLoadingState', isLoading ? '1' : '0');
+    } catch (e) {
+      console.warn('[AiAssistant] 写入加载状态失败', e);
+    }
+  }, [isLoading]);
+
+  useEffect(() => {
+    try {
+      const hasInput = !!query.trim();
+      if (hasInput) {
+        localStorage.setItem('aiUnsavedInput', '1');
+      } else {
+        localStorage.removeItem('aiUnsavedInput');
+      }
+    } catch (e) {
+      console.warn('[AiAssistant] 写入未发送输入失败', e);
+    }
+  }, [query]);
+
+  // 记录助手开闭状态用于异常退出判断
+  useEffect(() => {
+    try {
+      localStorage.setItem('aiAssistantOpen', isOpen ? '1' : '0');
+      if (!isOpen) {
+        // 正常关闭时清除异常退出标记
+        localStorage.removeItem('aiAbnormalExit');
+        localStorage.removeItem('aiPendingAtExit');
+      }
+    } catch (e) {
+      console.warn('[AiAssistant] 写入开闭状态失败', e);
+    }
+  }, [isOpen]);
+
+  // 监听页面卸载，如果助手仍处于打开状态则标记为异常退出
+  useEffect(() => {
+    const onBeforeUnload = () => {
+      try {
+        const open = localStorage.getItem('aiAssistantOpen') === '1';
+        if (open) {
+          localStorage.setItem('aiAbnormalExit', '1');
+          const loading = localStorage.getItem('aiLoadingState') === '1';
+          const lastRole = localStorage.getItem('aiLastMessageRole');
+          const hasInput = localStorage.getItem('aiUnsavedInput') === '1';
+          const pending = loading || lastRole === 'user' || hasInput;
+          localStorage.setItem('aiPendingAtExit', pending ? '1' : '0');
+        } else {
+          localStorage.removeItem('aiAbnormalExit');
+          localStorage.removeItem('aiPendingAtExit');
+        }
+      } catch (e) {
+        console.warn('[AiAssistant] 标记异常退出失败', e);
+      }
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
 
   const scrollToBottom = React.useCallback(() => {
     if (!stickBottom) return;
@@ -60,6 +132,7 @@ const AiAssistant: React.FC = () => {
   // 轮询服务状态
   useEffect(() => {
     if (!isOpen || isPaused) return;
+    if (!currentSessionId && !query.trim()) return;
     const checkStatus = async () => {
       const s = await aiService.getStatus();
       setStatus(s);
@@ -67,7 +140,7 @@ const AiAssistant: React.FC = () => {
     checkStatus();
     const timer = setInterval(checkStatus, 3000);
     return () => clearInterval(timer);
-  }, [isOpen, isPaused]);
+  }, [isOpen, isPaused, currentSessionId, query]);
 
   // 打开时加载当前会话与历史（不自动创建新会话）
   useEffect(() => {
@@ -78,12 +151,35 @@ const AiAssistant: React.FC = () => {
         setCurrentSession(session.id);
         setIsPaused(session.status === 'paused');
         setMessages(session.messages.map(m => ({ role: m.role, content: m.content })));
+        snapshotMessages(session.messages.map(m => ({ role: m.role, content: m.content })), session.id);
       }
       const list = await listSessions();
       setSessions(list);
+      if (!session && list.length === 0) {
+        try {
+          const disableRestore = localStorage.getItem('aiDisableAutoRestore') === '1';
+          const abnormalExit = localStorage.getItem('aiAbnormalExit') === '1';
+          const pendingExit = localStorage.getItem('aiPendingAtExit') === '1';
+          if (disableRestore || !abnormalExit || !pendingExit) return;
+          const snap = JSON.parse(localStorage.getItem('aiSnapshotMessages') || '[]');
+          if (Array.isArray(snap) && snap.length > 0) {
+            const created = await createSession(snap.map((m: any) => ({ role: m.role, content: m.content, timestamp: Date.now() })));
+            setCurrentSession(created.id);
+            setCurrentSessionId(created.id);
+            setMessages(snap);
+            setIsPaused(true);
+            localStorage.removeItem('aiSnapshotMessages');
+            localStorage.removeItem('aiSnapshotSessionId');
+            localStorage.removeItem('aiAbnormalExit');
+            localStorage.removeItem('aiPendingAtExit');
+          }
+        } catch (e) {
+          console.warn('[AiAssistant] 快照恢复失败', e);
+        }
+      }
     };
     init();
-  }, [isOpen]);
+  }, [isOpen, snapshotMessages]);
 
   /**
    * 提交用户问题并请求后端 NLQ 接口
@@ -101,6 +197,7 @@ const AiAssistant: React.FC = () => {
 
     const userMessage = query.trim();
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    snapshotMessages([...messages, { role: 'user', content: userMessage }], currentSessionId);
     setQuery('');
     setIsLoading(true);
     if (!currentSessionId) {
@@ -111,6 +208,7 @@ const AiAssistant: React.FC = () => {
       const created = await createSession(initialMsgs);
       setCurrentSession(created.id);
       setCurrentSessionId(created.id);
+      snapshotMessages(initialMsgs.map(m => ({ role: m.role, content: m.content })), created.id);
     } else {
       const msg: AiMessage = { role: 'user', content: userMessage, timestamp: Date.now() };
       appendMessage(currentSessionId, msg);
@@ -118,17 +216,79 @@ const AiAssistant: React.FC = () => {
 
     try {
       const result = await aiService.query(userMessage, { fast: fastMode });
-      const answer = result.success 
-        ? (result.answer || '抱歉，我没有找到相关数据。') 
+      const answer = result.success
+        ? (result.answer || '抱歉，我没有找到相关数据。')
         : (result.message || '系统繁忙，请稍后再试。');
-      
-      setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
-      if (currentSessionId) {
-        const msg: AiMessage = { role: 'assistant', content: answer, timestamp: Date.now() };
-        appendMessage(currentSessionId, msg);
+      const looksLikeQuery = /(最近|多少|明细|列表|统计|合计|查询|查看|有哪些|什么|\?|？)/.test(userMessage);
+      const isBookingIntent = !!(result?.debug && typeof result.debug === 'object' && /booking/.test(String(result.debug.intent || '')));
+      // 只在查询场景回复是否有数据
+      if (!isBookingIntent && looksLikeQuery) {
+        const rawResult = (result?.debug && Array.isArray(result.debug.rawResult)) ? (result.debug.rawResult as any[]) : ([] as any[]);
+        const hasData = rawResult.length > 0;
+        const fmt = (d: any) => {
+          try {
+            const t = d?.transaction_date || d?.transactionDate;
+            const dt = t ? new Date(t) : null;
+            const y = dt ? dt.getFullYear() : '';
+            const m = dt ? String(dt.getMonth() + 1).padStart(2, '0') : '';
+            const day = dt ? String(dt.getDate()).padStart(2, '0') : '';
+            const pm = d?.payment_method || d?.paymentMethod || '';
+            const pmText =
+              pm === 'cash' ? '现金' :
+              pm === 'bank_card' ? '银行卡' :
+              pm === 'credit_card' ? '信用卡' :
+              pm === 'wechat' ? '微信' :
+              pm === 'alipay' ? '支付宝' :
+              pm ? String(pm) : '未提供';
+            const cat = d?.category || '未分类';
+            const amt = typeof d?.amount === 'number' ? d.amount : Number(d?.amount || 0);
+            return { date: `${y}-${m}-${day}`, amount: amt.toFixed(2), category: cat, payment: pmText };
+          } catch {
+            return { date: '', amount: '', category: '', payment: '' };
+          }
+        };
+        const end = new Date();
+        const start = new Date(end.getTime() - 7 * 24 * 3600 * 1000);
+        const fmtDate = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+        if (!hasData) {
+          const concise = `时间范围：${fmtDate(start)} 至 ${fmtDate(end)}\n\n没有查询到数据。`;
+          setMessages(prev => [...prev, { role: 'assistant', content: concise }]);
+          snapshotMessages([...messages, { role: 'assistant', content: concise }], currentSessionId);
+          if (currentSessionId) {
+            const ts = Date.now();
+            appendMessage(currentSessionId, { role: 'assistant', content: concise, timestamp: ts } as AiMessage);
+          }
+        } else {
+          const rows: { date: string; amount: string; category: string; payment: string }[] = (rawResult as any[]).map(fmt);
+          const headers = ['日期', '金额(元)', '收入来源分类', '支付方式'];
+          const headerMd = `| **${headers[0]}** | **${headers[1]}** | **${headers[2]}** | **${headers[3]}** |\n| :--- | :--- | :--- | :--- |`;
+          const dataMd = rows.map(r => `| ${r.date} | ${r.amount} | ${r.category} | ${r.payment} |`).join('\n');
+          const anomalies: string[] = [];
+          if (rawResult.some((d: any) => !d?.category)) anomalies.push('存在未分类记录');
+          if (rawResult.some((d: any) => !(d?.payment_method || d?.paymentMethod))) anomalies.push('存在支付方式缺失记录');
+          const extra = anomalies.length ? `\n\n异常说明：${anomalies.join('；')}。` : '';
+          const content =
+            `时间范围：${fmtDate(start)} 至 ${fmtDate(end)}\n\n` +
+            `${headerMd}\n${dataMd}` +
+            extra;
+          setMessages(prev => [...prev, { role: 'assistant', content }]);
+          snapshotMessages([...messages, { role: 'assistant', content }], currentSessionId);
+          if (currentSessionId) {
+            const ts = Date.now();
+            appendMessage(currentSessionId, { role: 'assistant', content, timestamp: ts } as AiMessage);
+          }
+        }
+      } else {
+        setMessages(prev => [...prev, { role: 'assistant', content: answer }]);
+        snapshotMessages([...messages, { role: 'assistant', content: answer }], currentSessionId);
+        if (currentSessionId) {
+          const ts = Date.now();
+          appendMessage(currentSessionId, { role: 'assistant', content: answer, timestamp: ts } as AiMessage);
+        }
       }
     } catch (error) {
       setMessages(prev => [...prev, { role: 'assistant', content: '连接失败，请检查网络或本地服务。' }]);
+      snapshotMessages([...messages, { role: 'assistant', content: '连接失败，请检查网络或本地服务。' }], currentSessionId);
       if (currentSessionId) {
         const msg: AiMessage = { role: 'assistant', content: '连接失败，请检查网络或本地服务。', timestamp: Date.now() };
         appendMessage(currentSessionId, msg);
@@ -233,8 +393,8 @@ const AiAssistant: React.FC = () => {
                 borderRadius: 12,
                 border: `1px solid ${colors.border}`,
                 cursor: 'pointer',
-                backgroundColor: colors.surface,
-                color: '#fff',
+                backgroundColor: '#ffffff',
+                color: colors.text,
                 fontSize: 12
               }}
             >
@@ -280,7 +440,7 @@ const AiAssistant: React.FC = () => {
               borderTopLeftRadius: msg.role === 'assistant' ? '2px' : '12px',
             }}>
               {msg.role === 'assistant' ? (
-                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
               ) : (
                 msg.content
               )}
@@ -449,33 +609,15 @@ const AiAssistant: React.FC = () => {
                   aria-label="删除选择"
                   onClick={() => {
                     if (selectedIds.length === 0) return;
-                    modal.confirm({
-                      title: '确认删除所选会话？',
-                      content: '删除后不可恢复，且会释放本地存储空间。',
-                      okText: '删除',
-                      cancelText: '取消',
-                      onOk: async () => {
-                        const count = await deleteSessions(selectedIds);
-                        console.log(`[AiAssistant] 批量删除会话 count=${count}`);
-                        const list = await listSessions();
-                        setSessions(list);
-                        setSelectedIds([]);
-                        if (currentSessionId && selectedIds.includes(currentSessionId)) {
-                          setCurrentSession(null);
-                          setMessages([{ role: 'assistant', content: '您好！我是您的智能财务助手。您可以问我“上个月花了多少钱”或“最近有什么大额支出”等问题。' }]);
-                          setIsPaused(false);
-                        }
-                      },
-                      destroyOnHidden: true
-                    });
+                    setConfirmOpen(true);
                   }}
                   style={{
                     padding: '6px 10px',
                     borderRadius: 12,
-                    border: 'none',
+                    border: selectedIds.length ? 'none' : `1px solid ${colors.border}`,
                     cursor: selectedIds.length ? 'pointer' : 'not-allowed',
-                    backgroundColor: selectedIds.length ? '#ff4d4f' : '#aaa',
-                    color: '#fff',
+                    backgroundColor: selectedIds.length ? '#ff4d4f' : '#f2f3f5',
+                    color: selectedIds.length ? '#fff' : '#666',
                     fontSize: 12
                   }}
                 >
@@ -489,8 +631,8 @@ const AiAssistant: React.FC = () => {
                     borderRadius: 12,
                     border: `1px solid ${colors.border}`,
                     cursor: 'pointer',
-                    backgroundColor: colors.surface,
-                    color: '#fff',
+                    backgroundColor: '#ffffff',
+                    color: colors.text,
                     fontSize: 12
                   }}
                 >
@@ -552,6 +694,35 @@ const AiAssistant: React.FC = () => {
                 <div style={{ color: colors.textSecondary, fontSize: 12 }}>暂无历史会话</div>
               )}
             </div>
+            <Modal
+              open={confirmOpen}
+              title="确认删除所选会话？"
+              okText="删除"
+              cancelText="取消"
+              confirmLoading={confirmLoading}
+              destroyOnHidden
+              onOk={async () => {
+                try {
+                  setConfirmLoading(true);
+                  const count = await deleteSessions(selectedIds);
+                  console.log(`[AiAssistant] 批量删除会话 count=${count}`);
+                  const list = await listSessions();
+                  setSessions(list);
+                  setSelectedIds([]);
+                  if (currentSessionId && selectedIds.includes(currentSessionId)) {
+                    setCurrentSession(null);
+                    setMessages([]);
+                    setIsPaused(true);
+                  }
+                  setConfirmOpen(false);
+                } finally {
+                  setConfirmLoading(false);
+                }
+              }}
+              onCancel={() => setConfirmOpen(false)}
+            >
+              删除后不可恢复，且会释放本地存储空间。
+            </Modal>
           </div>
         )}
       </div>

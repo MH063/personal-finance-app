@@ -197,6 +197,137 @@ export class TransactionsService {
   }
 
   /**
+   * 创建转账双记录（原子事务）
+   * 将一次转账拆分为来源账本的支出与目标账本的收入两条记录，确保账本余额一致性
+   * - 校验用户对两个账本的权限
+   * - 使用数据库事务保证两条记录要么同时成功，要么同时回滚
+   */
+  async createTransferPair(
+    userId: string,
+    createDto: CreateTransactionDto,
+  ): Promise<{ from: Transaction; to: Transaction }> {
+    this.logger.log(
+      `用户 ${userId} 创建转账双记录: 金额=${createDto.amount}, 来源账本=${createDto.ledgerId}, 目标账本=${createDto.toLedgerId}`,
+    );
+    if (!createDto.amount || createDto.amount <= 0) {
+      throw new BadRequestException('转账金额必须大于0');
+    }
+    // 解析来源账本
+    const fromLedgerId = await this.resolveLedgerIdForCreate(userId, createDto.ledgerId);
+    // 解析目标账本，且必须与来源不同
+    let toLedgerId: string | null = null;
+    if (createDto.toLedgerId) {
+      try {
+        toLedgerId = await this.resolveLedgerIdForCreate(userId, createDto.toLedgerId);
+      } catch {
+        toLedgerId = null;
+      }
+    }
+    if (!toLedgerId || toLedgerId === fromLedgerId) {
+      // 从用户的账本成员列表中选择一个不同于来源的账本
+      const memberships = await this.ledgerMemberRepository.find({ where: { userId } });
+      const candidate = memberships.map((m) => m.ledgerId).find((id) => id !== fromLedgerId);
+      if (!candidate) {
+        throw new BadRequestException('没有可用的目标账本，请先创建或加入另一个账本');
+      }
+      toLedgerId = candidate;
+    }
+    const transferDate = new Date(createDto.transactionDate);
+    const transferGroupId = (await import('uuid')).v4();
+    const queryRunner = this.transactionRepository.manager.connection.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      // 来源：支出
+      const fromTx = this.transactionRepository.create({
+        amount: createDto.amount,
+        type: TransactionType.EXPENSE,
+        description: createDto.description,
+        paymentMethod: createDto.paymentMethod,
+        merchant: createDto.merchant,
+        transactionDate: transferDate,
+        tags: createDto.tags || [],
+        reconciled: !!createDto.reconciled,
+        isAdjustment: !!createDto.isAdjustment,
+        isTransfer: true,
+        toLedgerId: toLedgerId,
+        metadata: {
+          ...(createDto.metadata || {}),
+          transferGroupId,
+        },
+        userId,
+        ledgerId: fromLedgerId,
+        categoryId: undefined,
+      });
+      const savedFrom = await queryRunner.manager.save(Transaction, fromTx);
+      // 目标：收入
+      const toTx = this.transactionRepository.create({
+        amount: createDto.amount,
+        type: TransactionType.INCOME,
+        description: createDto.description,
+        paymentMethod: createDto.paymentMethod,
+        merchant: createDto.merchant,
+        transactionDate: transferDate,
+        tags: createDto.tags || [],
+        reconciled: !!createDto.reconciled,
+        isAdjustment: !!createDto.isAdjustment,
+        isTransfer: true,
+        toLedgerId: toLedgerId,
+        metadata: {
+          ...(createDto.metadata || {}),
+          transferGroupId,
+        },
+        userId,
+        ledgerId: toLedgerId,
+        categoryId: undefined,
+      });
+      const savedTo = await queryRunner.manager.save(Transaction, toTx);
+      await queryRunner.commitTransaction();
+      // 通知两个账本
+      this.ledgerGateway.notifyUpdate(fromLedgerId, 'TRANSACTION_CREATED', savedFrom, userId);
+      this.ledgerGateway.notifyUpdate(toLedgerId, 'TRANSACTION_CREATED', savedTo, userId);
+      // 记录日志
+      await this.logRepository.save({
+        action: LogAction.CREATE,
+        entityType: EntityType.TRANSACTION,
+        entityId: savedFrom.id,
+        newData: this.sanitizeTransactionData(savedFrom),
+        userId,
+      });
+      await this.logRepository.save({
+        action: LogAction.CREATE,
+        entityType: EntityType.TRANSACTION,
+        entityId: savedTo.id,
+        newData: this.sanitizeTransactionData(savedTo),
+        userId,
+      });
+      // 缓存与版本处理
+      this.invalidateStatistics(userId);
+      this.bumpNlqVersion(userId);
+      // 异步触发 AI 检查
+      this.aiAlertService.checkAndAlert(userId, savedFrom).catch((err) => {
+        this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
+      });
+      this.aiAlertService.checkAndAlert(userId, savedTo).catch((err) => {
+        this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
+      });
+      // 返回包含关联的完整记录
+      const fullFrom = await this.findOne(userId, savedFrom.id);
+      const fullTo = await this.findOne(userId, savedTo.id);
+      this.logger.log(
+        `转账双记录创建成功: from=${fullFrom.id}(${fromLedgerId}) -> to=${fullTo.id}(${toLedgerId})`,
+      );
+      return { from: fullFrom, to: fullTo };
+    } catch (err: any) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`转账双记录创建失败: ${err?.message || err}`, err?.stack);
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
    * 批量创建交易记录
    */
   async batchCreate(

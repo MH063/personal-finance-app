@@ -25,6 +25,7 @@ export async function createSession(initialMessages: AiMessage[] = []): Promise<
         detail: `title=${session.title}`,
       });
       localStorage.setItem('aiCurrentSessionId', session.id);
+      localStorage.removeItem('aiDisableAutoRestore');
     });
   } catch (e) {
     const key = 'aiSessions_fallback';
@@ -36,6 +37,7 @@ export async function createSession(initialMessages: AiMessage[] = []): Promise<
     const logs = JSON.parse(localStorage.getItem(logsKey) || '[]');
     logs.push({ action: 'CREATE_SESSION', sessionId: session.id, timestamp: now, detail: `title=${session.title}` });
     localStorage.setItem(logsKey, JSON.stringify(logs));
+    localStorage.removeItem('aiDisableAutoRestore');
   }
   return session;
 }
@@ -166,6 +168,10 @@ export async function deleteSessions(ids: string[]): Promise<number> {
     if (current && ids.includes(current)) {
       localStorage.removeItem('aiCurrentSessionId');
     }
+    localStorage.removeItem('aiSnapshotMessages');
+    localStorage.removeItem('aiSnapshotSessionId');
+    localStorage.setItem('aiDisableAutoRestore', '1');
+    localStorage.removeItem('aiPendingAtExit');
     return deleted;
   } catch {
     const key = 'aiSessions_fallback';
@@ -181,6 +187,10 @@ export async function deleteSessions(ids: string[]): Promise<number> {
     if (current && ids.includes(current)) {
       localStorage.removeItem('aiCurrentSessionId');
     }
+    localStorage.removeItem('aiSnapshotMessages');
+    localStorage.removeItem('aiSnapshotSessionId');
+    localStorage.setItem('aiDisableAutoRestore', '1');
+    localStorage.removeItem('aiPendingAtExit');
     return deleted;
   }
 }
@@ -191,4 +201,3 @@ export async function deleteSessions(ids: string[]): Promise<number> {
 export async function deleteSession(id: string): Promise<boolean> {
   return (await deleteSessions([id])) > 0;
 }
-

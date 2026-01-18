@@ -43,6 +43,7 @@
     "react-markdown": "^10.1.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^6.30.3",
+    "remark-gfm": "^4.0.1",
     "socket.io-client": "^4.0.0",
     "uuid": "^13.0.0",
     "vite-plugin-pwa": "^1.2.0"
@@ -64,12 +65,12 @@
     "eslint-plugin-react": "^7.34.2",
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.26",
+    "fake-indexeddb": "^4.0.2",
     "jscpd": "^4.0.5",
     "prettier": "^3.3.2",
     "typescript": "^5.5.4",
     "vite": "^5.4.21",
-    "vitest": "^1.6.0",
-    "fake-indexeddb": "^4.0.2"
+    "vitest": "^1.6.0"
   },
   "build": {
     "appId": "com.personalfinance.app",

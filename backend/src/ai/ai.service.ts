@@ -8,9 +8,10 @@ import * as path from 'path';
 import { Ollama } from 'ollama';
 import Redis from 'ioredis';
 import * as crypto from 'crypto';
-import { Transaction } from '../entities/transaction.entity';
+import { Transaction, TransactionType, PaymentMethod } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
 import { Debt, DebtStatus } from '../entities/debt.entity';
+import { TransactionsService } from '../transactions/transactions.service';
 
 @Injectable()
 export class AiService implements OnModuleInit {
@@ -22,7 +23,7 @@ export class AiService implements OnModuleInit {
   private readonly MODEL_FILE = path.join(this.MODEL_DIR, 'classifier.json');
   private readonly META_FILE = path.join(this.MODEL_DIR, 'metadata.json');
   private readonly RETRAIN_THRESHOLD = 10; // 新增多少条数据触发重训
-  private readonly LLM_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:1.8b';
+  private readonly LLM_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:7b';
   private readonly PULL_TIMEOUT_MS = Number.isFinite(
     parseInt(String(process.env.OLLAMA_PULL_TIMEOUT_MS || ''), 10),
   )
@@ -45,6 +46,7 @@ export class AiService implements OnModuleInit {
     private readonly debtRepository: Repository<Debt>,
     @Inject('REDIS_CLIENT')
     private readonly redis: Redis,
+    private readonly transactionsService: TransactionsService,
   ) {
     this.classifier = new natural.BayesClassifier();
     this.ollama = new Ollama({ host: 'http://127.0.0.1:11434' });
@@ -262,6 +264,61 @@ export class AiService implements OnModuleInit {
       { page, limit, fastMode },
       nlqVersion,
     );
+    // 记账意图优先：当检测到“记录/记一笔/花了/收入”等表达时触发创建交易
+    const bookingParsed = this.parseBookingIntent(effectiveQuery);
+    if (bookingParsed) {
+      this.logger.log(`[AiService] 检测到记账意图: ${JSON.stringify(bookingParsed)}`);
+      try {
+        const dto = await this.buildCreateDtoFromBooking(userId, bookingParsed);
+        if (dto.isTransfer) {
+          const pair = await this.transactionsService.createTransferPair(userId, dto as any);
+          const fromLedgerName = pair.from.ledger?.name || '来源账本';
+          const toLedgerName = pair.to.ledger?.name || '目标账本';
+          const answer = `好的，已为您完成转账：从 ${fromLedgerName} 转入 ${toLedgerName} ${Number(
+            pair.to.amount,
+          ).toFixed(2)} 元${pair.to.description ? `（${pair.to.description}）` : ''}。`;
+          return {
+            success: true,
+            answer,
+            debug: {
+              intent: 'booking_transfer',
+              payload: {
+                amount: pair.to.amount,
+                fromLedgerId: pair.from.ledgerId || null,
+                toLedgerId: pair.to.ledgerId || null,
+                transactionDate: pair.to.transactionDate,
+              },
+            },
+          };
+        } else {
+          const created = await this.transactionsService.create(userId, dto);
+          const answer = `好的，已为您记录：${created.type === TransactionType.EXPENSE ? '支出' : created.type === TransactionType.INCOME ? '收入' : '转账'} ${Number(created.amount).toFixed(2)} 元${created.description ? `（${created.description}）` : ''}。`;
+          return {
+            success: true,
+            answer,
+            debug: {
+              intent: 'booking',
+              payload: {
+                amount: created.amount,
+                type: created.type,
+                categoryId: created.categoryId || null,
+                ledgerId: created.ledgerId || null,
+                transactionDate: created.transactionDate,
+                paymentMethod: created.paymentMethod || null,
+              },
+            },
+          };
+        }
+      } catch (bookErr: any) {
+        this.logger.error('[AiService] 记账创建失败:', bookErr);
+        return {
+          success: false,
+          message: '记账失败，请检查类别与金额',
+          reason: 'BOOKING_CREATE_FAILED',
+          debug: { error: String(bookErr?.message || bookErr) },
+        };
+      }
+    }
     // 帮助/能力意图优先
     {
       const q = (effectiveQuery || '').replace(/\s+/g, '');
@@ -1158,7 +1215,7 @@ export class AiService implements OnModuleInit {
         );
         params.push(`%${matchedCat}%`);
         let sql =
-          'select transactions.id, transactions.amount, transactions.type, transactions.description, transactions.merchant, transactions.transaction_date, transactions.category_id, transactions.ledger_id, categories.name as category ' +
+          'select transactions.id, transactions.amount, transactions.type, transactions.description, transactions.merchant, transactions.payment_method, transactions.transaction_date, transactions.category_id, transactions.ledger_id, categories.name as category ' +
           'from transactions left join categories on categories.id = transactions.category_id where ' +
           where2Parts.join(' and ') +
           ' order by transactions.transaction_date desc';
@@ -1169,10 +1226,10 @@ export class AiService implements OnModuleInit {
         return { sql, params };
       } else {
         let sql =
-          'select id, amount, type, description, merchant, transaction_date, category_id, ledger_id ' +
-          'from transactions where ' +
+          'select t.id, t.amount, t.type, t.description, t.merchant, t.payment_method, t.transaction_date, t.category_id, t.ledger_id, c.name as category ' +
+          'from transactions t left join categories c on c.id = t.category_id where ' +
           baseWhere +
-          ' order by transaction_date desc';
+          ' order by t.transaction_date desc';
         if (topN) {
           sql += ` limit $${params.length + 1}`;
           params.push(topN);
@@ -1470,5 +1527,238 @@ ${categoryMap}
 【用户查询】
 "${query}"
     `;
+  }
+
+  /**
+   * 解析记账意图并抽取关键要素
+   * 返回 null 表示不命中记账意图
+   */
+  private parseBookingIntent(input: string): null | {
+    amount?: number;
+    type?: TransactionType;
+    paymentMethod?: PaymentMethod;
+    date?: Date;
+    description?: string;
+    ledgerIdHint?: string;
+    categoryNameHint?: string;
+    toLedgerHint?: string;
+    isAdjustment?: boolean;
+    fromLedgerHint?: string;
+  } {
+    if (!input || input.trim().length < 2) return null;
+    const text = input.replace(/[，,。]/g, ' ').trim();
+    const hasRecordVerb = /(记录|记一笔|记账|新增|添加)/.test(text);
+    const hasExpenseVerb = /(花了|消费|付了|买了|支出)/.test(text);
+    // 将“收入”排除在触发动词之外，避免查询语句误判为记账
+    const hasIncomeVerb = /(进账|到账|收了)/.test(text);
+    const hasTransferVerb = /(转账|转到|转入|转出)/.test(text);
+    const amountMatch = text.match(/(\d+(?:\.\d+)?)(?:\s*)(?:元|块|人民币|RMB)?/i);
+    const hasAmount = !!amountMatch;
+    // 查询语义信号：包含“最近/多少/明细/列表/统计/合计/查询/查看/有哪些/什么/问号”
+    const looksLikeQuery = /(最近|多少|明细|列表|统计|合计|查询|查看|有哪些|什么|\?|？)/.test(text);
+    // 仅当有明确动作词且包含金额时才视为记账；避免“最近有什么收入？”误判
+    const isBookingIntent =
+      (hasRecordVerb || hasExpenseVerb || hasTransferVerb || /(收了|付了|买了)/.test(text)) &&
+      hasAmount &&
+      !looksLikeQuery;
+    if (!isBookingIntent) return null;
+    const amount = amountMatch ? parseFloat(amountMatch[1]) : undefined;
+    let type: TransactionType | undefined;
+    const mentionsIncome = /(收入|进账|到账|收了)/.test(text);
+    if (mentionsIncome) type = TransactionType.INCOME;
+    else if (hasTransferVerb) type = TransactionType.TRANSFER;
+    else type = TransactionType.EXPENSE;
+    let paymentMethod: PaymentMethod | undefined;
+    if (/支付宝|花呗|芝麻/.test(text)) paymentMethod = PaymentMethod.ALIPAY;
+    else if (/微信|微店|微/.test(text)) paymentMethod = PaymentMethod.WECHAT;
+    else if (/信用卡/.test(text)) paymentMethod = PaymentMethod.CREDIT_CARD;
+    else if (/银行卡|储蓄卡|借记卡/.test(text)) paymentMethod = PaymentMethod.BANK_CARD;
+    else if (/现金/.test(text)) paymentMethod = PaymentMethod.CASH;
+    const date = /今天|本日/.test(text)
+      ? new Date()
+      : /昨天/.test(text)
+        ? new Date(Date.now() - 24 * 3600 * 1000)
+        : /前天/.test(text)
+          ? new Date(Date.now() - 2 * 24 * 3600 * 1000)
+          : undefined;
+    const ledgerIdHintMatch = text.match(/账本[:：]?\s*([0-9a-fA-F-]{8,})/);
+    const ledgerIdHint = ledgerIdHintMatch ? ledgerIdHintMatch[1] : undefined;
+    // 解析转账的目标账本名称或ID线索
+    let toLedgerHint: string | undefined;
+    const toLedgerIdMatch = text.match(/(至|到|转到|转入)\s*([0-9a-fA-F-]{8,})/);
+    if (toLedgerIdMatch) {
+      toLedgerHint = toLedgerIdMatch[2];
+    } else {
+      const toNameMatch = text.match(/(至|到|转到|转入)\s*([^\s]+?账本|[^\s]+?本)/);
+      if (toNameMatch) {
+        toLedgerHint = toNameMatch[2].replace(/账本|本/g, '');
+      }
+    }
+    // 解析转出账本名称线索
+    let fromLedgerHint: string | undefined;
+    const fromIdMatch = text.match(/从\s*([0-9a-fA-F-]{8,})\s*(转出|转到|转入)/);
+    if (fromIdMatch) {
+      fromLedgerHint = fromIdMatch[1];
+    } else {
+      const fromNameMatch = text.match(/从\s*([^\s]+?账本|[^\s]+?本)\s*(转出|转到|转入)/);
+      if (fromNameMatch) {
+        fromLedgerHint = fromNameMatch[1].replace(/账本|本/g, '');
+      }
+    }
+    // 粗略抽取分类名称线索（例如“餐饮”，“交通”，“购物”）
+    const categoryNameHintMatch = text.match(
+      /(餐饮|饮食|交通|购物|娱乐|医疗|教育|房租|水电|通讯|数码|旅行|超市)/,
+    );
+    const categoryNameHint = categoryNameHintMatch ? categoryNameHintMatch[1] : undefined;
+    // 调整余额意图识别
+    const isAdjustment =
+      /(调整余额|校准余额|盘点|核对后差额|对齐余额|校正余额)/.test(text) ||
+      (/调整/.test(text) && !hasIncomeVerb && !hasExpenseVerb && !hasTransferVerb);
+    // 根据细微语义决定调整属于收入或支出（仅用于默认类型选择）
+    if (isAdjustment && !type) {
+      if (/补记|补差|补入|补偿|添/.test(text)) type = TransactionType.INCOME;
+      else type = TransactionType.EXPENSE;
+    }
+    // 描述取整句，去掉金额与支付方式关键词
+    const description = text
+      .replace(/(记录|记一笔|记账|新增|添加)/g, '')
+      .replace(/(花了|消费|付了|买了|支出|收入|进账|到账|转账|转到|转入|转出)/g, '')
+      .replace(/(支付宝|微信|信用卡|银行卡|现金|花呗|芝麻)/g, '')
+      .replace(/(\d+(?:\.\d+)?)(?:\s*)(?:元|块|人民币|RMB)?/gi, '')
+      .trim();
+    return {
+      amount,
+      type,
+      paymentMethod,
+      date,
+      description,
+      ledgerIdHint,
+      categoryNameHint,
+      toLedgerHint,
+      isAdjustment,
+      fromLedgerHint,
+    };
+  }
+
+  /**
+   * 将记账意图解析结果转为创建交易的 DTO
+   * 优先使用解析出的分类名称线索；否则调用本地分类器预测
+   */
+  private async buildCreateDtoFromBooking(
+    userId: string,
+    parsed: {
+      amount?: number;
+      type?: TransactionType;
+      paymentMethod?: PaymentMethod;
+      date?: Date;
+      description?: string;
+      ledgerIdHint?: string;
+      categoryNameHint?: string;
+      toLedgerHint?: string;
+      isAdjustment?: boolean;
+      fromLedgerHint?: string;
+    },
+  ): Promise<{
+    amount: number;
+    type: TransactionType;
+    categoryId?: string;
+    description?: string;
+    paymentMethod?: PaymentMethod;
+    merchant?: string;
+    transactionDate: string;
+    metadata?: Record<string, any>;
+    ledgerId?: string;
+    tags?: string[];
+    isTransfer?: boolean;
+    toLedgerId?: string;
+    isAdjustment?: boolean;
+  }> {
+    const amount = parsed.amount && parsed.amount > 0 ? parsed.amount : 0.01;
+    const type = parsed.type || TransactionType.EXPENSE;
+    const transactionDate = (parsed.date || new Date()).toISOString();
+    let categoryId: string | undefined;
+    if (parsed.categoryNameHint) {
+      try {
+        const cat = await this.categoryRepository.findOne({
+          where: { userId, name: parsed.categoryNameHint as any },
+        });
+        if (cat) categoryId = cat.id;
+      } catch {}
+    }
+    if (!categoryId && parsed.description) {
+      const predicted = await this.predictCategory(parsed.description);
+      if (predicted) categoryId = predicted;
+    }
+    let ledgerId: string | undefined;
+    let toLedgerId: string | undefined;
+    // 解析来源/目标账本
+    if (parsed.ledgerIdHint) {
+      ledgerId = await this.resolveLedgerIdByHint(userId, parsed.ledgerIdHint);
+    } else if (parsed.fromLedgerHint) {
+      ledgerId = await this.resolveLedgerIdByHint(userId, parsed.fromLedgerHint);
+    }
+    if (parsed.toLedgerHint) {
+      toLedgerId = await this.resolveLedgerIdByHint(userId, parsed.toLedgerHint);
+    }
+    const isTransfer = parsed.type === TransactionType.TRANSFER;
+    const isAdjustment = !!parsed.isAdjustment;
+    // 若为转账但未识别目标账本，尝试选择用户的另一个账本
+    if (isTransfer && !toLedgerId) {
+      toLedgerId = await this.pickAnotherLedger(userId, ledgerId);
+    }
+    return {
+      amount,
+      type,
+      categoryId,
+      description: parsed.description,
+      paymentMethod: parsed.paymentMethod,
+      transactionDate,
+      ledgerId,
+      metadata: { source: 'ai_booking' },
+      isTransfer,
+      toLedgerId,
+      isAdjustment,
+    };
+  }
+
+  private async resolveLedgerIdByHint(userId: string, hint: string): Promise<string | undefined> {
+    if (!hint) return undefined;
+    const isUuid = /^[0-9a-fA-F-]{8,}$/.test(hint);
+    const q = this.transactionRepository.manager.connection.createQueryRunner();
+    await q.connect();
+    try {
+      const rows: { id: string; name: string }[] = await q.query(
+        'select l.id, l.name from ledgers l join ledger_members lm on lm.ledger_id = l.id where lm.user_id = $1',
+        [userId],
+      );
+      if (isUuid) {
+        const found = rows.find((r) => r.id === hint);
+        if (found) return found.id;
+      } else {
+        const norm = String(hint).toLowerCase();
+        const candidates = rows
+          .map((r) => ({ id: r.id, name: String(r.name || '').toLowerCase() }))
+          .filter((r) => r.name.includes(norm));
+        if (candidates[0]) return candidates[0].id;
+      }
+      return undefined;
+    } finally {
+      await q.release();
+    }
+  }
+
+  private async pickAnotherLedger(userId: string, excludeId?: string): Promise<string | undefined> {
+    const q = this.transactionRepository.manager.connection.createQueryRunner();
+    await q.connect();
+    try {
+      const rows: { id: string; name: string; created_at: string }[] = await q.query(
+        'select l.id, l.name, l.created_at from ledgers l join ledger_members lm on lm.ledger_id = l.id where lm.user_id = $1 order by l.created_at asc',
+        [userId],
+      );
+      const list = rows.map((r) => r.id).filter((id) => (excludeId ? id !== excludeId : true));
+      return list[0];
+    } finally {
+      await q.release();
+    }
   }
 }
