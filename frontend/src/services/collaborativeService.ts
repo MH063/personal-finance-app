@@ -1,5 +1,10 @@
 import { io, Socket } from 'socket.io-client';
 
+type UpdatePayload = { type?: string; timestamp?: Date | string; status?: string; [key: string]: any };
+type LedgerUpdatePayload = { type?: string; ledgerId?: string; [key: string]: any };
+type SettingsUpdatePayload = { type?: string; [key: string]: any };
+type UserRoomEvent = { userId?: string; ledgerId?: string; [key: string]: any };
+
 /**
  * 实时协作服务
  * 处理 Socket.io 连接和事件
@@ -58,7 +63,7 @@ class CollaborativeService {
       this.notifyListeners('globalUpdate', { type: 'RECONNECTED_SYNC', timestamp: this.lastSyncTime });
     });
 
-    this.socket.on('connect_error', (error) => {
+    this.socket.on('connect_error', (error: Error) => {
       this.isInitializing = false;
       console.error('❌ 实时同步连接错误:', error.message);
       const errorMsg = `连接错误: ${error.message}`;
@@ -67,21 +72,21 @@ class CollaborativeService {
       this.notifyListeners('disconnect', { error: error.message });
     });
 
-    this.socket.on('error', (error) => {
+    this.socket.on('error', (error: unknown) => {
       console.error('❌ Socket 错误:', error);
       this.notifyListeners('error', error);
     });
 
-    this.socket.on('reconnect_attempt', (attempt) => {
+    this.socket.on('reconnect_attempt', (attempt: number) => {
       console.log(`[Socket] 正在尝试第 ${attempt} 次重连...`);
     });
 
-    this.socket.on('reconnect', (attempt) => {
+    this.socket.on('reconnect', (attempt: number) => {
       console.log(`[Socket] 重连成功 (尝试次数: ${attempt})`);
       this.lastSyncTime = new Date();
     });
 
-    this.socket.on('disconnect', (reason) => {
+    this.socket.on('disconnect', (reason: string) => {
       console.warn('[Socket] 已断开协作服务器连接, 原因:', reason);
       this.notifyListeners('disconnect', { reason });
       if (reason === 'io server disconnect') {
@@ -89,30 +94,30 @@ class CollaborativeService {
       }
     });
 
-    this.socket.on('ledgerUpdate', (data) => {
+    this.socket.on('ledgerUpdate', (data: LedgerUpdatePayload) => {
       console.log('[Socket] 收到账本更新通知:', data);
       this.lastSyncTime = new Date();
       this.notifyListeners('ledgerUpdate', data);
     });
 
-    this.socket.on('globalUpdate', (data) => {
+    this.socket.on('globalUpdate', (data: UpdatePayload) => {
       console.log('[Socket] 收到全局更新通知:', data);
       this.lastSyncTime = new Date();
       this.notifyListeners('globalUpdate', data);
     });
 
-    this.socket.on('settingsUpdate', (data) => {
+    this.socket.on('settingsUpdate', (data: SettingsUpdatePayload) => {
       console.log('[Socket] 收到设置更新通知:', data);
       this.lastSyncTime = new Date();
       this.notifyListeners('settingsUpdate', data);
     });
 
-    this.socket.on('userJoined', (data) => {
+    this.socket.on('userJoined', (data: UserRoomEvent) => {
       console.log('[Socket] 用户加入房间:', data);
       this.notifyListeners('userJoined', data);
     });
 
-    this.socket.on('userLeft', (data) => {
+    this.socket.on('userLeft', (data: UserRoomEvent) => {
       console.log('[Socket] 用户离开房间:', data);
       this.notifyListeners('userLeft', data);
     });

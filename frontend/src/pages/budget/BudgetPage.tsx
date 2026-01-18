@@ -57,6 +57,7 @@ const BudgetPage: React.FC = () => {
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [form] = Form.useForm();
+  const [highlightIds, setHighlightIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     dispatch(fetchBudgets());
@@ -86,15 +87,25 @@ const BudgetPage: React.FC = () => {
     };
   }, [dispatch]);
 
+  /**
+   * 打开创建预算弹窗
+   * 复位表单并进入创建模式，便于用户输入预算信息
+   */
   const handleAdd = useCallback(() => {
     if (submitLoading) return;
+    console.log('[BudgetPage] 打开创建预算弹窗');
     setEditingBudget(null);
     form.resetFields();
     setModalVisible(true);
   }, [form, submitLoading]);
 
+  /**
+   * 打开编辑预算弹窗
+   * 回填已存在的预算数据，允许修改金额、周期与状态
+   */
   const handleEdit = useCallback((budget: Budget) => {
     if (submitLoading) return;
+    console.log('[BudgetPage] 打开编辑预算弹窗:', { id: budget.id, categoryId: budget.categoryId });
     setEditingBudget(budget);
     form.setFieldsValue({
       categoryId: budget.categoryId,
@@ -105,8 +116,13 @@ const BudgetPage: React.FC = () => {
     setModalVisible(true);
   }, [form, submitLoading]);
 
+  /**
+   * 删除预算
+   * 触发删除动作并在成功后刷新预算列表以更新统计
+   */
   const handleDelete = useCallback(async (id: string) => {
     if (deleteLoading) return;
+    console.log('[BudgetPage] 请求删除预算:', id);
     setDeleteLoading(id);
     try {
       await dispatch(deleteBudget(id)).unwrap();
@@ -120,9 +136,30 @@ const BudgetPage: React.FC = () => {
     }
   }, [deleteLoading, dispatch, message]);
 
+  /**
+   * 触发卡片高亮
+   * 在保存成功后短暂高亮对应预算卡片，增强联动提示
+   */
+  const triggerHighlight = useCallback((id: string) => {
+    if (!id) return;
+    setHighlightIds(prev => ({ ...prev, [id]: true }));
+    setTimeout(() => {
+      setHighlightIds(prev => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }, 1600);
+  }, []);
+
+  /**
+   * 提交创建或更新预算
+   * 校验表单后根据当前模式执行创建或更新，并在成功后刷新列表
+   */
   const handleModalOk = useCallback(async () => {
     try {
       const values = await form.validateFields();
+      console.log('[BudgetPage] 表单校验通过，准备提交:', values);
       setSubmitLoading(true);
       const data: any = {
         amount: values.amount,
@@ -133,38 +170,67 @@ const BudgetPage: React.FC = () => {
       if (editingBudget) {
         // 更新预算时，通常不允许修改分类，但允许修改状态
         data.status = values.status || BudgetStatus.ACTIVE;
-        await dispatch(updateBudget({ id: editingBudget.id, data })).unwrap();
+        console.log('[BudgetPage] 更新预算 Payload:', { id: editingBudget.id, ...data });
+        const updated = await dispatch(updateBudget({ id: editingBudget.id, data })).unwrap();
         message.success('预算已更新');
+        console.log('[BudgetPage] 更新预算成功:', editingBudget.id);
+        triggerHighlight(updated?.id || editingBudget.id);
       } else {
         // 创建预算时需要分类 ID，但不允许状态字段
         data.categoryId = values.categoryId;
-        await dispatch(createBudget(data)).unwrap();
+        console.log('[BudgetPage] 创建预算 Payload:', data);
+        const created = await dispatch(createBudget(data)).unwrap();
         message.success('预算已创建');
+        console.log('[BudgetPage] 创建预算成功');
+        if (created?.id) triggerHighlight(created.id);
       }
       setModalVisible(false);
       // 重新获取预算列表以确保所有计算字段（如已用金额、百分比）和关联数据（分类信息）都是最新的
       dispatch(fetchBudgets());
     } catch (error: any) {
+      console.error('[BudgetPage] 操作失败:', error);
       if (error?.errorFields) return; // Form validation failed
       message.error(typeof error === 'string' ? error : (error?.message || '操作失败'));
     } finally {
       setSubmitLoading(false);
     }
-  }, [editingBudget, dispatch, form, message]);
+  }, [editingBudget, dispatch, form, message, triggerHighlight]);
 
+  /**
+   * 表单值变化日志
+   * 在关键字段变化时打印调试信息，辅助定位交互与校验问题
+   */
+  const handleValuesChange = useCallback((changedValues: any, allValues: any) => {
+    console.log('[BudgetPage] 表单变化:', changedValues, allValues);
+  }, []);
+
+  /**
+   * 根据使用百分比返回进度条颜色
+   * 低于70%为绿色；70%-90%为橙色；超过90%为红色
+   */
   const getStatusColor = useCallback((percentage: number) => {
     if (percentage >= 90) return '#ff4d4f';
     if (percentage >= 70) return '#faad14';
     return '#52c41a';
   }, []);
 
+  /**
+   * 渲染单个预算卡片
+   * 展示分类、金额、进度与操作入口
+   */
   const renderBudgetCard = useCallback((budget: Budget) => {
     const isOverBudget = budget.usagePercentage > 100;
     const statusColor = getStatusColor(budget.usagePercentage);
+    const cardClass = [
+      'budget-card',
+      budget.status === BudgetStatus.INACTIVE ? 'budget-card-disabled' : '',
+      isOverBudget ? 'budget-card-overbudget' : '',
+      highlightIds[budget.id] ? 'budget-card-highlight' : ''
+    ].filter(Boolean).join(' ');
 
     return (
       <Col xs={24} sm={12} lg={8} xl={6} key={budget.id}>
-        <Card className="budget-card" variant="borderless">
+        <Card className={cardClass} variant="borderless">
           <div className="budget-category-tag">
             <Tag color={budget.category?.color || 'blue'}>
               {budget.category?.name || '未知分类'}
@@ -193,7 +259,7 @@ const BudgetPage: React.FC = () => {
 
           <div style={{ marginTop: 16 }}>
             <Space direction="vertical" size={4} style={{ width: '100%' }}>
-              <Text type="secondary" size="small">
+              <Text type="secondary" style={{ fontSize: 12 }}>
                 <CalendarOutlined /> {dayjs(budget.startDate).format('MM/DD')} - {dayjs(budget.endDate).format('MM/DD')}
               </Text>
               <Text type={budget.remainingAmount <= 0 ? 'danger' : 'success'} strong>
@@ -227,7 +293,7 @@ const BudgetPage: React.FC = () => {
         </Card>
       </Col>
     );
-  }, [deleteLoading, getStatusColor, handleDelete, handleEdit]);
+  }, [deleteLoading, getStatusColor, handleDelete, handleEdit, highlightIds]);
 
   return (
     <div className="budget-page">
@@ -262,14 +328,14 @@ const BudgetPage: React.FC = () => {
                   title={<span style={{ color: 'rgba(255,255,255,0.45)' }}>总预算数</span>}
                   value={budgets.length}
                   prefix={<WalletOutlined />}
-                  valueStyle={{ color: '#fff' }}
+                  styles={{ content: { color: '#fff' } }}
                 />
               </Col>
               <Col>
                 <Statistic
                   title={<span style={{ color: 'rgba(255,255,255,0.45)' }}>超支预算</span>}
                   value={budgets.filter(b => b.usagePercentage > 100).length}
-                  valueStyle={{ color: '#ff4d4f' }}
+                  styles={{ content: { color: '#ff4d4f' } }}
                   prefix={<InfoCircleOutlined />}
                 />
               </Col>
@@ -306,7 +372,12 @@ const BudgetPage: React.FC = () => {
         maskClosable={false}
         keyboard={false}
       >
-        <Form form={form} layout="vertical" initialValues={{ status: BudgetStatus.ACTIVE }}>
+        <Form 
+          form={form} 
+          layout="vertical" 
+          initialValues={{ status: BudgetStatus.ACTIVE }}
+          onValuesChange={handleValuesChange}
+        >
           <Form.Item
             name="categoryId"
             label="支出分类"
@@ -348,7 +419,11 @@ const BudgetPage: React.FC = () => {
             <InputNumber
               style={{ width: '100%' }}
               formatter={value => `¥ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={value => value!.replace(/¥\s?|(,*)/g, '')}
+              parser={(displayValue?: string) => {
+                const sanitized = (displayValue || '').replace(/¥\s?|(,*)/g, '');
+                const num = Number(sanitized);
+                return Number.isNaN(num) ? 0 : num;
+              }}
               min={0}
               placeholder="0.00"
             />

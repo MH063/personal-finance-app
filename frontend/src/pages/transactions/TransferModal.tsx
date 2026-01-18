@@ -12,7 +12,6 @@ interface TransferModalProps {
   onSuccess: () => void;
 }
 
-const { Option } = Select;
 
 /**
  * 资金划转弹窗
@@ -82,7 +81,7 @@ const TransferModal: React.FC<TransferModalProps> = ({ visible, onClose, onSucce
       onOk={handleSubmit}
       confirmLoading={loading}
       width={500}
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
       keyboard={false}
     >
@@ -112,11 +111,12 @@ const TransferModal: React.FC<TransferModalProps> = ({ visible, onClose, onSucce
           label="转出账户"
           rules={[{ required: true, message: '请选择转出账户' }]}
         >
-          <Select placeholder="选择转出账户">
-            {ledgers.map(ledger => (
-              <Option key={ledger.id} value={ledger.id}>{ledger.name}</Option>
-            ))}
-          </Select>
+          <Select
+            placeholder="选择转出账户"
+            options={ledgers.map(ledger => ({ value: ledger.id, label: ledger.name }))}
+            showSearch
+            optionFilterProp="label"
+          />
         </Form.Item>
 
         <Form.Item
@@ -124,11 +124,12 @@ const TransferModal: React.FC<TransferModalProps> = ({ visible, onClose, onSucce
           label="转入账户"
           rules={[{ required: true, message: '请选择转入账户' }]}
         >
-          <Select placeholder="选择转入账户">
-            {ledgers.map(ledger => (
-              <Option key={ledger.id} value={ledger.id}>{ledger.name}</Option>
-            ))}
-          </Select>
+          <Select
+            placeholder="选择转入账户"
+            options={ledgers.map(ledger => ({ value: ledger.id, label: ledger.name }))}
+            showSearch
+            optionFilterProp="label"
+          />
         </Form.Item>
 
         <Form.Item

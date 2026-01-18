@@ -134,7 +134,7 @@ const IncomePage: FC = () => {
               title="储蓄率" 
               value={overview?.totalIncome ? (((overview.totalIncome - overview.totalExpense) / overview.totalIncome) * 100).toFixed(1) : 0} 
               suffix="%" 
-              valueStyle={{ color: '#10b981' }}
+              styles={{ content: { color: '#10b981' } }}
             />
             <div className="stats-card-footer">
               <Progress 

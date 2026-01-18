@@ -162,6 +162,7 @@ const initialState: DebtState = {
     dueSoonDebts: 0,
     totalPendingAmount: 0,
     totalOverdueAmount: 0,
+    totalAccruedInterest: 0,
   },
   loading: false,
   error: null,

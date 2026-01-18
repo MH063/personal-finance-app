@@ -996,7 +996,7 @@ const DebtPage: React.FC = () => {
                 </Tag>
               </Col>
             </Row>
-            <div style={{ marginTop: 16, pt: 16, borderTop: '1px dashed rgba(0,0,0,0.05)' }}>
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px dashed rgba(0,0,0,0.05)' }}>
               <Row gutter={16}>
                 <Col span={12}>
                   <div style={{ color: 'var(--neutral-500)', fontSize: 12 }}>待还本金</div>

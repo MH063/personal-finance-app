@@ -11,8 +11,6 @@ import api from '../../services/api';
 import { RootState } from '../../store';
 
 const { Dragger } = Upload;
-const { Step } = Steps;
-const { Option } = Select;
 
 interface ParsedTransaction {
   key: string;
@@ -208,7 +206,7 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
       
       // 调用批量预测接口
       const response = await api.post('/ai/batch-predict-category', { descriptions }, { headers: { 'X-Silent-Loading': 'true' } });
-      const categoryIds = response.data.categoryIds;
+      const categoryIds = response?.data?.data?.categoryIds || [];
 
       const newParsedData = parsedData.map((item, index) => {
         const predictedId = categoryIds[index];
@@ -286,7 +284,6 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
   };
 
   const handleReset = () => {
-    setFileList([]);
     setParsedData([]);
     setCurrentStep(0);
     setImportResult(null);
@@ -340,6 +337,11 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
           value={categoryId}
           style={{ width: '100%' }}
           placeholder="选择分类"
+          showSearch
+          optionFilterProp="label"
+          options={categories
+            .filter(c => c.type === record.type)
+            .map(c => ({ value: c.id, label: c.name }))}
           onChange={(val) => {
             const newData = [...parsedData];
             const index = newData.findIndex(item => item.key === record.key);
@@ -350,11 +352,7 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
               setParsedData(newData);
             }
           }}
-        >
-          {categories.filter(c => c.type === record.type).map(c => (
-            <Option key={c.id} value={c.id}>{c.name}</Option>
-          ))}
-        </Select>
+        />
       )
     },
     {
@@ -375,16 +373,20 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
       onCancel={() => (onClose || onCancel)?.()}
       footer={null}
       width={900}
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
       keyboard={false}
       className="import-modal"
     >
-      <Steps current={currentStep} className="mb-6">
-        <Step title="上传文件" description="支持支付宝/微信 CSV" />
-        <Step title="预览与分类" description="AI 智能分类" />
-        <Step title="完成导入" />
-      </Steps>
+      <Steps
+        current={currentStep}
+        className="mb-6"
+        items={[
+          { title: '上传文件', content: '支持支付宝/微信 CSV' },
+          { title: '预览与分类', content: 'AI 智能分类' },
+          { title: '完成导入' },
+        ]}
+      />
 
       {currentStep === 0 && (
         <div className="p-8 text-center">

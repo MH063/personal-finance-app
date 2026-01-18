@@ -1,6 +1,6 @@
 import type React from 'react';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { List, Tag, Typography, Badge, Button, Space, Alert, Empty, Row, Col, Progress, Collapse } from 'antd';
+import { Tag, Typography, Badge, Button, Space, Alert, Empty, Row, Col, Progress, Collapse } from 'antd';
 import { SyncOutlined, CheckCircleOutlined, ExclamationCircleOutlined, CloudSyncOutlined, CloseOutlined, MinusOutlined } from '@ant-design/icons';
 import { collaborativeService } from '../../services/collaborativeService';
 import { offlineSyncService, SyncListener } from '../../services/offlineSyncService';
@@ -299,7 +299,7 @@ function SyncMonitor({ visible, onClose }: SyncMonitorProps) {
         id: Math.random().toString(36).substring(7),
         type: 'SYSTEM_CONNECTED',
         timestamp: new Date().toLocaleTimeString(),
-        status: 'success',
+        status: 'success' as const,
       }, ...prev].slice(0, 50));
     };
 
@@ -309,7 +309,7 @@ function SyncMonitor({ visible, onClose }: SyncMonitorProps) {
         id: Math.random().toString(36).substring(7),
         type: 'SYSTEM_DISCONNECTED',
         timestamp: new Date().toLocaleTimeString(),
-        status: 'failure',
+        status: 'failure' as const,
       }, ...prev].slice(0, 50));
       beepWarning();
     };
@@ -712,45 +712,55 @@ function SyncMonitor({ visible, onClose }: SyncMonitorProps) {
             </div>
           )}
 
-          {/* 日志列表 */}
           <Title level={5}>实时同步流水 ({logs.length})</Title>
-          <List
-            dataSource={logs}
-            renderItem={item => (
-              <List.Item>
-                <List.Item.Meta
-                  avatar={
-                    item.type === 'RECONNECTED_SYNC' ? 
-                    <CloudSyncOutlined style={{ color: '#1890ff' }} /> :
-                    item.status === 'success' ? 
-                    <CheckCircleOutlined style={{ color: '#52c41a' }} /> : 
-                    <ExclamationCircleOutlined style={{ color: '#f5222d' }} />
-                  }
-                  title={
-                    <Space>
+          {logs.length === 0 ? (
+            <Empty description="暂无同步记录" />
+          ) : (
+            <div>
+              {logs.map((item) => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'flex',
+                    gap: 12,
+                    alignItems: 'flex-start',
+                    padding: '8px 0',
+                    borderBottom: '1px solid rgba(255,255,255,0.1)'
+                  }}
+                >
+                  <div style={{ fontSize: 16, lineHeight: '24px' }}>
+                    {item.type === 'RECONNECTED_SYNC' ? (
+                      <CloudSyncOutlined style={{ color: '#1890ff' }} />
+                    ) : item.status === 'success' ? (
+                      <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                    ) : (
+                      <ExclamationCircleOutlined style={{ color: '#f5222d' }} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Text strong>{formatSyncType(item.type)}</Text>
                       {item.type === 'RECONNECTED_SYNC' && <Tag color="blue">数据补偿</Tag>}
                       {item.type === 'MANUAL_FORCE_SYNC' && <Tag color="purple">强制刷新</Tag>}
-                    </Space>
-                  }
-                  description={
-                    <Space direction="vertical" size={0} style={{ width: '100%' }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>时间: {item.timestamp}</Text>
-                      {item.data && item.data.id && (
-                        <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
-                          数据ID: {item.data.id}
-                        </Text>
-                      )}
-                      <Tag size="small" color={item.type.includes('SYNC') ? 'processing' : 'green'}>
-                        {item.type.includes('SYNC') ? '全量刷新成功' : '增量更新成功'}
-                      </Tag>
-                    </Space>
-                  }
-                />
-              </List.Item>
-            )}
-            locale={{ emptyText: <Empty description="暂无同步记录" /> }}
-          />
+                    </div>
+                    <div style={{ marginTop: 4 }}>
+                      <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                        <Text type="secondary" style={{ fontSize: 12 }}>时间: {item.timestamp}</Text>
+                        {item.data && item.data.id && (
+                          <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>
+                            数据ID: {item.data.id}
+                          </Text>
+                        )}
+                        <Tag color={item.type.includes('SYNC') ? 'processing' : 'green'}>
+                          {item.type.includes('SYNC') ? '全量刷新成功' : '增量更新成功'}
+                        </Tag>
+                      </Space>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>

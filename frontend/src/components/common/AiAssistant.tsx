@@ -13,7 +13,7 @@ const AiAssistant: React.FC = () => {
   const { tokens, theme } = useDesignSystem();
   // 基于 Design Tokens 构造本组件使用的颜色表
   const colors = {
-    primary: tokens.theme[theme].color.primary['600'],
+    primary: ((tokens.theme[theme].color as any).primary?.['600']) ?? tokens.theme.light.color.primary['600'],
     surface: tokens.theme[theme].color.background.elevated,
     background: tokens.theme[theme].color.background.secondary,
     border: tokens.theme[theme].color.border.default,

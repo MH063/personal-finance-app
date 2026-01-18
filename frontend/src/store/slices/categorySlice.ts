@@ -9,7 +9,7 @@ interface CategoryState {
   error: string | null;
 }
 
-export const fetchCategories = createAsyncThunk(
+export const fetchCategories = createAsyncThunk<Category[], 'income' | 'expense' | { type?: 'income' | 'expense' } | undefined>(
   'categories/fetchAll',
   async (params: 'income' | 'expense' | { type?: 'income' | 'expense' } | undefined = undefined, { rejectWithValue }) => {
     try {
@@ -21,9 +21,9 @@ export const fetchCategories = createAsyncThunk(
   }
 );
 
-export const createCategory = createAsyncThunk(
+export const createCategory = createAsyncThunk<Category, Partial<Category>>(
   'categories/create',
-  async (data: Partial<Category>, { rejectWithValue }) => {
+  async (data, { rejectWithValue }) => {
     try {
       const dataResult = await categoryService.createCategory(data);
       // 发送通知
@@ -35,9 +35,9 @@ export const createCategory = createAsyncThunk(
   }
 );
 
-export const updateCategory = createAsyncThunk(
+export const updateCategory = createAsyncThunk<Category, { id: string; data: Partial<Category> }>(
   'categories/update',
-  async ({ id, data }: { id: string; data: Partial<Category> }, { rejectWithValue }) => {
+  async ({ id, data }, { rejectWithValue }) => {
     try {
       const dataResult = await categoryService.updateCategory(id, data);
       // 发送通知
@@ -49,9 +49,9 @@ export const updateCategory = createAsyncThunk(
   }
 );
 
-export const deleteCategory = createAsyncThunk(
+export const deleteCategory = createAsyncThunk<string, string | { id: string; options?: { force?: boolean; migrateTo?: string } }>(
   'categories/delete',
-  async (arg: string | { id: string; options?: { force?: boolean; migrateTo?: string } }, { rejectWithValue }) => {
+  async (arg, { rejectWithValue }) => {
     const id = typeof arg === 'string' ? arg : arg.id;
     const options = typeof arg === 'string' ? undefined : arg.options;
     try {

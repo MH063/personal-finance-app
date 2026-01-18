@@ -150,7 +150,7 @@ const { Title, Text } = Typography;
               value={budgetExecutionRate} 
               precision={1}
               suffix="%" 
-              valueStyle={{ color: budgetExecutionRate > 90 ? '#ef4444' : '#f59e0b' }}
+              styles={{ content: { color: budgetExecutionRate > 90 ? '#ef4444' : '#f59e0b' } }}
             />
             <div className="stats-card-footer">
               <Progress 

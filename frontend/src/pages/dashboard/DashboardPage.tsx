@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, List, Typography, Progress, Empty, Button, Tag } from 'antd';
+import { Row, Col, Card, Statistic, Typography, Progress, Empty, Button, Tag } from 'antd';
 import {
   ArrowUpOutlined,
   ArrowDownOutlined,
@@ -87,7 +87,7 @@ const DashboardPage: React.FC = () => {
   const lineChartOption = {
     backgroundColor: 'transparent',
     tooltip: { 
-      trigger: 'axis',
+      trigger: 'axis' as const,
       backgroundColor: 'rgba(0, 0, 0, 0.7)',
       borderColor: 'rgba(255, 255, 255, 0.2)',
       textStyle: { color: '#fff' }
@@ -99,29 +99,29 @@ const DashboardPage: React.FC = () => {
     },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
     xAxis: {
-      type: 'category',
+      type: 'category' as const,
       boundaryGap: false,
       axisLine: { lineStyle: { color: splitLineColor } },
       axisLabel: { color: textColor },
       data: Array.isArray(chartData.lineChart.income) ? chartData.lineChart.income.map((item) => item.date) : [],
     },
     yAxis: { 
-      type: 'value',
+      type: 'value' as const,
       axisLabel: { color: textColor },
-      splitLine: { lineStyle: { type: 'dashed', color: splitLineColor } }
+      splitLine: { lineStyle: { type: 'dashed' as const, color: splitLineColor } }
     },
     series: [
       {
         name: '收入',
-        type: 'line',
-        smooth: 0.4,
-        symbol: 'circle',
+        type: 'line' as const,
+        smooth: true,
+        symbol: 'circle' as const,
         symbolSize: 8,
         data: Array.isArray(chartData.lineChart.income) ? chartData.lineChart.income.map((item) => item.value) : [],
         itemStyle: { color: '#10b981' },
         areaStyle: {
           color: {
-            type: 'linear',
+            type: 'linear' as const,
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [{ offset: 0, color: 'rgba(16, 185, 129, 0.3)' }, { offset: 1, color: 'rgba(16, 185, 129, 0)' }]
           }
@@ -129,15 +129,15 @@ const DashboardPage: React.FC = () => {
       },
       {
         name: '支出',
-        type: 'line',
-        smooth: 0.4,
-        symbol: 'circle',
+        type: 'line' as const,
+        smooth: true,
+        symbol: 'circle' as const,
         symbolSize: 8,
         data: Array.isArray(chartData.lineChart.expense) ? chartData.lineChart.expense.map((item) => item.value) : [],
         itemStyle: { color: '#ef4444' },
         areaStyle: {
           color: {
-            type: 'linear',
+            type: 'linear' as const,
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [{ offset: 0, color: 'rgba(239, 68, 68, 0.3)' }, { offset: 1, color: 'rgba(239, 68, 68, 0)' }]
           }
@@ -149,21 +149,21 @@ const DashboardPage: React.FC = () => {
   const pieChartOption = {
     backgroundColor: 'transparent',
     tooltip: { 
-      trigger: 'item', 
+      trigger: 'item' as const, 
       formatter: '{b}: {c} ({d}%)',
       backgroundColor: 'rgba(0, 0, 0, 0.7)',
       borderColor: 'rgba(255, 255, 255, 0.2)',
       textStyle: { color: '#fff' }
     },
     legend: { 
-      orient: 'vertical', 
+      orient: 'vertical' as const, 
       right: 10, 
       top: 'center',
       textStyle: { color: textColor }
     },
     series: [
       {
-        type: 'pie',
+        type: 'pie' as const,
         radius: ['50%', '80%'],
         avoidLabelOverlap: false,
         label: { show: false },
@@ -179,27 +179,27 @@ const DashboardPage: React.FC = () => {
   const forecastChartOption = {
     backgroundColor: 'transparent',
     tooltip: { 
-      trigger: 'axis',
+      trigger: 'axis' as const,
       backgroundColor: 'rgba(0, 0, 0, 0.7)',
       borderColor: 'rgba(255, 255, 255, 0.2)',
       textStyle: { color: '#fff' }
     },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
     xAxis: {
-      type: 'category',
+      type: 'category' as const,
       axisLine: { lineStyle: { color: splitLineColor } },
       axisLabel: { color: textColor },
       data: Array.isArray(forecast) ? forecast.map(f => f.month) : [],
     },
     yAxis: { 
-      type: 'value',
+      type: 'value' as const,
       axisLabel: { color: textColor },
-      splitLine: { lineStyle: { type: 'dashed', color: splitLineColor } }
+      splitLine: { lineStyle: { type: 'dashed' as const, color: splitLineColor } }
     },
     series: [
       {
         name: '预测支出',
-        type: 'bar',
+        type: 'bar' as const,
         data: Array.isArray(forecast) ? forecast.map(f => f.amount) : [],
         itemStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
@@ -209,7 +209,7 @@ const DashboardPage: React.FC = () => {
         },
         label: {
           show: true,
-          position: 'top',
+          position: 'outside' as const,
           color: textColor,
           formatter: (params: any) => `¥${params.value.toFixed(0)}`
         }
@@ -416,34 +416,37 @@ const DashboardPage: React.FC = () => {
         </Col>
 
         <Col xs={24} lg={12}>
-          <Card 
+          <Card
             title="最近交易" 
             className="recent-transactions-card" 
             variant="borderless"
             extra={<Button type="link" onClick={() => navigate('/expense')}>查看全部</Button>}
           >
-            <List
-              dataSource={transactions.slice(0, 5)}
-              className="recent-transactions-list"
-              renderItem={(item) => (
-                <List.Item className="transaction-item">
-                  <List.Item.Meta
-                    avatar={
-                      <div className={`transaction-icon-bg ${item.type}`}>
-                        {item.type === 'income' ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-                      </div>
-                    }
-                    title={<Text strong className="transaction-desc">{item.description || (item.category as any)?.name || '未分类'}</Text>}
-                    description={new Date(item.transactionDate).toLocaleDateString()}
-                  />
+            <div className="recent-transactions-list">
+              {transactions.slice(0, 5).map((item) => (
+                <div key={item.id} className="transaction-item" style={{ display: 'flex', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div className={`transaction-icon-bg ${item.type}`}>
+                    {item.type === 'income' ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+                  </div>
+                  <div style={{ flex: 1, marginLeft: 8 }}>
+                    <Text strong className="transaction-desc">
+                      {item.description || (item.category as any)?.name || '未分类'}
+                    </Text>
+                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+                      {new Date(item.transactionDate).toLocaleDateString()}
+                    </div>
+                  </div>
                   <div className="transaction-amount">
                     <Text strong className={`amount-text ${item.type}`}>
                       {item.type === 'income' ? '+' : '-'}¥{item.amount.toLocaleString()}
                     </Text>
                   </div>
-                </List.Item>
+                </div>
+              ))}
+              {transactions.slice(0, 5).length === 0 && (
+                <Empty description="暂无交易" image={Empty.PRESENTED_IMAGE_SIMPLE} />
               )}
-            />
+            </div>
           </Card>
         </Col>
       </Row>

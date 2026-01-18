@@ -212,7 +212,8 @@ export const categoryService = {
       await offlineSyncService.syncPendingChanges().catch(() => {});
     }
 
-    return { id, ...data };
+    const updated = await db.categories.get(id);
+    return updated as Category;
   },
 
   /**

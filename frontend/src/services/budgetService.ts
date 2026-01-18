@@ -127,11 +127,8 @@ const budgetService = {
     // 获取完整的当前预算记录
     const current = await db.budgets.get(id);
     
-    // 获取分类信息
-    let category = current?.category;
-    if (data.categoryId) {
-      category = await db.categories.get(data.categoryId);
-    }
+    // 获取分类信息（更新不支持变更分类，保持当前分类）
+    const category = current?.category;
 
     const updatedData = {
       ...current,

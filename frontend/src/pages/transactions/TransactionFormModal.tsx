@@ -18,7 +18,6 @@ interface TransactionFormModalProps {
   initialType?: 'income' | 'expense';
 }
 
-const { Option } = Select;
 const { TextArea } = Input;
 
 const TransactionFormModal: React.FC<TransactionFormModalProps> = ({ 
@@ -138,7 +137,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
       okText={isDebtLink ? '跳转至债务编辑' : '确定'}
       confirmLoading={loading}
       width={600}
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
       keyboard={false}
     >
@@ -176,17 +175,20 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
                 placeholder="选择分类" 
                 disabled={isDebtLink}
                 showSearch
-                optionFilterProp="children"
-              >
-                {filteredCategories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
-              </Select>
+                optionFilterProp="label"
+                options={filteredCategories.map(c => ({ value: c.id, label: c.name }))}
+              />
             </Form.Item>
           </Col>
           <Col span={12}>
             <Form.Item name="ledgerId" label="账本" rules={[{ required: true, message: '请选择账本' }]}>
-              <Select placeholder="选择账本" disabled={isDebtLink}>
-                {ledgers.map(l => <Option key={l.id} value={l.id}>{l.name}</Option>)}
-              </Select>
+              <Select
+                placeholder="选择账本"
+                disabled={isDebtLink}
+                options={ledgers.map(l => ({ value: l.id, label: l.name }))}
+                showSearch
+                optionFilterProp="label"
+              />
             </Form.Item>
           </Col>
         </Row>
@@ -231,14 +233,18 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         </Form.Item>
 
         <Form.Item name="paymentMethod" label="支付方式">
-          <Select placeholder="选择支付方式" disabled={isDebtLink}>
-            <Option value="bank_card">银行卡</Option>
-            <Option value="alipay">支付宝</Option>
-            <Option value="wechat">微信</Option>
-            <Option value="cash">现金</Option>
-            <Option value="credit_card">信用卡</Option>
-            <Option value="other">其他</Option>
-          </Select>
+          <Select
+            placeholder="选择支付方式"
+            disabled={isDebtLink}
+            options={[
+              { value: 'bank_card', label: '银行卡' },
+              { value: 'alipay', label: '支付宝' },
+              { value: 'wechat', label: '微信' },
+              { value: 'cash', label: '现金' },
+              { value: 'credit_card', label: '信用卡' },
+              { value: 'other', label: '其他' },
+            ]}
+          />
         </Form.Item>
 
         <Form.Item name="merchant" label="商户">

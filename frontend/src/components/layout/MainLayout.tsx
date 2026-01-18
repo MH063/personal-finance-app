@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography, Spin, Tooltip, Modal, List, Tag, message, notification } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography, Spin, Tooltip, Modal, Tag, message, notification } from 'antd';
 import {
   DashboardOutlined,
   RiseOutlined,
@@ -340,15 +340,23 @@ const MainLayout = () => {
           <div style={{ marginBottom: 10, color: 'rgba(255,255,255,0.85)' }}>
             提前提醒天数：{repaymentReminder.advanceDays}天
           </div>
-          <List
-            dataSource={repaymentReminder.items}
-            renderItem={(item: any) => {
+          <div>
+            {repaymentReminder.items.map((item: any) => {
               const dateText = new Date(item.repaymentDate).toLocaleDateString();
               const amountText = `¥${Number(item.debt?.remainingAmount || 0).toFixed(2)}`;
               return (
-                <List.Item
-                  style={{ paddingLeft: 0, paddingRight: 0 }}
-                  actions={[
+                <div key={item.debt?.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <span style={{ fontWeight: 600 }}>{item.debt?.debtorName}</span>
+                      {item.overdue ? <Tag color="error">已逾期</Tag> : <Tag color="warning">即将到期</Tag>}
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
+                      <span>还款日：{dateText}</span>
+                      <span>待还：{amountText}</span>
+                    </div>
+                  </div>
+                  <div>
                     <Button
                       key="go"
                       type="primary"
@@ -359,27 +367,12 @@ const MainLayout = () => {
                       }}
                     >
                       去确认
-                    </Button>,
-                  ]}
-                >
-                  <List.Item.Meta
-                    title={
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span style={{ fontWeight: 600 }}>{item.debt?.debtorName}</span>
-                        {item.overdue ? <Tag color="error">已逾期</Tag> : <Tag color="warning">即将到期</Tag>}
-                      </div>
-                    }
-                    description={
-                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                        <span>还款日：{dateText}</span>
-                        <span>待还：{amountText}</span>
-                      </div>
-                    }
-                  />
-                </List.Item>
+                    </Button>
+                  </div>
+                </div>
               );
-            }}
-          />
+            })}
+          </div>
         </div>
       ),
     });
@@ -599,7 +592,7 @@ const MainLayout = () => {
               menu={{ items: notificationItems }}
               placement="topRight"
               trigger={['click']}
-              overlayClassName="notification-dropdown"
+              classNames={{ root: 'notification-dropdown' }}
             >
               <Badge count={unreadCount || 0} size="small" offset={[-2, 4]}>
                 <BellOutlined className="header-action-icon" />

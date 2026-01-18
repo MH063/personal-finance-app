@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 export interface Category {
   id: string;
   name: string;
-  color: string;
+  color?: string;
 }
 
 export interface Ledger {
@@ -35,6 +35,7 @@ export interface Transaction {
   isAdjustment?: boolean;
   isTransfer?: boolean;
   toLedgerId?: string;
+  metadata?: any;
 }
 
 export interface PaginatedTransactions {
@@ -100,8 +101,14 @@ export const transactionService = {
       if (query.type) data = data.filter(t => t.type === query.type);
       if (query.categoryId) data = data.filter(t => t.categoryId === query.categoryId);
       if (query.ledgerId) data = data.filter(t => t.ledgerId === query.ledgerId);
-      if (query.startDate) data = data.filter(t => t.transactionDate >= query.startDate);
-      if (query.endDate) data = data.filter(t => t.transactionDate <= query.endDate);
+      if (query.startDate !== undefined && query.startDate !== null) {
+        const start = query.startDate as string;
+        data = data.filter(t => t.transactionDate >= start);
+      }
+      if (query.endDate !== undefined && query.endDate !== null) {
+        const end = query.endDate as string;
+        data = data.filter(t => t.transactionDate <= end);
+      }
       data.sort((a, b) => b.transactionDate.localeCompare(a.transactionDate));
       return data;
     };
@@ -202,14 +209,20 @@ export const transactionService = {
     // 后台同步
     api.post('/transactions', data).then(async (res) => {
       // 更新为服务器返回的真实数据
-      await db.transactions.put(res.data);
+      const serverData = res?.data?.data || res?.data;
+      if (serverData) {
+        await db.transactions.put(serverData);
+      }
     }).catch(err => {
       console.error('[TransactionService] 创建交易失败，加入离线队列', err);
-      offlineSyncService.addToQueue({
-        type: 'CREATE_TRANSACTION',
-        payload: data,
-        id: id
-      });
+      // 使用统一的同步队列格式
+      db.syncQueue.add({
+        action: 'CREATE',
+        entity: 'TRANSACTION',
+        entityId: id,
+        data,
+        timestamp: Date.now(),
+      }).catch(() => {});
     });
 
     return newTx;

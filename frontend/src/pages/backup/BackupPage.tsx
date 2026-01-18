@@ -566,7 +566,7 @@ const BackupPage: React.FC = () => {
       title: '操作',
       key: 'actions',
       width: 180,
-      fixed: 'right',
+      fixed: 'right' as const,
       align: 'center' as const,
       render: (_: any, record: any) => {
         const state = downloadProgress[record.id];
@@ -708,7 +708,7 @@ const BackupPage: React.FC = () => {
             <Statistic 
               title="成功备份" 
               value={successfulBackups} 
-              valueStyle={{ color: 'var(--success)' }} 
+              styles={{ content: { color: 'var(--success)' } }} 
               prefix={<CheckCircleOutlined />}
             />
           </Card>

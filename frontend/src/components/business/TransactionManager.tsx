@@ -411,12 +411,11 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
       render: (_: any, record: Transaction) => {
         // 权限判断：只有交易创建者、账本所有者或管理员可以修改/删除
         const ledger = ledgers.find(l => l.id === record.ledgerId);
-        const isCreator = record.userId === user?.id;
         const userRole = ledger?.ownerId === user?.id 
           ? 'owner' 
           : ledger?.members?.find((m: any) => m.userId === user?.id)?.role;
         
-        const canManage = isCreator || userRole === 'owner' || userRole === 'admin';
+        const canManage = userRole === 'owner' || userRole === 'admin';
 
         return (
           <Space size="small">

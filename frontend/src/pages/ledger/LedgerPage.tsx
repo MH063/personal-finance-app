@@ -389,7 +389,7 @@ const LedgerPage: React.FC = () => {
                   key: 'user',
                   render: (_: any, record: any) => (
                     <div>
-                      <div style={{ fontWeight: 600 }}>{record.user?.fullName || record.user?.username} {record.userId === user?.id && <Tag size="small">我</Tag>}</div>
+                      <div style={{ fontWeight: 600 }}>{record.user?.fullName || record.user?.username} {record.userId === user?.id && <Tag>我</Tag>}</div>
                       <div style={{ fontSize: 12, color: '#999' }}>{record.user?.email}</div>
                     </div>
                   )

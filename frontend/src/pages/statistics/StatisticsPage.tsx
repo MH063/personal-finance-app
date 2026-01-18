@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Select, DatePicker, Button, Statistic, Typography, Space, App as AntdApp, Tag, Progress, List } from 'antd';
+import { Card, Row, Col, Select, DatePicker, Button, Statistic, Typography, Space, App as AntdApp, Tag, Progress } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, DownloadOutlined, AccountBookOutlined, ReloadOutlined } from '@ant-design/icons';
 import SafeChart from '../../components/common/SafeChart';
 import { useDispatch, useSelector } from 'react-redux';
@@ -16,7 +16,6 @@ import './StatisticsPage.css';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
-const { Option } = Select;
 
 const StatisticsPage: React.FC = () => {
   const [timeRange, setTimeRange] = useState('last6months');
@@ -145,7 +144,7 @@ const StatisticsPage: React.FC = () => {
 
   const lineChartOption = {
     tooltip: { 
-      trigger: 'axis',
+      trigger: 'axis' as const,
       backgroundColor: 'rgba(255, 255, 255, 0.9)',
       borderWidth: 0,
       shadowBlur: 10,
@@ -160,20 +159,20 @@ const StatisticsPage: React.FC = () => {
     },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
     xAxis: {
-      type: 'category', 
+      type: 'category' as const, 
       data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.month) : [],
       axisLine: { lineStyle: { color: '#e2e8f0' } },
       axisLabel: { color: '#64748b' }
     },
     yAxis: { 
-      type: 'value',
-      splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } },
+      type: 'value' as const,
+      splitLine: { lineStyle: { type: 'dashed' as const, color: '#f1f5f9' } },
       axisLabel: { color: '#64748b' }
     },
     series: [
       { 
         name: '收入', 
-        type: 'bar', 
+        type: 'bar' as const, 
         barWidth: '20%',
         data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.income) : [], 
         itemStyle: { 
@@ -183,7 +182,7 @@ const StatisticsPage: React.FC = () => {
       },
       { 
         name: '支出', 
-        type: 'bar', 
+        type: 'bar' as const, 
         barWidth: '20%',
         data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.expense) : [], 
         itemStyle: { 
@@ -195,10 +194,10 @@ const StatisticsPage: React.FC = () => {
   };
 
   const pieChartOption = {
-    tooltip: { trigger: 'item' },
-    legend: { orient: 'vertical', right: 10, top: 'center', icon: 'circle' },
+    tooltip: { trigger: 'item' as const },
+    legend: { orient: 'vertical' as const, right: 10, top: 'center', icon: 'circle' },
     series: [{
-      type: 'pie',
+      type: 'pie' as const,
       radius: ['50%', '80%'],
       avoidLabelOverlap: false,
       itemStyle: {
@@ -210,8 +209,8 @@ const StatisticsPage: React.FC = () => {
       emphasis: {
         label: {
           show: true,
-          fontSize: '16',
-          fontWeight: 'bold'
+          fontSize: 16,
+          fontWeight: 700
         }
       },
       data: Array.isArray(overview?.categoryBreakdown) ? overview.categoryBreakdown.map((cat: any) => ({
@@ -223,30 +222,30 @@ const StatisticsPage: React.FC = () => {
   };
 
   const trendChartOption = {
-    tooltip: { trigger: 'axis' },
+    tooltip: { trigger: 'axis' as const },
     legend: { data: ['结余'], bottom: 0, icon: 'circle' },
     grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
     xAxis: { 
-      type: 'category', 
+      type: 'category' as const, 
       data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.month) : [],
       axisLine: { lineStyle: { color: '#e2e8f0' } }
     },
     yAxis: { 
-      type: 'value',
-      splitLine: { lineStyle: { type: 'dashed', color: '#f1f5f9' } }
+      type: 'value' as const,
+      splitLine: { lineStyle: { type: 'dashed' as const, color: '#f1f5f9' } }
     },
     series: [{ 
       name: '结余', 
-      type: 'line', 
+      type: 'line' as const, 
       smooth: true, 
-      symbol: 'circle',
+      symbol: 'circle' as const,
       symbolSize: 8,
       data: Array.isArray(overview?.monthlyTrends) ? overview.monthlyTrends.map((t: any) => t.netIncome) : [], 
       itemStyle: { color: '#6366f1' }, 
       lineStyle: { width: 4 },
       areaStyle: { 
         color: {
-          type: 'linear',
+          type: 'linear' as const,
           x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
             { offset: 0, color: 'rgba(99, 102, 241, 0.3)' },
@@ -258,18 +257,18 @@ const StatisticsPage: React.FC = () => {
   };
 
   const forecastChartOption = {
-    tooltip: { trigger: 'axis' },
+    tooltip: { trigger: 'axis' as const },
     xAxis: { 
-      type: 'category', 
+      type: 'category' as const, 
       data: Array.isArray(forecastData) ? forecastData.map(d => d.month) : [],
       axisLine: { lineStyle: { color: '#e2e8f0' } }
     },
-    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
+    yAxis: { type: 'value' as const, splitLine: { lineStyle: { type: 'dashed' as const } } },
     series: [{
       data: Array.isArray(forecastData) ? forecastData.map(d => d.amount) : [],
-      type: 'line',
+      type: 'line' as const,
       smooth: true,
-      lineStyle: { type: 'dashed', color: '#6366f1' },
+      lineStyle: { type: 'dashed' as const, color: '#6366f1' },
       areaStyle: { color: 'rgba(99, 102, 241, 0.1)' }
     }]
   };
@@ -376,15 +375,16 @@ const StatisticsPage: React.FC = () => {
               className="range-select"
               size="large"
               style={{ width: 160 }}
-            >
-              <Option value="week">本周</Option>
-              <Option value="month">本月</Option>
-              <Option value="last6months">最近6个月</Option>
-              <Option value="last12months">最近12个月</Option>
-              <Option value="quarter">本季度</Option>
-              <Option value="year">本年</Option>
-              <Option value="custom">自定义范围</Option>
-            </Select>
+              options={[
+                { value: 'week', label: '本周' },
+                { value: 'month', label: '本月' },
+                { value: 'last6months', label: '最近6个月' },
+                { value: 'last12months', label: '最近12个月' },
+                { value: 'quarter', label: '本季度' },
+                { value: 'year', label: '本年' },
+                { value: 'custom', label: '自定义范围' },
+              ]}
+            />
             {timeRange === 'custom' && (
               <RangePicker 
                 value={customRange}
@@ -512,19 +512,22 @@ const StatisticsPage: React.FC = () => {
                   <div className="recommendation-header">
                     <Title level={5} className="high-readability-title" style={{ color: textColor, textShadow }}>AI 改善建议</Title>
                   </div>
-                  <List 
-                    size="small" 
-                    dataSource={(Array.isArray(aiData?.insights) && aiData.insights.length > 0 
-                      ? aiData.insights 
+                  <div className="recommendation-list">
+                    {(Array.isArray(aiData?.insights) && aiData.insights.length > 0
+                      ? aiData.insights
                       : (Array.isArray(health?.recommendations) ? health.recommendations : [])
-                    ) as string[]} 
-                    renderItem={(item: string) => (
-                      <List.Item className="recommendation-item">
+                    ).map((item: string, idx: number) => (
+                      <div key={idx} className="recommendation-item" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                         <Tag color="purple" className="suggestion-tag">AI 建议</Tag>
                         <Text className="suggestion-text high-readability-text" style={{ color: textColor, textShadow }}>{item}</Text>
-                      </List.Item>
-                    )} 
-                  />
+                      </div>
+                    ))}
+                    {((Array.isArray(aiData?.insights) && aiData.insights.length > 0) || (Array.isArray(health?.recommendations) && health.recommendations.length > 0)) ? null : (
+                      <div style={{ padding: '8px 0' }}>
+                        <Text type="secondary">暂无建议</Text>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -532,25 +535,28 @@ const StatisticsPage: React.FC = () => {
         </Col>
         <Col xs={24} lg={10}>
           <Card title="分类支出排行" className="glass-card category-card" variant="borderless">
-            <List 
-              dataSource={Array.isArray(overview?.categoryBreakdown) ? overview.categoryBreakdown : []} 
-              className="category-rank-list"
-              renderItem={(item: any) => (
-                <List.Item className="rank-item">
-                  <div className="rank-left">
+            <div className="category-rank-list">
+              {(Array.isArray(overview?.categoryBreakdown) ? overview.categoryBreakdown : []).map((item: any, idx: number) => (
+                <div key={idx} className="rank-item" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div className="rank-left" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div className="category-dot" style={{ backgroundColor: item.categoryColor }} />
                     <div className="category-info">
                       <div className="name">{item.categoryName}</div>
                       <div className="count">{item.transactionCount} 笔交易</div>
                     </div>
                   </div>
-                  <div className="rank-right">
+                  <div className="rank-right" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <div className="amount">¥{(item.amount || 0).toFixed(2)}</div>
                     <div className="percentage">{item.percentage || 0}%</div>
                   </div>
-                </List.Item>
-              )} 
-            />
+                </div>
+              ))}
+              {(Array.isArray(overview?.categoryBreakdown) ? overview.categoryBreakdown : []).length === 0 && (
+                <div style={{ padding: '8px 0' }}>
+                  <Text type="secondary">暂无数据</Text>
+                </div>
+              )}
+            </div>
           </Card>
         </Col>
       </Row>

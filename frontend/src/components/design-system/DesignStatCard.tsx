@@ -46,9 +46,11 @@ export const DesignStatCard: React.FC<DesignStatCardProps> = ({
         suffix={suffix}
         precision={precision}
         loading={loading}
-        valueStyle={{
-          fontWeight: 'var(--font-weight-extrabold)',
-          fontSize: 'var(--font-size-2xl)',
+        styles={{
+          content: {
+            fontWeight: 'var(--font-weight-extrabold)',
+            fontSize: 'var(--font-size-2xl)',
+          },
         }}
       />
       

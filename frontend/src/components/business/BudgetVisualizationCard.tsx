@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Card, Row, Col, Progress, Typography, Space, Tooltip, Select, Empty, Tag, List, Divider } from 'antd';
+import { Card, Row, Col, Progress, Typography, Space, Tooltip, Select, Empty, Tag, Divider } from 'antd';
 import { 
   InfoCircleOutlined, 
   HistoryOutlined, 
@@ -11,7 +11,6 @@ import { useNavigate } from 'react-router-dom';
 import './BudgetVisualizationCard.css';
 
 const { Text, Title } = Typography;
-const { Option } = Select;
 
 /**
  * 格式化百分比数值，精确到小数点后两位
@@ -157,12 +156,13 @@ const BudgetVisualizationCard: React.FC<BudgetVisualizationCardProps> = ({
               style={{ width: 160 }}
               onChange={setLocalCategoryId}
               popupMatchSelectWidth={false}
-            >
-              <Option value="">全部分类</Option>
-              {categories.filter(cat => cat && cat.id).map(cat => (
-                <Option key={cat.id} value={cat.id}>{cat.name}</Option>
-              ))}
-            </Select>
+              options={[
+                { value: '', label: '全部分类' },
+                ...categories
+                  .filter(cat => cat && cat.id)
+                  .map(cat => ({ value: cat.id, label: cat.name })),
+              ]}
+            />
           </div>
           <Select 
             defaultValue="month" 
@@ -170,12 +170,13 @@ const BudgetVisualizationCard: React.FC<BudgetVisualizationCardProps> = ({
             suffixIcon={<FilterOutlined />}
             onChange={onRangeChange}
             style={{ width: 80 }}
-          >
-            <Option value="week">本周</Option>
-            <Option value="month">本月</Option>
-            <Option value="quarter">本季</Option>
-            <Option value="year">本年</Option>
-          </Select>
+            options={[
+              { value: 'week', label: '本周' },
+              { value: 'month', label: '本月' },
+              { value: 'quarter', label: '本季' },
+              { value: 'year', label: '本年' },
+            ]}
+          />
           <Text type="secondary" style={{ fontSize: '12px' }}>
             <HistoryOutlined /> {lastUpdated || '刚刚'}
           </Text>
@@ -243,16 +244,17 @@ const BudgetVisualizationCard: React.FC<BudgetVisualizationCardProps> = ({
             <Text type="secondary" style={{ fontSize: 12 }}>点击分类钻取明细</Text>
           </div>
           {displayData.budgets.length > 0 ? (
-            <List
-              dataSource={displayData.budgets}
-              renderItem={(item) => (
-                <List.Item 
+            <div style={{ maxHeight: 350, overflowY: 'auto' }}>
+              {displayData.budgets.map((item) => (
+                <div
+                  key={item.id}
                   className="category-budget-item"
                   onClick={() => navigate(`/expense?categoryId=${item.categoryId}`)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer' }}
                 >
-                  <div className="category-budget-content">
+                  <div className="category-budget-content" style={{ flex: 1 }}>
                     <div className="category-info">
-                      <div className="category-name-row">
+                      <div className="category-name-row" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <Tag color={item.categoryColor || 'blue'}>{item.categoryName}</Tag>
                         <Tooltip title={`周期: ${item.startDate} 至 ${item.endDate}`}>
                           <Text type="secondary" style={{ fontSize: 12 }}>
@@ -260,7 +262,7 @@ const BudgetVisualizationCard: React.FC<BudgetVisualizationCardProps> = ({
                           </Text>
                         </Tooltip>
                       </div>
-                      <div className="category-amount-row">
+                      <div className="category-amount-row" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                         <Text type="secondary">{formatAmount(item.usedAmount)} / {formatAmount(item.amount)}</Text>
                         <Text strong>{formatPercentage(item.usagePercentage)}%</Text>
                       </div>
@@ -274,10 +276,9 @@ const BudgetVisualizationCard: React.FC<BudgetVisualizationCardProps> = ({
                     />
                   </div>
                   <ArrowRightOutlined className="item-arrow" />
-                </List.Item>
-              )}
-              style={{ maxHeight: 350, overflowY: 'auto' }}
-            />
+                </div>
+              ))}
+            </div>
           ) : (
             <Empty description="该分类下暂无生效预算" style={{ marginTop: 40 }} />
           )}

@@ -6,16 +6,57 @@
 
 .budget-card {
   height: 100%;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s, border-color 0.3s, filter 0.3s, opacity 0.3s;
   border: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(30, 41, 59, 0.5);
+  background: linear-gradient(135deg, rgba(41, 53, 72, 0.6) 0%, rgba(25, 35, 51, 0.6) 100%);
   backdrop-filter: blur(8px);
+  animation: budgetCardEnter 0.28s ease-out both;
+  position: relative;
+  overflow: hidden;
 }
 
 .budget-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.45);
   border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* 渐变高光覆盖层 */
+.budget-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+/* 禁用状态：弱化颜色 + 灰度 */
+.budget-card-disabled {
+  filter: grayscale(60%);
+  opacity: 0.85;
+  border-style: dashed;
+  position: relative;
+}
+.budget-card-disabled::after {
+  content: '已禁用';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 12px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* 超支状态：强调边框与阴影 */
+.budget-card-overbudget {
+  border-color: rgba(255, 77, 79, 0.5);
+  box-shadow: 0 12px 24px -12px rgba(255, 77, 79, 0.45);
+}
+
+.budget-card-overbudget::before {
+  background: linear-gradient(180deg, rgba(255, 77, 79, 0.06), rgba(255, 255, 255, 0));
 }
 
 .budget-progress-container {
@@ -62,4 +103,28 @@
   font-weight: 600;
   color: #f8fafc;
   margin: 12px 0;
+}
+
+/* 进入动画 */
+@keyframes budgetCardEnter {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 保存成功高亮脉冲 */
+.budget-card-highlight {
+  border-color: rgba(59, 130, 246, 0.6);
+  box-shadow: 0 14px 28px -16px rgba(59, 130, 246, 0.55);
+  animation: glowPulse 1.6s ease-out;
+}
+@keyframes glowPulse {
+  0% { box-shadow: 0 0 0 rgba(59,130,246,0.0); }
+  30% { box-shadow: 0 18px 34px -16px rgba(59,130,246,0.65); }
+  100% { box-shadow: 0 10px 24px -12px rgba(0,0,0,0.45); }
 }

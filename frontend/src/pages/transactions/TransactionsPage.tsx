@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Button, Tag, Space, Badge, Tooltip, App as AntdApp } from 'antd';
+import { Button, Tag, Space, Badge, Tooltip, Segmented, App as AntdApp } from 'antd';
 import { CheckCircleOutlined, ExclamationCircleOutlined, RobotOutlined, PlusOutlined, ImportOutlined, SwapOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
 import dayjs from 'dayjs';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
@@ -27,6 +28,7 @@ const TransactionsPage: React.FC = () => {
   const [automationModalVisible, setAutomationModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [activeTab, setActiveTab] = useState<string>('all');
+  const [tableSize, setTableSize] = useState<'small' | 'middle' | 'large'>('middle');
   const actionRef = useRef<any>();
 
   // Selectors
@@ -138,7 +140,7 @@ const TransactionsPage: React.FC = () => {
     }
   };
 
-  const columns = [
+  const columns: ProColumns<Transaction>[] = [
     {
       title: '标签',
       dataIndex: 'tag',
@@ -152,13 +154,13 @@ const TransactionsPage: React.FC = () => {
       title: '状态',
       dataIndex: 'reconciled',
       width: 80,
-      render: (reconciled: boolean, record: Transaction) => (
-        <Tooltip title={reconciled ? '已核对' : '未核对 (点击核对)'}>
+      render: (_: React.ReactNode, record: Transaction) => (
+        <Tooltip title={record.reconciled ? '已核对' : '未核对 (点击核对)'}>
           <div 
-            className={`status-indicator ${reconciled ? 'reconciled' : 'pending'}`}
+            className={`status-indicator ${record.reconciled ? 'reconciled' : 'pending'}`}
             onClick={() => handleReconcile(record)}
           >
-            {reconciled ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}
+            {record.reconciled ? <CheckCircleOutlined /> : <ExclamationCircleOutlined />}
           </div>
         </Tooltip>
       ),
@@ -176,15 +178,15 @@ const TransactionsPage: React.FC = () => {
       dataIndex: 'amount',
       width: 120,
       sorter: true,
-      render: (amount: number, record: Transaction) => {
+      render: (_: React.ReactNode, record: Transaction) => {
         let prefix = '';
         const className = `amount-cell ${record.type}`;
         if (record.type === 'expense') prefix = '-';
         if (record.type === 'income') prefix = '+';
         if (record.type === 'transfer') prefix = '';
-        const numericAmount = typeof amount === 'number' ? amount : parseFloat(String(amount));
+        const numericAmount = typeof record.amount === 'number' ? record.amount : parseFloat(String(record.amount));
         if (Number.isNaN(numericAmount)) {
-          console.warn('[TransactionsPage] 检测到无效金额值:', amount, record);
+          console.warn('[TransactionsPage] 检测到无效金额值:', record.amount, record);
           return <span className={`${className} error`}>无效金额</span>;
         }
         return <span className={className}>{prefix}{numericAmount.toFixed(2)}</span>;
@@ -193,7 +195,7 @@ const TransactionsPage: React.FC = () => {
     {
       title: '商户/描述',
       dataIndex: 'merchant',
-      render: (merchant: string, record: Transaction) => (
+      render: (_: React.ReactNode, record: Transaction) => (
         <div className="merchant-cell">
           <div className="merchant-name">
             {record.type === 'transfer' ? (
@@ -202,7 +204,7 @@ const TransactionsPage: React.FC = () => {
                 <span>资金划转</span>
               </Space>
             ) : (
-              merchant || '未知商户'
+              record.merchant || '未知商户'
             )}
           </div>
           <div className="description-text">{record.description}</div>
@@ -218,7 +220,8 @@ const TransactionsPage: React.FC = () => {
       title: '分类',
       dataIndex: 'categoryId',
       width: 120,
-      render: (categoryId: string, record: Transaction) => {
+      render: (_: React.ReactNode, record: Transaction) => {
+        const categoryId = record.categoryId;
         if (record.type === 'transfer') return <Tag color="blue">转账</Tag>;
         const category = categories.find(c => c.id === categoryId);
         return category ? (
@@ -230,8 +233,8 @@ const TransactionsPage: React.FC = () => {
       title: '账户',
       dataIndex: 'ledgerId',
       width: 180,
-      render: (ledgerId: string, record: Transaction) => {
-        const fromLedger = ledgers.find(l => l.id === ledgerId);
+      render: (_: React.ReactNode, record: Transaction) => {
+        const fromLedger = ledgers.find(l => l.id === record.ledgerId);
         const fromName = fromLedger ? fromLedger.name : '-';
         
         if (record.type === 'transfer' && record.toLedgerId) {
@@ -291,6 +294,15 @@ const TransactionsPage: React.FC = () => {
         </div>
         <div className="header-right">
           <Space>
+            <Segmented
+              value={tableSize}
+              onChange={(v) => setTableSize(v as 'small' | 'middle' | 'large')}
+              options={[
+                { label: '紧凑', value: 'small' },
+                { label: '默认', value: 'middle' },
+                { label: '宽松', value: 'large' },
+              ]}
+            />
             <Button icon={<RobotOutlined />} onClick={() => setAutomationModalVisible(true)}>自动化规则</Button>
             <Button icon={<SwapOutlined />} onClick={() => setTransferModalVisible(true)}>资金划转</Button>
             <Button icon={<ImportOutlined />} onClick={() => setImportModalVisible(true)}>导入</Button>
@@ -344,11 +356,12 @@ const TransactionsPage: React.FC = () => {
               defaultCollapsed: false,
             }}
             options={{
-              density: true,
+              density: false,
               fullScreen: true,
               reload: true,
               setting: true,
             }}
+            size={tableSize}
             className="audit-table glass-table"
           />
         </div>

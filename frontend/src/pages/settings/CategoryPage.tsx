@@ -10,7 +10,6 @@ import './CategoryPage.css';
 import { useSearchParams } from 'react-router-dom';
 
 const { Title, Text } = Typography;
-const { Option } = Select;
 
 /**
  * 分类管理页面组件
@@ -435,10 +434,12 @@ const CategoryPage: React.FC = () => {
             <Input placeholder="例如：餐饮、工资、房租" maxLength={20} />
           </Form.Item>
           <Form.Item name="type" label="分类类型" rules={[{ required: true }]}>
-            <Select>
-              <Option value="expense">支出</Option>
-              <Option value="income">收入</Option>
-            </Select>
+            <Select
+              options={[
+                { value: 'expense', label: '支出' },
+                { value: 'income', label: '收入' },
+              ]}
+            />
           </Form.Item>
           <Form.Item name="icon" label="图标名称 (可选)">
             <Input placeholder="例如：coffee, shop, wallet" />
@@ -521,14 +522,12 @@ const CategoryPage: React.FC = () => {
                 placeholder="请选择目标分类"
                 value={migrateTargetId}
                 onChange={setMigrateTargetId}
-              >
-              {categories
-                .filter(c => c.id !== conflictData?.id && c.type === (categories.find(t => t.id === conflictData?.id)?.type || 'expense'))
-                .map(c => (
-                  <Option key={c.id} value={c.id}>{c.name}</Option>
-                ))
-              }
-            </Select>
+                showSearch
+                optionFilterProp="label"
+                options={categories
+                  .filter(c => c.id !== conflictData?.id && c.type === (categories.find(t => t.id === conflictData?.id)?.type || 'expense'))
+                  .map(c => ({ value: c.id, label: c.name }))}
+              />
           </div>
         )}
       </Modal>

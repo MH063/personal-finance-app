@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, List, Button, Card, Form, Input, Select, Space, Typography, message, Tag } from 'antd';
+import { Modal, Button, Card, Form, Input, Select, Space, Typography, message, Tag } from 'antd';
 import { PlusOutlined, DeleteOutlined, PlayCircleOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../store';
@@ -27,7 +27,6 @@ interface Rule {
   };
 }
 
-const { Option } = Select;
 const { Text } = Typography;
 
 /**
@@ -190,7 +189,7 @@ const AutomationRulesModal: React.FC<AutomationRulesModalProps> = ({ visible, on
       }
       open={visible}
       onCancel={onClose}
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
       keyboard={false}
       footer={[
@@ -214,37 +213,40 @@ const AutomationRulesModal: React.FC<AutomationRulesModalProps> = ({ visible, on
             <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddRule}>添加规则</Button>
           </div>
           
-          <List
-            dataSource={rules}
-            renderItem={rule => (
-              <List.Item
-                actions={[
-                  <Button key={`del-${rule.id}`} type="text" danger icon={<DeleteOutlined />} onClick={() => handleDeleteRule(rule.id)} />
-                ]}
-              >
-                <Card size="small" style={{ width: '100%' }}>
-                  <Space split={<Text type="secondary">⮕</Text>}>
-                    <Space>
-                      <Tag>当</Tag>
-                      <Text strong>{rule.condition.field === 'description' ? '备注' : (rule.condition.field === 'merchant' ? '商户' : '金额')}</Text>
-                      <Text>{rule.condition.operator === 'contains' ? '包含' : (rule.condition.operator === 'equals' ? '等于' : rule.condition.operator)}</Text>
-                      <Tag color="blue">{rule.condition.value}</Tag>
-                    </Space>
-                    <Space>
-                      <Tag>执行</Tag>
-                      <Text strong>{rule.action.field === 'categoryId' ? '设置分类' : '添加标签'}</Text>
-                      <Tag color="green">
-                        {rule.action.field === 'categoryId' 
-                          ? categories.find(c => c.id === rule.action.value)?.name || rule.action.value 
-                          : rule.action.value}
-                      </Tag>
-                    </Space>
-                  </Space>
-                </Card>
-              </List.Item>
+          <div>
+            {rules.length === 0 ? (
+              <div style={{ color: 'rgba(255,255,255,0.65)' }}>暂无规则，点击上方按钮添加</div>
+            ) : (
+              rules.map((rule) => (
+                <div key={rule.id} style={{ display: 'flex', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ flex: 1 }}>
+                    <Card size="small" style={{ width: '100%' }}>
+                      <Space split={<Text type="secondary">⮕</Text>}>
+                        <Space>
+                          <Tag>当</Tag>
+                          <Text strong>{rule.condition.field === 'description' ? '备注' : (rule.condition.field === 'merchant' ? '商户' : '金额')}</Text>
+                          <Text>{rule.condition.operator === 'contains' ? '包含' : (rule.condition.operator === 'equals' ? '等于' : rule.condition.operator)}</Text>
+                          <Tag color="blue">{rule.condition.value}</Tag>
+                        </Space>
+                        <Space>
+                          <Tag>执行</Tag>
+                          <Text strong>{rule.action.field === 'categoryId' ? '设置分类' : '添加标签'}</Text>
+                          <Tag color="green">
+                            {rule.action.field === 'categoryId' 
+                              ? categories.find(c => c.id === rule.action.value)?.name || rule.action.value 
+                              : rule.action.value}
+                          </Tag>
+                        </Space>
+                      </Space>
+                    </Card>
+                  </div>
+                  <div>
+                    <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDeleteRule(rule.id)} />
+                  </div>
+                </div>
+              ))
             )}
-            locale={{ emptyText: '暂无规则，点击上方按钮添加' }}
-          />
+          </div>
         </>
       ) : (
         <Card title="编辑规则" extra={<Button onClick={() => setIsEditing(false)}>取消</Button>}>
@@ -261,28 +263,34 @@ const AutomationRulesModal: React.FC<AutomationRulesModalProps> = ({ visible, on
               <Form.Item label="条件字段" required style={{ width: 120 }}>
                 <Select 
                   value={editingRule?.condition?.field}
-                  onChange={v => setEditingRule({...editingRule, condition: { ...editingRule.condition!, field: v }})}
-                >
-                  <Option value="description">备注</Option>
-                  <Option value="merchant">商户</Option>
-                  <Option value="amount">金额</Option>
-                </Select>
+                  onChange={v => setEditingRule(prev => prev ? ({...prev, condition: { ...prev.condition!, field: v }}) : prev)}
+                  options={[
+                    { value: 'description', label: '备注' },
+                    { value: 'merchant', label: '商户' },
+                    { value: 'amount', label: '金额' },
+                  ]}
+                />
               </Form.Item>
               <Form.Item label="操作符" required style={{ width: 100 }}>
                 <Select 
                   value={editingRule?.condition?.operator}
-                  onChange={v => setEditingRule({...editingRule, condition: { ...editingRule.condition!, operator: v }})}
-                >
-                  <Option value="contains">包含</Option>
-                  <Option value="equals">等于</Option>
-                  {editingRule?.condition?.field === 'amount' && <Option value="greater">大于</Option>}
-                  {editingRule?.condition?.field === 'amount' && <Option value="less">小于</Option>}
-                </Select>
+                  onChange={v => setEditingRule(prev => prev ? ({...prev, condition: { ...prev.condition!, operator: v }}) : prev)}
+                  options={[
+                    { value: 'contains', label: '包含' },
+                    { value: 'equals', label: '等于' },
+                    ...(editingRule?.condition?.field === 'amount'
+                      ? [
+                          { value: 'greater', label: '大于' },
+                          { value: 'less', label: '小于' },
+                        ]
+                      : []),
+                  ]}
+                />
               </Form.Item>
               <Form.Item label="值" required style={{ flex: 1 }}>
                 <Input 
                   value={editingRule?.condition?.value}
-                  onChange={e => setEditingRule({...editingRule, condition: { ...editingRule.condition!, value: e.target.value }})}
+                  onChange={e => setEditingRule(prev => prev ? ({...prev, condition: { ...prev.condition!, value: e.target.value }}) : prev)}
                   placeholder="匹配关键词"
                 />
               </Form.Item>
@@ -292,26 +300,26 @@ const AutomationRulesModal: React.FC<AutomationRulesModalProps> = ({ visible, on
               <Form.Item label="执行动作" required style={{ width: 120 }}>
                 <Select 
                   value={editingRule?.action?.field}
-                  onChange={v => setEditingRule({...editingRule, action: { ...editingRule.action!, field: v }})}
-                >
-                  <Option value="categoryId">设置分类</Option>
-                  <Option value="tag">添加标签</Option>
-                </Select>
+                  onChange={v => setEditingRule(prev => prev ? ({...prev, action: { ...prev.action!, field: v }}) : prev)}
+                  options={[
+                    { value: 'categoryId', label: '设置分类' },
+                    { value: 'tag', label: '添加标签' },
+                  ]}
+                />
               </Form.Item>
               <Form.Item label="目标值" required style={{ flex: 1 }}>
                 {editingRule?.action?.field === 'categoryId' ? (
                   <Select 
                     value={editingRule?.action?.value}
-                    onChange={v => setEditingRule({...editingRule, action: { ...editingRule.action!, value: v }})}
+                    onChange={v => setEditingRule(prev => prev ? ({...prev, action: { ...prev.action!, value: v }}) : prev)}
                     showSearch
-                    optionFilterProp="children"
-                  >
-                    {categories.map(c => <Option key={c.id} value={c.id}>{c.name}</Option>)}
-                  </Select>
+                    optionFilterProp="label"
+                    options={categories.map(c => ({ value: c.id, label: c.name }))}
+                  />
                 ) : (
                   <Input 
                     value={editingRule?.action?.value}
-                    onChange={e => setEditingRule({...editingRule, action: { ...editingRule.action!, value: e.target.value }})}
+                    onChange={e => setEditingRule(prev => prev ? ({...prev, action: { ...prev.action!, value: e.target.value }}) : prev)}
                     placeholder="标签名称"
                   />
                 )}
