@@ -1083,10 +1083,10 @@ export class AiService implements OnModuleInit {
     let dateClause: string | null = null;
     if (q.includes('本月')) {
       dateClause =
-        "transaction_date >= date_trunc('month', current_date) and transaction_date < date_trunc('month', current_date) + interval '1 month'";
+        "t.transaction_date >= date_trunc('month', current_date) and t.transaction_date < date_trunc('month', current_date) + interval '1 month'";
     } else if (q.includes('上月') || q.includes('上个月')) {
       dateClause =
-        "transaction_date >= date_trunc('month', current_date - interval '1 month') and transaction_date < date_trunc('month', current_date)";
+        "t.transaction_date >= date_trunc('month', current_date - interval '1 month') and t.transaction_date < date_trunc('month', current_date)";
     } else if (
       q.includes('最近7天') ||
       q.includes('近7天') ||
@@ -1121,41 +1121,41 @@ export class AiService implements OnModuleInit {
       q.includes('下半年')
     ) {
       if (q.includes('最近3天') || q.includes('近3天') || q.includes('三天') || q.includes('3天')) {
-        dateClause = "transaction_date >= current_date - interval '3 days'";
+        dateClause = "t.transaction_date >= current_date - interval '3 days'";
       } else if (
         q.includes('最近7天') ||
         q.includes('近7天') ||
         q.includes('七天') ||
         q.includes('7天')
       ) {
-        dateClause = "transaction_date >= current_date - interval '7 days'";
+        dateClause = "t.transaction_date >= current_date - interval '7 days'";
       } else if (
         q.includes('最近30天') ||
         q.includes('近30天') ||
         q.includes('三十天') ||
         q.includes('30天')
       ) {
-        dateClause = "transaction_date >= current_date - interval '30 days'";
+        dateClause = "t.transaction_date >= current_date - interval '30 days'";
       } else if (
         q.includes('最近90天') ||
         q.includes('近90天') ||
         q.includes('九十天') ||
         q.includes('90天')
       ) {
-        dateClause = "transaction_date >= current_date - interval '90 days'";
+        dateClause = "t.transaction_date >= current_date - interval '90 days'";
       } else if (
         q.includes('最近3月') ||
         q.includes('近3月') ||
         q.includes('三个月') ||
         q.includes('3个月')
       ) {
-        dateClause = "transaction_date >= current_date - interval '3 months'";
+        dateClause = "t.transaction_date >= current_date - interval '3 months'";
       } else if (q.includes('本季度') || q.includes('本季')) {
         dateClause =
-          "transaction_date >= date_trunc('quarter', current_date) and transaction_date < date_trunc('quarter', current_date) + interval '3 months'";
+          "t.transaction_date >= date_trunc('quarter', current_date) and t.transaction_date < date_trunc('quarter', current_date) + interval '3 months'";
       } else if (q.includes('上季度') || q.includes('上季')) {
         dateClause =
-          "transaction_date >= date_trunc('quarter', current_date - interval '3 months') and transaction_date < date_trunc('quarter', current_date)";
+          "t.transaction_date >= date_trunc('quarter', current_date - interval '3 months') and t.transaction_date < date_trunc('quarter', current_date)";
       } else if (
         q.includes('本年度至今') ||
         q.includes('今年至今') ||
@@ -1163,13 +1163,13 @@ export class AiService implements OnModuleInit {
         q.includes('今年') ||
         q.includes('YTD')
       ) {
-        dateClause = "transaction_date >= date_trunc('year', current_date)";
+        dateClause = "t.transaction_date >= date_trunc('year', current_date)";
       } else if (q.includes('上半年')) {
         dateClause =
-          "transaction_date >= date_trunc('year', current_date) and transaction_date < date_trunc('year', current_date) + interval '6 months'";
+          "t.transaction_date >= date_trunc('year', current_date) and t.transaction_date < date_trunc('year', current_date) + interval '6 months'";
       } else if (q.includes('下半年')) {
         dateClause =
-          "transaction_date >= date_trunc('year', current_date) + interval '6 months' and transaction_date < date_trunc('year', current_date) + interval '12 months'";
+          "t.transaction_date >= date_trunc('year', current_date) + interval '6 months' and t.transaction_date < date_trunc('year', current_date) + interval '12 months'";
       }
     }
     // 实时分类匹配：仅匹配系统/用户已有分类名称，最长匹配优先
@@ -1198,10 +1198,10 @@ export class AiService implements OnModuleInit {
       type !== null || groupByCategory || wantTotal || !!matchedCat || !!dateClause || wantsDetail;
     const whereParts: string[] = [];
     const params: any[] = [];
-    whereParts.push(`transactions.user_id = $${params.length + 1}`);
+    whereParts.push(`t.user_id = $${params.length + 1}`);
     params.push(userId);
     if (type) {
-      whereParts.push(`transactions.type = $${params.length + 1}`);
+      whereParts.push(`t.type = $${params.length + 1}`);
       params.push(type);
     }
     if (dateClause) {
@@ -1210,15 +1210,13 @@ export class AiService implements OnModuleInit {
     const baseWhere = whereParts.join(' and ');
     if (wantsDetail) {
       if (matchedCat) {
-        const where2Parts = [baseWhere, `categories.name ilike $${params.length + 1}`].filter(
-          Boolean,
-        );
+        const where2Parts = [baseWhere, `c.name ilike $${params.length + 1}`].filter(Boolean);
         params.push(`%${matchedCat}%`);
         let sql =
-          'select transactions.id, transactions.amount, transactions.type, transactions.description, transactions.merchant, transactions.payment_method, transactions.transaction_date, transactions.category_id, transactions.ledger_id, categories.name as category ' +
-          'from transactions left join categories on categories.id = transactions.category_id where ' +
+          'select t.id, t.amount, t.type, t.description, t.merchant, t.payment_method, t.transaction_date, t.category_id, t.ledger_id, c.name as category ' +
+          'from transactions t left join categories c on c.id = t.category_id where ' +
           where2Parts.join(' and ') +
-          ' order by transactions.transaction_date desc';
+          ' order by t.transaction_date desc';
         if (topN) {
           sql += ` limit $${params.length + 1}`;
           params.push(topN);
@@ -1238,22 +1236,20 @@ export class AiService implements OnModuleInit {
       }
     }
     if (groupByCategory || matchedCat) {
-      const where2Parts = [
-        baseWhere,
-        matchedCat ? `categories.name ilike $${params.length + 1}` : null,
-      ]
+      const where2Parts = [baseWhere, matchedCat ? `c.name ilike $${params.length + 1}` : null]
         .filter(Boolean)
         .join(' and ');
       if (matchedCat) {
         params.push(`%${matchedCat}%`);
       }
       const sql =
-        'select coalesce(sum(transactions.amount),0) as total, categories.name as category from transactions left join categories on categories.id = transactions.category_id where ' +
+        'select coalesce(sum(t.amount),0) as total, c.name as category from transactions t left join categories c on c.id = t.category_id where ' +
         where2Parts +
-        ' group by categories.name order by total desc';
+        ' group by c.name order by total desc';
       return { sql, params };
     } else if (hasFinanceSignal) {
-      const sql = 'select coalesce(sum(amount),0) as total from transactions where ' + baseWhere;
+      const sql =
+        'select coalesce(sum(t.amount),0) as total from transactions t where ' + baseWhere;
       return { sql, params };
     }
     return null;

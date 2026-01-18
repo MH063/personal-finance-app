@@ -41,6 +41,10 @@ const AiAssistant: React.FC = () => {
   const [showJumpBtn, setShowJumpBtn] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [lastDebug, setLastDebug] = useState<any | null>(null);
+  const [lastRangeText, setLastRangeText] = useState<string>('');
+  const [lastHasData, setLastHasData] = useState<boolean>(false);
   const snapshotMessages = React.useCallback((msgs: { role: 'user' | 'assistant'; content: string }[], sid: string | null) => {
     try {
       localStorage.setItem('aiSnapshotMessages', JSON.stringify(msgs));
@@ -219,39 +223,68 @@ const AiAssistant: React.FC = () => {
       const answer = result.success
         ? (result.answer || '抱歉，我没有找到相关数据。')
         : (result.message || '系统繁忙，请稍后再试。');
-      const looksLikeQuery = /(最近|多少|明细|列表|统计|合计|查询|查看|有哪些|什么|\?|？)/.test(userMessage);
+      const maybeCapability = /(功能|能做什么|可以做什么|怎么用|帮助|介绍|能力|支持)/.test(userMessage);
+      const maybeDataQuery = /(最近|过去|近|本月|本季度|本年度|天|月|季度|年度|明细|列表|收入|支出|交易|账单|金额|合计|统计|查询|查看|给我看)/.test(userMessage);
+      const hasRaw = !!(result?.debug && Array.isArray((result as any).debug?.rawResult));
+      const looksLikeQuery = !maybeCapability && (maybeDataQuery || hasRaw);
       const isBookingIntent = !!(result?.debug && typeof result.debug === 'object' && /booking/.test(String(result.debug.intent || '')));
+      if (result?.debug) {
+        console.log('[AiAssistant] debug.sql:', (result.debug as any)?.sql);
+        console.log('[AiAssistant] debug.rawResult length:', Array.isArray((result.debug as any)?.rawResult) ? (result.debug as any).rawResult.length : -1);
+        setLastDebug(result.debug);
+      } else {
+        setLastDebug(null);
+      }
       // 只在查询场景回复是否有数据
       if (!isBookingIntent && looksLikeQuery) {
         const rawResult = (result?.debug && Array.isArray(result.debug.rawResult)) ? (result.debug.rawResult as any[]) : ([] as any[]);
         const hasData = rawResult.length > 0;
-        const fmt = (d: any) => {
-          try {
-            const t = d?.transaction_date || d?.transactionDate;
-            const dt = t ? new Date(t) : null;
-            const y = dt ? dt.getFullYear() : '';
-            const m = dt ? String(dt.getMonth() + 1).padStart(2, '0') : '';
-            const day = dt ? String(dt.getDate()).padStart(2, '0') : '';
-            const pm = d?.payment_method || d?.paymentMethod || '';
-            const pmText =
-              pm === 'cash' ? '现金' :
-              pm === 'bank_card' ? '银行卡' :
-              pm === 'credit_card' ? '信用卡' :
-              pm === 'wechat' ? '微信' :
-              pm === 'alipay' ? '支付宝' :
-              pm ? String(pm) : '未提供';
-            const cat = d?.category || '未分类';
-            const amt = typeof d?.amount === 'number' ? d.amount : Number(d?.amount || 0);
-            return { date: `${y}-${m}-${day}`, amount: amt.toFixed(2), category: cat, payment: pmText };
-          } catch {
-            return { date: '', amount: '', category: '', payment: '' };
-          }
-        };
-        const end = new Date();
-        const start = new Date(end.getTime() - 7 * 24 * 3600 * 1000);
+        const showRange7 = /(最近7天|近7天|过去7天)/.test(userMessage);
+        const showRange30 = /(最近30天|近30天|过去30天|三十天|30天)/.test(userMessage);
+        const showRange90 = /(最近90天|近90天|过去90天|九十天|90天)/.test(userMessage);
+        const showRange3d = /(最近3天|近3天|过去3天|三天|3天)/.test(userMessage);
+        const showRange3m = /(最近3月|近3月|三个月|3个月)/.test(userMessage);
+        const showMonth = /(本月)/.test(userMessage);
+        const showPrevMonth = /(上月|上个月)/.test(userMessage);
+        const showQuarter = /(本季度|本季)/.test(userMessage);
+        const showPrevQuarter = /(上季度|上季)/.test(userMessage);
+        const showYtd = /(本年度至今|今年至今|本年|今年|YTD)/.test(userMessage);
+        const showH1 = /(上半年)/.test(userMessage);
+        const showH2 = /(下半年)/.test(userMessage);
+        const now = new Date();
+        const d = new Date(now);
+        const y = d.getFullYear();
+        const m = d.getMonth();
+        const startOfMonth = new Date(y, m, 1);
+        const endOfPrevMonth = new Date(y, m, 0);
+        const startOfPrevMonth = new Date(y, m - 1, 1);
+        const quarter = Math.floor(m / 3);
+        const startOfQuarter = new Date(y, quarter * 3, 1);
+        const startOfPrevQuarter = new Date(y, (quarter - 1) * 3, 1);
+        const endOfPrevQuarter = new Date(y, quarter * 3, 0);
+        const startOfYear = new Date(y, 0, 1);
+        const startOfH1 = new Date(y, 0, 1);
+        const endOfH1 = new Date(y, 6, 0);
+        const startOfH2 = new Date(y, 6, 1);
+        const endOfH2 = new Date(y, 12, 0);
         const fmtDate = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+        let rangeText = '';
+        if (showRange3d) rangeText = `时间范围：${fmtDate(new Date(now.getTime() - 3 * 24 * 3600 * 1000))} 至 ${fmtDate(now)}`;
+        else if (showRange7) rangeText = `时间范围：${fmtDate(new Date(now.getTime() - 7 * 24 * 3600 * 1000))} 至 ${fmtDate(now)}`;
+        else if (showRange30) rangeText = `时间范围：${fmtDate(new Date(now.getTime() - 30 * 24 * 3600 * 1000))} 至 ${fmtDate(now)}`;
+        else if (showRange90) rangeText = `时间范围：${fmtDate(new Date(now.getTime() - 90 * 24 * 3600 * 1000))} 至 ${fmtDate(now)}`;
+        else if (showRange3m) rangeText = `时间范围：${fmtDate(new Date(y, m - 3, d.getDate()))} 至 ${fmtDate(now)}`;
+        else if (showMonth) rangeText = `时间范围：${fmtDate(startOfMonth)} 至 ${fmtDate(now)}`;
+        else if (showPrevMonth) rangeText = `时间范围：${fmtDate(startOfPrevMonth)} 至 ${fmtDate(endOfPrevMonth)}`;
+        else if (showQuarter) rangeText = `时间范围：${fmtDate(startOfQuarter)} 至 ${fmtDate(now)}`;
+        else if (showPrevQuarter) rangeText = `时间范围：${fmtDate(startOfPrevQuarter)} 至 ${fmtDate(endOfPrevQuarter)}`;
+        else if (showYtd) rangeText = `时间范围：${fmtDate(startOfYear)} 至 ${fmtDate(now)}`;
+        else if (showH1) rangeText = `时间范围：${fmtDate(startOfH1)} 至 ${fmtDate(endOfH1)}`;
+        else if (showH2) rangeText = `时间范围：${fmtDate(startOfH2)} 至 ${fmtDate(endOfH2)}`;
+        setLastRangeText(rangeText);
+        setLastHasData(hasData);
         if (!hasData) {
-          const concise = `时间范围：${fmtDate(start)} 至 ${fmtDate(end)}\n\n没有查询到数据。`;
+          const concise = rangeText ? `${rangeText}\n\n没有查询到数据。` : `没有查询到数据。`;
           setMessages(prev => [...prev, { role: 'assistant', content: concise }]);
           snapshotMessages([...messages, { role: 'assistant', content: concise }], currentSessionId);
           if (currentSessionId) {
@@ -259,18 +292,8 @@ const AiAssistant: React.FC = () => {
             appendMessage(currentSessionId, { role: 'assistant', content: concise, timestamp: ts } as AiMessage);
           }
         } else {
-          const rows: { date: string; amount: string; category: string; payment: string }[] = (rawResult as any[]).map(fmt);
-          const headers = ['日期', '金额(元)', '收入来源分类', '支付方式'];
-          const headerMd = `| **${headers[0]}** | **${headers[1]}** | **${headers[2]}** | **${headers[3]}** |\n| :--- | :--- | :--- | :--- |`;
-          const dataMd = rows.map(r => `| ${r.date} | ${r.amount} | ${r.category} | ${r.payment} |`).join('\n');
-          const anomalies: string[] = [];
-          if (rawResult.some((d: any) => !d?.category)) anomalies.push('存在未分类记录');
-          if (rawResult.some((d: any) => !(d?.payment_method || d?.paymentMethod))) anomalies.push('存在支付方式缺失记录');
-          const extra = anomalies.length ? `\n\n异常说明：${anomalies.join('；')}。` : '';
-          const content =
-            `时间范围：${fmtDate(start)} 至 ${fmtDate(end)}\n\n` +
-            `${headerMd}\n${dataMd}` +
-            extra;
+          const { formatAiDebugMarkdown } = await import('../../utils/aiDebugFormatter');
+          const content = `${rangeText ? `${rangeText}\n\n` : ''}${formatAiDebugMarkdown(rawResult)}`;
           setMessages(prev => [...prev, { role: 'assistant', content }]);
           snapshotMessages([...messages, { role: 'assistant', content }], currentSessionId);
           if (currentSessionId) {
@@ -381,6 +404,25 @@ const AiAssistant: React.FC = () => {
             )}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              aria-label="调试"
+              onClick={() => {
+                const next = !debugOpen;
+                console.log('[AiAssistant] toggle debug panel', next);
+                setDebugOpen(next);
+              }}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 12,
+                border: `1px solid ${colors.border}`,
+                cursor: 'pointer',
+                backgroundColor: '#ffffff',
+                color: colors.text,
+                fontSize: 12
+              }}
+            >
+              调试
+            </button>
             <button
               aria-label="历史记录"
               onClick={async () => {
@@ -639,6 +681,30 @@ const AiAssistant: React.FC = () => {
                   关闭
                 </button>
               </div>
+        {debugOpen && (
+          <div style={{
+            padding: '12px 16px',
+            borderTop: `1px solid ${colors.border}`,
+            backgroundColor: colors.background
+          }}>
+            <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 8 }}>
+              {lastRangeText ? `${lastRangeText}；` : ''}数据行数：{Array.isArray(lastDebug?.rawResult) ? lastDebug.rawResult.length : 0}；{lastHasData ? '已返回明细' : '暂无数据'}
+            </div>
+            <div style={{
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+              fontSize: 12,
+              color: colors.text,
+              backgroundColor: '#fff',
+              border: `1px solid ${colors.border}`,
+              borderRadius: 8,
+              padding: 8,
+              maxHeight: 120,
+              overflow: 'auto'
+            }}>
+              {lastDebug?.sql || '无 SQL'}
+            </div>
+          </div>
+        )}
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {sessions.map(s => (

@@ -56,6 +56,12 @@ export const aiService = {
           debug: raw?.debug
         };
       }
+      if (result?.success && result?.debug) {
+        const dbg: any = result.debug;
+        console.log('[aiService] answer:', result.answer || '');
+        console.log('[aiService] sql:', dbg?.sql || '');
+        console.log('[aiService] rows:', Array.isArray(dbg?.rawResult) ? dbg.rawResult.length : 0);
+      }
       if (result && result.success === false) {
         console.warn('[aiService] NLQ 失败原因:', result.reason, result.debug || {});
       }
