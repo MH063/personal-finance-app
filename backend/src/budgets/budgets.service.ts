@@ -14,6 +14,8 @@ import { Category } from '../entities/category.entity';
 import { CreateBudgetDto, UpdateBudgetDto } from './dto/budget.dto';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
 import { StatisticsService } from '../statistics/statistics.service';
+import Redis from 'ioredis';
+import { Inject } from '@nestjs/common';
 
 @Injectable()
 export class BudgetsService {
@@ -28,6 +30,8 @@ export class BudgetsService {
     private readonly categoryRepository: TreeRepository<Category>,
     private readonly ledgerGateway: LedgerGateway,
     private readonly statisticsService: StatisticsService,
+    @Inject('REDIS_CLIENT')
+    private readonly redis: Redis,
   ) {}
 
   async create(userId: string, createBudgetDto: CreateBudgetDto): Promise<Budget> {
@@ -51,6 +55,7 @@ export class BudgetsService {
     this.ledgerGateway.notifyUpdate(null, 'BUDGET_CREATED', savedBudget, userId);
     // 失效统计缓存，确保概览预算信息实时更新
     this.invalidateStatistics(userId);
+    this.bumpNlqVersion(userId);
 
     return savedBudget;
   }
@@ -127,6 +132,7 @@ export class BudgetsService {
     this.ledgerGateway.notifyUpdate(null, 'BUDGET_UPDATED', updatedBudget, userId);
     // 失效统计缓存，确保概览预算信息实时更新
     this.invalidateStatistics(userId);
+    this.bumpNlqVersion(userId);
 
     return updatedBudget;
   }
@@ -141,6 +147,7 @@ export class BudgetsService {
     this.ledgerGateway.notifyUpdate(null, 'BUDGET_DELETED', { id }, userId);
     // 失效统计缓存，确保概览预算信息实时更新
     this.invalidateStatistics(userId);
+    this.bumpNlqVersion(userId);
   }
 
   /**
@@ -207,6 +214,18 @@ export class BudgetsService {
       this.statisticsService.invalidateUserCache(userId);
     } catch (e: any) {
       this.logger.warn(`统计缓存失效调用失败: userId=${userId}, err=${e?.message || e}`);
+    }
+  }
+
+  /**
+   * 递增 NLQ 缓存版本，确保后续查询不命中旧缓存
+   */
+  private async bumpNlqVersion(userId: string): Promise<void> {
+    try {
+      await this.redis.incr(`ai:cache:nlq:version:${userId}`);
+      this.logger.log(`[NLQ] 版本号递增: userId=${userId}`);
+    } catch (e: any) {
+      this.logger.warn(`[NLQ] 版本号递增失败: userId=${userId}, err=${e?.message || e}`);
     }
   }
 }

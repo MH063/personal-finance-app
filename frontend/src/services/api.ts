@@ -25,16 +25,26 @@ let refreshTokenPromise: Promise<string | null> | null = null;
 let isHandlingAuthFailure = false;
 let authSilenceUntil = 0;
 
-const pendingControllers = new Set<AbortController>();
+const pendingControllers = new Map<AbortController, { preventCancel: boolean }>();
 
 export const silenceAuthErrors = (ms: number = 1500) => {
   authSilenceUntil = Math.max(authSilenceUntil, Date.now() + ms);
 };
 
 export const cancelPendingRequests = (reason: string = 'Request cancelled') => {
-  pendingControllers.forEach((controller) => {
+  let aborted = 0;
+  let skipped = 0;
+  pendingControllers.forEach((meta, controller) => {
+    if (meta?.preventCancel) {
+      skipped++;
+      return;
+    }
     controller.abort(reason);
+    aborted++;
   });
+  if (aborted > 0 || skipped > 0) {
+    console.log(`[API] cancelPendingRequests: aborted=${aborted}, skipped=${skipped}, reason="${reason}"`);
+  }
   pendingControllers.clear();
 };
 
@@ -99,11 +109,15 @@ api.interceptors.request.use(
       config.headers['X-Silent-Error'] = 'true';
     }
 
+    const preventCancel = !!(config.headers && (config.headers as any)['X-Prevent-Cancel'] === 'true');
     if (!config.signal) {
       const controller = new AbortController();
       (config as any)._abortController = controller;
       config.signal = controller.signal;
-      pendingControllers.add(controller);
+      pendingControllers.set(controller, { preventCancel });
+      if (preventCancel) {
+        console.log(`[API] Exempt from route cancel: ${config.method?.toUpperCase()} ${config.url}`);
+      }
     }
 
     // 过滤掉值为 undefined, null 或空字符串的查询参数

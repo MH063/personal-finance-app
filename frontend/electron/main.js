@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, Notification, net, protocol, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const ollamaManager = require('./ollama-manager');
 
 // 注册自定义协议以访问本地资源
 protocol.registerSchemesAsPrivileged([
@@ -351,9 +352,21 @@ app.whenReady().then(() => {
       createMainWindow();
     }
   });
+
+  // 启动 Ollama 服务
+  ollamaManager.startService().then(success => {
+    if (success) {
+      console.log('[Main] AI Service initialized successfully.');
+    } else {
+      console.log('[Main] AI Service failed to initialize (Non-fatal).');
+    }
+  });
 });
 
 app.on('window-all-closed', () => {
+  // 停止 Ollama 服务
+  ollamaManager.stopService();
+
   if (process.platform !== 'darwin') {
     app.quit();
   }

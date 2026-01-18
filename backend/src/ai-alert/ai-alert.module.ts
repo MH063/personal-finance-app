@@ -7,11 +7,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { LedgersModule } from '../ledgers/ledgers.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Transaction, Budget]),
-    NotificationsModule,
-    LedgersModule,
-  ],
+  imports: [TypeOrmModule.forFeature([Transaction, Budget]), NotificationsModule, LedgersModule],
   providers: [AiAlertService],
   exports: [AiAlertService],
 })

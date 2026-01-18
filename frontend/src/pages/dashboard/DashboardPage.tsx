@@ -447,6 +447,7 @@ const DashboardPage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+      
     </div>
   );
 };

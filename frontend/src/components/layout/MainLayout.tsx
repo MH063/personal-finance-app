@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography, Spin, Tooltip, Modal, List, Tag } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography, Spin, Tooltip, Modal, List, Tag, message, notification } from 'antd';
 import {
   DashboardOutlined,
   RiseOutlined,
@@ -34,6 +34,7 @@ import { offlineSyncService, SyncListener } from '../../services/offlineSyncServ
 import { resetLoading } from '../../store/slices/appSlice';
 import WindowControls from './WindowControls';
 import SyncMonitor from './SyncMonitor';
+import AiAssistant from '../common/AiAssistant';
 import './MainLayout.css';
 
 const { Header, Sider, Content } = Layout;
@@ -63,13 +64,19 @@ const MainLayout = () => {
    */
   const routeCleanup = React.useCallback(() => {
     try {
-      console.log('[MainLayout] 路由切换，执行清理：关闭弹窗并重置加载状态', location.pathname);
+      console.log('[MainLayout] 路由切换清理：关闭弹窗/消息/通知并重置加载状态', window.location.pathname);
       Modal.destroyAll();
+      try {
+        message.destroy();
+        notification.destroy();
+      } catch (e) {
+        console.warn('[MainLayout] 清理消息/通知失败', e);
+      }
       dispatch(resetLoading());
     } catch (e) {
       console.warn('[MainLayout] 路由切换清理异常', e);
     }
-  }, [dispatch, location.pathname]);
+  }, [dispatch]);
 
   useEffect(() => {
     routeCleanup();
@@ -79,7 +86,7 @@ const MainLayout = () => {
     } catch (e) {
       console.warn('[MainLayout] 取消未完成请求异常', e);
     }
-  }, [routeCleanup]);
+  }, [location.pathname, location.search, location.hash, routeCleanup]);
 
   useEffect(() => {
     // 初始化实时协作
@@ -627,6 +634,7 @@ const MainLayout = () => {
         visible={syncMonitorVisible} 
         onClose={() => setSyncMonitorVisible(false)} 
       />
+      <AiAssistant />
     </Layout>
   );
 };

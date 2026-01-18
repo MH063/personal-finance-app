@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Button, Tag, Space, Modal, message, Badge, Tooltip } from 'antd';
+import { Button, Tag, Space, Badge, Tooltip, App as AntdApp } from 'antd';
 import { CheckCircleOutlined, ExclamationCircleOutlined, RobotOutlined, PlusOutlined, ImportOutlined, SwapOutlined } from '@ant-design/icons';
 import { ProTable } from '@ant-design/pro-components';
 import dayjs from 'dayjs';
@@ -18,6 +18,7 @@ import './TransactionsPage.css';
 // const { RangePicker } = DatePicker;
 
 const TransactionsPage: React.FC = () => {
+  const { message, modal } = AntdApp.useApp();
   const dispatch = useDispatch<AppDispatch>();
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [importModalVisible, setImportModalVisible] = useState(false);
@@ -48,6 +49,9 @@ const TransactionsPage: React.FC = () => {
   }, [dispatch]);
 
   // Handle data fetching
+  /**
+   * 请求并组装交易列表数据
+   */
   const requestData = async (params: any) => {
     // 映射 ProTable 的分页参数为后端接受的 page/limit，并移除 current/pageSize
     const page = params?.current || filters.page || 1;
@@ -86,7 +90,7 @@ const TransactionsPage: React.FC = () => {
 
   const handleBatchDelete = async () => {
     if (selectedRowKeys.length === 0) return;
-    Modal.confirm({
+    modal.confirm({
       title: '确认删除',
       content: `确定要删除选中的 ${selectedRowKeys.length} 条记录吗？`,
       onOk: async () => {
@@ -178,12 +182,12 @@ const TransactionsPage: React.FC = () => {
         if (record.type === 'expense') prefix = '-';
         if (record.type === 'income') prefix = '+';
         if (record.type === 'transfer') prefix = '';
-        
-        return (
-          <span className={className}>
-            {prefix}{amount.toFixed(2)}
-          </span>
-        );
+        const numericAmount = typeof amount === 'number' ? amount : parseFloat(String(amount));
+        if (Number.isNaN(numericAmount)) {
+          console.warn('[TransactionsPage] 检测到无效金额值:', amount, record);
+          return <span className={`${className} error`}>无效金额</span>;
+        }
+        return <span className={className}>{prefix}{numericAmount.toFixed(2)}</span>;
       },
     },
     {

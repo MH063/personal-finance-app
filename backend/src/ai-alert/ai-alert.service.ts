@@ -37,7 +37,10 @@ export class AiAlertService {
         this.checkBudgetOverrunPrediction(userId, transaction),
       ]);
     } catch (error) {
-      this.logger.error(`Failed to check spending anomaly for transaction ${transaction.id}`, error);
+      this.logger.error(
+        `Failed to check spending anomaly for transaction ${transaction.id}`,
+        error,
+      );
     }
   }
 
@@ -63,10 +66,10 @@ export class AiAlertService {
 
     if (history.length < 5) return;
 
-    const amounts = history.map(t => Number(t.amount));
+    const amounts = history.map((t) => Number(t.amount));
     const mean = ss.mean(amounts);
     const stdDev = ss.standardDeviation(amounts);
-    
+
     if (stdDev === 0) return;
 
     const threshold = mean + 2 * stdDev;
@@ -74,7 +77,13 @@ export class AiAlertService {
 
     if (currentAmount > threshold) {
       const message = `检测到一笔异常的大额支出：${currentAmount.toFixed(2)}。该分类历史均值为 ${mean.toFixed(2)}，标准差为 ${stdDev.toFixed(2)}。`;
-      await this.sendNotification(userId, '大额消费预警', message, NotificationPriority.HIGH, currentTx.id);
+      await this.sendNotification(
+        userId,
+        '大额消费预警',
+        message,
+        NotificationPriority.HIGH,
+        currentTx.id,
+      );
     }
   }
 
@@ -88,7 +97,9 @@ export class AiAlertService {
     const currentDate = new Date(currentTx.transactionDate);
     // 本月起止时间
     const startOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth(), 1));
-    const endOfMonth = new Date(Date.UTC(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999));
+    const endOfMonth = new Date(
+      Date.UTC(currentDate.getFullYear(), currentDate.getMonth() + 1, 0, 23, 59, 59, 999),
+    );
 
     // 计算本月总支出
     const currentMonthStats = await this.transactionRepository
@@ -97,15 +108,18 @@ export class AiAlertService {
       .where('t.user_id = :userId', { userId })
       .andWhere('t.category_id = :categoryId', { categoryId: currentTx.categoryId })
       .andWhere('t.type = :type', { type: TransactionType.EXPENSE })
-      .andWhere('t.transaction_date BETWEEN :start AND :end', { start: startOfMonth, end: endOfMonth })
+      .andWhere('t.transaction_date BETWEEN :start AND :end', {
+        start: startOfMonth,
+        end: endOfMonth,
+      })
       .getRawOne();
-      
+
     const currentMonthTotal = Number(currentMonthStats?.total || 0);
 
     // 获取过去 12 个月的月度总支出 (不含本月)
     const twelveMonthsAgo = new Date(currentDate);
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-    
+
     const historyStats = await this.transactionRepository
       .createQueryBuilder('t')
       .select("TO_CHAR(t.transaction_date, 'YYYY-MM')", 'month')
@@ -120,7 +134,7 @@ export class AiAlertService {
 
     if (historyStats.length < 3) return;
 
-    const monthlyTotals = historyStats.map(s => Number(s.total));
+    const monthlyTotals = historyStats.map((s) => Number(s.total));
     const mean = ss.mean(monthlyTotals);
     const stdDev = ss.standardDeviation(monthlyTotals);
 
@@ -130,12 +144,18 @@ export class AiAlertService {
 
     // 只有当这笔交易导致越过阈值时才报警（去重策略）
     // 逻辑：(CurrentTotal - CurrentTxAmount) <= Threshold AND CurrentTotal > Threshold
-    
+
     const previousTotal = currentMonthTotal - Number(currentTx.amount);
-    
+
     if (currentMonthTotal > threshold && previousTotal <= threshold) {
-       const message = `本月该分类累计支出 ${currentMonthTotal.toFixed(2)} 已显著超过历史平均水平 (${mean.toFixed(2)} + 2σ: ${threshold.toFixed(2)})。请注意控制开支。`;
-       await this.sendNotification(userId, '消费趋势异常', message, NotificationPriority.MEDIUM, currentTx.id);
+      const message = `本月该分类累计支出 ${currentMonthTotal.toFixed(2)} 已显著超过历史平均水平 (${mean.toFixed(2)} + 2σ: ${threshold.toFixed(2)})。请注意控制开支。`;
+      await this.sendNotification(
+        userId,
+        '消费趋势异常',
+        message,
+        NotificationPriority.MEDIUM,
+        currentTx.id,
+      );
     }
   }
 
@@ -165,14 +185,17 @@ export class AiAlertService {
       const startDate = new Date(budget.startDate);
       const endDate = new Date(budget.endDate);
       const now = new Date(); // 使用当前时间作为进度参考点，或者使用交易时间
-      
+
       // 确保日期有效性
       if (startDate >= endDate) continue;
 
       // 计算总天数和已过天数
       const totalDuration = endDate.getTime() - startDate.getTime();
-      const elapsedDuration = Math.min(Math.max(0, now.getTime() - startDate.getTime()), totalDuration);
-      
+      const elapsedDuration = Math.min(
+        Math.max(0, now.getTime() - startDate.getTime()),
+        totalDuration,
+      );
+
       const progress = elapsedDuration / totalDuration;
 
       // 仅在进度超过 20% 且不到 90% 时预测（太早预测不准，太晚预测意义不大）
@@ -185,9 +208,9 @@ export class AiAlertService {
         .where('t.user_id = :userId', { userId })
         .andWhere('t.category_id = :categoryId', { categoryId: budget.categoryId })
         .andWhere('t.type = :type', { type: TransactionType.EXPENSE })
-        .andWhere('t.transaction_date BETWEEN :start AND :end', { 
-          start: new Date(startDate.setHours(0,0,0,0)), 
-          end: new Date(endDate.setHours(23,59,59,999)) 
+        .andWhere('t.transaction_date BETWEEN :start AND :end', {
+          start: new Date(startDate.setHours(0, 0, 0, 0)),
+          end: new Date(endDate.setHours(23, 59, 59, 999)),
         })
         .getRawOne();
 
@@ -206,16 +229,28 @@ export class AiAlertService {
         // 实际生产中应该记录上次预警时间或状态，避免频繁打扰。
         // 这里采用一种简单的节流策略：只有当进度在 30%-35% 或 60%-65% 区间时才重点提醒？
         // 或者简单点：只要预测超支严重就提醒。为了体验，我们加上"预计超支金额"
-        
+
         const overrunAmount = predictedTotal - budgetAmount;
         const message = `按照当前消费速度，本月该分类预计将超支 ${overrunAmount.toFixed(0)} 元 (预计总支出 ${predictedTotal.toFixed(0)} / 预算 ${budgetAmount})。建议提前规划支出。`;
-        
-        await this.sendNotification(userId, '预算超支预警', message, NotificationPriority.HIGH, budget.id);
+
+        await this.sendNotification(
+          userId,
+          '预算超支预警',
+          message,
+          NotificationPriority.HIGH,
+          budget.id,
+        );
       }
     }
   }
 
-  private async sendNotification(userId: string, title: string, content: string, priority: NotificationPriority, refId?: string) {
+  private async sendNotification(
+    userId: string,
+    title: string,
+    content: string,
+    priority: NotificationPriority,
+    refId?: string,
+  ) {
     const notification = await this.notificationsService.createNotification(userId, {
       title,
       content,

@@ -21,6 +21,8 @@ import { Category } from '../entities/category.entity';
 import { Ledger, LedgerMember, LedgerType } from '../entities/ledger.entity';
 import { TransactionLog, LogAction, EntityType } from '../entities/transaction-log.entity';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
+import Redis from 'ioredis';
+import { Inject } from '@nestjs/common';
 import { StatisticsService } from '../statistics/statistics.service';
 import { AiAlertService } from '../ai-alert/ai-alert.service';
 import {
@@ -57,6 +59,8 @@ export class TransactionsService {
     private readonly logRepository: Repository<TransactionLog>,
     private readonly ledgerGateway: LedgerGateway,
     private readonly statisticsService: StatisticsService,
+    @Inject('REDIS_CLIENT')
+    private readonly redis: Redis,
     private readonly aiAlertService: AiAlertService,
   ) {}
 
@@ -182,6 +186,7 @@ export class TransactionsService {
     this.logger.log(`交易记录创建成功: ${savedTransaction.id}`);
     // 失效统计缓存，确保概览实时更新
     this.invalidateStatistics(userId);
+    this.bumpNlqVersion(userId);
 
     // 触发 AI 消费异常检测（异步执行，不阻塞响应）
     this.aiAlertService.checkAndAlert(userId, savedTransaction).catch((err) => {
@@ -194,7 +199,10 @@ export class TransactionsService {
   /**
    * 批量创建交易记录
    */
-  async batchCreate(userId: string, dto: BatchCreateTransactionDto): Promise<{ createdCount: number }> {
+  async batchCreate(
+    userId: string,
+    dto: BatchCreateTransactionDto,
+  ): Promise<{ createdCount: number }> {
     this.logger.log(`用户 ${userId} 批量创建交易记录: ${dto.transactions.length}条`);
 
     const createdTransactions: Transaction[] = [];
@@ -212,8 +220,10 @@ export class TransactionsService {
           // 还是加上验证比较好，但为了性能，我们可以先查出用户所有 Category
         }
 
-        const ledgerId = createDto.ledgerId 
-          ? await this.resolveLedgerIdForCreate(userId, createDto.ledgerId).catch(() => defaultLedgerId) 
+        const ledgerId = createDto.ledgerId
+          ? await this.resolveLedgerIdForCreate(userId, createDto.ledgerId).catch(
+              () => defaultLedgerId,
+            )
           : defaultLedgerId;
 
         const transaction = this.transactionRepository.create({
@@ -236,7 +246,12 @@ export class TransactionsService {
       const savedTransactions = await this.transactionRepository.save(createdTransactions);
 
       // 批量发送通知
-      this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_CREATED', { count: savedTransactions.length }, userId);
+      this.ledgerGateway.notifyUpdate(
+        null,
+        'TRANSACTION_BATCH_CREATED',
+        { count: savedTransactions.length },
+        userId,
+      );
 
       // 批量记录日志
       await this.logRepository.save({
@@ -246,16 +261,17 @@ export class TransactionsService {
         newData: { count: savedTransactions.length },
         userId,
       });
-      
+
       this.invalidateStatistics(userId);
+      this.bumpNlqVersion(userId);
 
       // 异步触发 AI 检查（仅对前5条进行检查）
       for (const tx of savedTransactions.slice(0, 5)) {
-          this.aiAlertService.checkAndAlert(userId, tx).catch((err) => {
-            this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
-          });
+        this.aiAlertService.checkAndAlert(userId, tx).catch((err) => {
+          this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
+        });
       }
-      
+
       return { createdCount: savedTransactions.length };
     }
 
@@ -493,6 +509,7 @@ export class TransactionsService {
 
     // 失效统计缓存，确保概览实时更新
     this.invalidateStatistics(userId);
+    this.bumpNlqVersion(userId);
 
     // 触发 AI 消费异常检测（异步执行，不阻塞响应）
     this.aiAlertService.checkAndAlert(userId, updatedTransaction).catch((err) => {
@@ -541,6 +558,7 @@ export class TransactionsService {
     this.logger.log(`交易记录删除成功: ${id}`);
     // 失效统计缓存，确保概览实时更新
     this.invalidateStatistics(userId);
+    this.bumpNlqVersion(userId);
   }
 
   /**
@@ -726,6 +744,7 @@ export class TransactionsService {
     // 失效统计缓存，确保概览实时更新
     if (ids.length > 0) {
       this.invalidateStatistics(userId);
+      this.bumpNlqVersion(userId);
     }
     if (ids.length > 0) {
       this.logger.log(
@@ -807,6 +826,7 @@ export class TransactionsService {
     // 失效统计缓存，确保概览实时更新
     if (ids.length > 0) {
       this.invalidateStatistics(userId);
+      this.bumpNlqVersion(userId);
     }
     if (ids.length > 0) {
       this.logger.log(
@@ -875,6 +895,7 @@ export class TransactionsService {
       this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_DELETED', { ids }, userId);
       // 失效统计缓存，确保概览实时更新
       this.invalidateStatistics(userId);
+      this.bumpNlqVersion(userId);
     }
   }
 
@@ -911,6 +932,18 @@ export class TransactionsService {
       this.statisticsService.invalidateUserCache(userId);
     } catch (e: any) {
       this.logger.warn(`统计缓存失效调用失败: userId=${userId}, err=${e?.message || e}`);
+    }
+  }
+
+  /**
+   * 递增 NLQ 缓存版本，确保后续查询不命中旧缓存
+   */
+  private async bumpNlqVersion(userId: string): Promise<void> {
+    try {
+      await this.redis.incr(`ai:cache:nlq:version:${userId}`);
+      this.logger.log(`[NLQ] 版本号递增: userId=${userId}`);
+    } catch (e: any) {
+      this.logger.warn(`[NLQ] 版本号递增失败: userId=${userId}, err=${e?.message || e}`);
     }
   }
 }
