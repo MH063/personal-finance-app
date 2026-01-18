@@ -3,6 +3,30 @@ import type { Transaction } from '../services/transactionService';
 import type { Ledger } from '../services/ledgerService';
 import type { Category } from '../services/categoryService';
 
+export interface AiMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+export interface AiSession {
+  id: string;
+  title?: string;
+  createdAt: number;
+  updatedAt: number;
+  status: 'active' | 'paused';
+  messageCount: number;
+  messages: AiMessage[];
+}
+
+export interface AiClientLog {
+  id?: number;
+  action: 'CREATE_SESSION' | 'APPEND_MESSAGE' | 'PAUSE' | 'RESUME' | 'DELETE_SESSION' | 'DELETE_BATCH';
+  sessionId?: string;
+  detail?: string;
+  timestamp: number;
+}
+
 /**
  * 同步队列项接口
  */
@@ -26,6 +50,8 @@ export class OfflineDB extends Dexie {
   debts!: Table<any>;
   budgets!: Table<any>;
   syncQueue!: Table<SyncQueueItem>;
+  aiSessions!: Table<AiSession>;
+  aiClientLogs!: Table<AiClientLog>;
 
   constructor() {
     super('PersonalFinanceDB');
@@ -39,6 +65,10 @@ export class OfflineDB extends Dexie {
       budgets: 'id, categoryId, status',
       syncQueue: '++id, action, entity, entityId, timestamp, [entity+entityId+action]'
     });
+    this.version(5).stores({
+      aiSessions: 'id, createdAt, updatedAt, status, messageCount',
+      aiClientLogs: '++id, action, sessionId, timestamp'
+    });
   }
 
   /**
@@ -51,6 +81,8 @@ export class OfflineDB extends Dexie {
     await this.debts.clear();
     await this.budgets.clear();
     await this.syncQueue.clear();
+    await this.aiSessions.clear();
+    await this.aiClientLogs.clear();
   }
 }
 

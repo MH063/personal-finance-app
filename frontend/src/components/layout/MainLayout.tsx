@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography, Spin, Tooltip, Modal, Tag, message, notification } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Badge, Button, Typography, Spin, Tooltip, Modal, Tag, message, notification, Form, Input, Alert } from 'antd';
 import {
   DashboardOutlined,
   RiseOutlined,
@@ -18,6 +18,8 @@ import {
   TagsOutlined,
   CloudSyncOutlined,
   SyncOutlined,
+  UserDeleteOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -32,6 +34,7 @@ import { collaborativeService } from '../../services/collaborativeService';
 import { cancelPendingRequests, silenceAuthErrors } from '../../services/api';
 import { offlineSyncService, SyncListener } from '../../services/offlineSyncService';
 import { resetLoading } from '../../store/slices/appSlice';
+import { authService } from '../../services/authService';
 import WindowControls from './WindowControls';
 import SyncMonitor from './SyncMonitor';
 import AiAssistant from '../common/AiAssistant';
@@ -39,6 +42,95 @@ import './MainLayout.css';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
+
+interface DeleteAccountModalProps {
+  visible: boolean;
+  onCancel: () => void;
+  onConfirm: (password: string) => Promise<void>;
+}
+
+const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({ visible, onCancel, onConfirm }) => {
+  const [form] = Form.useForm();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      form.resetFields();
+      setError(null);
+    }
+  }, [visible, form]);
+
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields();
+      setLoading(true);
+      setError(null);
+      await onConfirm(values.password);
+      // Success is handled by parent (closing modal etc)
+    } catch (err: any) {
+      if (err.errorFields) {
+        // Form validation error, ignore
+        return;
+      }
+      console.error('Delete account error:', err);
+      setError(err.message || '注销失败，请检查密码是否正确');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      title={
+        <span style={{ color: '#ff4d4f', display: 'flex', alignItems: 'center' }}>
+          <ExclamationCircleOutlined style={{ marginRight: 8 }} />
+          注销账号
+        </span>
+      }
+      open={visible}
+      onCancel={!loading ? onCancel : undefined}
+      onOk={handleSubmit}
+      okText="确认注销"
+      cancelText="取消"
+      okButtonProps={{ danger: true, loading }}
+      maskClosable={!loading}
+      closable={!loading}
+      destroyOnHidden
+    >
+      <Alert
+        message="危险操作警告"
+        description="注销账号是不可恢复的操作。您的所有数据（包括交易记录、预算、债务、分类设置等）将被永久删除，且无法找回。请谨慎操作。"
+        type="error"
+        showIcon
+        style={{ marginBottom: 24 }}
+      />
+      
+      <Form form={form} layout="vertical">
+        <Form.Item
+          name="password"
+          label="请输入当前密码以确认身份"
+          rules={[{ required: true, message: '请输入密码' }]}
+        >
+          <Input.Password 
+            prefix={<SecurityScanOutlined />} 
+            placeholder="请输入您的密码" 
+            autoComplete="current-password"
+          />
+        </Form.Item>
+      </Form>
+
+      {error && (
+        <Alert
+          message={error}
+          type="error"
+          showIcon
+          style={{ marginTop: 16 }}
+        />
+      )}
+    </Modal>
+  );
+};
 
 /**
  * 应用主布局组件
@@ -57,6 +149,7 @@ const MainLayout = () => {
 
   const [syncStatus, setSyncStatus] = useState<'connected' | 'disconnected' | 'syncing'>('disconnected');
   const [syncMonitorVisible, setSyncMonitorVisible] = useState(false);
+  const [deleteAccountModalVisible, setDeleteAccountModalVisible] = useState(false);
 
   /**
    * 路由切换清理操作
@@ -435,8 +528,18 @@ const MainLayout = () => {
     dispatch(beginLogout() as unknown as UnknownAction);
   };
 
+  const handleDeleteAccount = async (password: string) => {
+    await authService.deleteAccount(password);
+    message.success('账户已成功注销');
+    setDeleteAccountModalVisible(false);
+    setTimeout(() => {
+      handleLogout();
+    }, 300);
+  };
+
   const userMenuItems = [
     { key: 'logout', icon: <LogoutOutlined />, label: '退出登录', danger: true },
+    { key: 'delete-account', icon: <UserDeleteOutlined />, label: '注销账号', danger: true },
   ];
 
   const handleNotificationClick = (notification: any) => {
@@ -560,6 +663,7 @@ const MainLayout = () => {
                 items: userMenuItems,
                 onClick: ({ key }) => {
                   if (key === 'logout') handleLogout();
+                  if (key === 'delete-account') setDeleteAccountModalVisible(true);
                 },
               }}
               placement="topRight"
@@ -626,6 +730,11 @@ const MainLayout = () => {
       <SyncMonitor 
         visible={syncMonitorVisible} 
         onClose={() => setSyncMonitorVisible(false)} 
+      />
+      <DeleteAccountModal
+        visible={deleteAccountModalVisible}
+        onCancel={() => setDeleteAccountModalVisible(false)}
+        onConfirm={handleDeleteAccount}
       />
       <AiAssistant />
     </Layout>

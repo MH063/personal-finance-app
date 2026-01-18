@@ -162,77 +162,24 @@ api.interceptors.response.use(
     }
 
     // 根据用户规则 5: 后端返回的数据结构是 {success: true, data: {xxx: []}}
-    // 我们在这里做一层解构，确保 response.data 拿到的是最内层的 data
+    // 我们在这里做一层解构，确保 response.data 拿到的是内层的 data 对象
+    // 实际上对于分页接口，结构可能是 { success: true, data: { data: [], total: 10 } }
+    // 第一层解构后，response.data 为 { data: [], total: 10 }
+    // 这样在业务层可以通过 response.data.data 访问数组，通过 response.data.total 访问总量
+    // 这完美符合用户规则 5: "实际上应该访问 response.data.data.xxx"
     const isSilent = response.config?.headers?.['X-Silent-Error'] === 'true';
     
     if (response.data && response.data.success) {
       if (!isSilent) {
-        console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data.data);
+        console.log(`[API Response Success] ${response.config.method?.toUpperCase()} ${response.config.url}:`, response.data.data);
       }
       const controller = (response.config as any)?._abortController as AbortController | undefined;
       if (controller) pendingControllers.delete(controller);
 
-      // 第一层解构
-      let finalData = response.data.data !== undefined ? response.data.data : response.data;
-
-      // 增强处理：如果解构后的数据仍然包含 data 字段且是数组或对象，尝试进一步解构
-      // 解决 { success: true, data: { data: [] } } 这种双层嵌套
-      if (finalData && typeof finalData === 'object' && 'data' in finalData) {
-        // 只有当内部 data 是数组，或者我们确定它是包裹层时才解构
-        // 这里做一个通用判断：如果 keys 很少且包含 data，很可能是包裹层
-        const keys = Object.keys(finalData);
-        if (keys.length <= 3 && keys.includes('data')) { // 允许 meta/total 等分页字段共存
-           // 如果需要保留分页信息，可能需要特殊处理，但根据用户需求，主要是为了方便访问 data
-           // 如果是分页数据 { data: [], total: 100 }，直接返回 finalData 可能更好，
-           // 但用户明确说 "易错写法 res.data.data"，说明他们想直接拿到数组。
-           // 对于分页接口，通常返回 { items: [], meta: {} } 或者 { data: [], meta: {} }
-           // 如果我们这里直接返回 inner data，会丢失 meta。
-           // 但是用户场景主要是 "xxx: []"。
-           // 让我们只针对 { data: [...] } 且没有其他重要字段的情况，或者用户习惯就是 data.data
-           
-           // 策略调整：如果 finalData.data 是数组，则优先使用它？
-           // 不，为了安全起见，我们只处理纯粹的包裹
-           if (Array.isArray(finalData.data)) {
-              // 这是一个艰难的决定。如果返回数组，meta 就丢了。
-              // 但是用户说 "Backend returns {success: true, data: {xxx: []}} ... Should access response.data.data.xxx"
-              // 这句话其实是说：Backend returns `{ success: true, data: { transactions: [] } }`
-              // Component gets `{ transactions: [] }`. Access `res.transactions`.
-              // User says: "Frontend code might directly access response.data.xxx". 
-              // "Actually should access response.data.data.xxx".
-              // This implies the current interceptor returns the Axios response object? 
-              // No, line 146 says `return { ...response, data: ... }`.
-              
-              // Let's re-read the user rule carefully:
-              // "Backend returns {success: true, data: {xxx: []}} , but frontend code might directly access response.data.xxx . Actually should access response.data.data.xxx . Note to handle this double nested structure."
-              
-              // If frontend accesses `response.data.xxx`, and it works, then `response.data` has `xxx`.
-              // If it *should* access `response.data.data.xxx`, it means `response.data` does NOT have `xxx`, but `response.data.data` has `xxx`.
-              // This implies `response.data` (in the code) is NOT unwrapped enough.
-              // OR, `response.data` IS unwrapped to `{ data: { xxx: [] } }`.
-              
-              // Let's assume the goal is to make `response.data` point to the inner content directly.
-              // So if we have `{ data: [] }`, return `[]`.
-              // If we have `{ data: [], total: 10 }`, returning `[]` loses `total`.
-              // Maybe attach `total` to the array? No, that's messy.
-              
-              // Let's look at `categoryService.ts` `extractData` again.
-              // It checks for `result.data || result`.
-              // And `if (Array.isArray(innerData[key]))`.
-              
-              // I will implement a safe unwrap: 
-              // If `finalData` has `data` property and it is an array, map it to `finalData`.
-              // But wait, if I change the return structure, I might break pagination.
-              // Most pagination in this app seems to use `items` or `data`.
-              
-              // Let's stick to the user's specific complaint about `{ data: [] }` nesting.
-              finalData = finalData.data;
-           }
-        }
-      }
-
+      // 仅解构第一层 data，保留内层所有结构（如 data 数组、total 等分页信息）
       return {
         ...response,
-        data: finalData
+        data: response.data.data !== undefined ? response.data.data : response.data
       };
     }
     
@@ -286,8 +233,9 @@ api.interceptors.response.use(
             }
             isRefreshingToken = true;
             try {
+              const base = (api.defaults.baseURL || API_URL).replace(/\/$/, '');
               const response = await axios.post(
-                `${API_URL}/auth/refresh`,
+                `${base}/auth/refresh`,
                 { refreshToken: storedRefreshToken },
                 { headers: { 'Content-Type': 'application/json' } }
               );

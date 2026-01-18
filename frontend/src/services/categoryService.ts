@@ -40,38 +40,6 @@ export const categoryService = {
 
     const localCategories = await db.categories.toArray();
 
-    // 内部帮助函数：从响应中提取数组数据
-    const extractData = (result: any) => {
-      // 1. 基础检查
-      if (!result) return [];
-      
-      // 2. 检查是否是双层嵌套结构: { success: true, data: { categories: [] } }
-      // 或者 api.ts 解构后的: { categories: [] }
-      if (typeof result === 'object' && !Array.isArray(result)) {
-        // 检查 result.data.categories 或 result.categories
-        const innerData = result.data || result;
-        if (innerData && typeof innerData === 'object') {
-          // 查找第一个数组属性
-          for (const key in innerData) {
-            if (Array.isArray(innerData[key])) {
-              return innerData[key];
-            }
-          }
-        }
-        // 如果 result 本身有 success 和 data 字段，但 data 还没被处理
-        if ('success' in result && 'data' in result) {
-          if (Array.isArray(result.data)) return result.data;
-          // 继续深度查找
-          return extractData(result.data);
-        }
-      }
-      
-      // 3. 如果已经是数组，直接返回
-      if (Array.isArray(result)) return result;
-      
-      return [];
-    };
-
     // 未认证直接返回本地缓存，避免触发 401
     const token = localStorage.getItem('accessToken');
     if (!token) {
@@ -81,7 +49,15 @@ export const categoryService = {
     if (offlineSyncService.isOnline()) {
       try {
         const response = await api.get<any>('/categories', { params: { type } });
-        let data = extractData(response.data);
+        const result = response.data;
+        let data: any[] = [];
+        if (Array.isArray(result)) {
+          data = result;
+        } else if (result && typeof result === 'object') {
+          data = Array.isArray(result.data)
+            ? result.data
+            : (Object.values(result).find((v) => Array.isArray(v)) as any[]) || [];
+        }
 
         if ((!data || data.length === 0)) {
           try {
@@ -92,7 +68,14 @@ export const categoryService = {
               await api.post('/categories/defaults', { type: 'expense' });
             }
             const retryResponse = await api.get<any>('/categories', { params: { type } });
-            data = extractData(retryResponse.data);
+            const retryResult = retryResponse.data;
+            if (Array.isArray(retryResult)) {
+              data = retryResult;
+            } else if (retryResult && typeof retryResult === 'object') {
+              data = Array.isArray(retryResult.data)
+                ? retryResult.data
+                : (Object.values(retryResult).find((v) => Array.isArray(v)) as any[]) || [];
+            }
           } catch (initErr) {
             console.error('[CategoryService] 初始化默认分类失败:', initErr);
           }
@@ -119,10 +102,7 @@ export const categoryService = {
 
     if (offlineSyncService.isOnline()) {
       api.get<any>(`/categories/${id}`).then(response => {
-        const result = response.data;
-        const data = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-          ? result.data 
-          : result;
+        const data = response.data;
         
         if (data) {
           db.categories.put(data);

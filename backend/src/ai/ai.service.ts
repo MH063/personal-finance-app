@@ -352,6 +352,26 @@ export class AiService implements OnModuleInit {
         }
       }
     }
+    {
+      const qraw = (effectiveQuery || '').trim();
+      const qcompact = qraw.replace(/\s+/g, '');
+      const onlyDigits = /^[0-9]+$/.test(qcompact);
+      const tooShort = qcompact.length < 2;
+      const onlySymbols = /^[\-\_\.\,\!\?\u3002\uFF0C\uFF1F]+$/.test(qcompact);
+      if (onlyDigits || tooShort || onlySymbols) {
+        const answer =
+          '我未能理解该输入。请用自然语言描述您的需求，例如：“最近7天的支出明细”、“本月餐饮花了多少”。';
+        const payload = {
+          success: true,
+          answer,
+          debug: { hint: 'INVALID_QUERY', page, limit, offset, fastMode },
+        };
+        try {
+          await this.redis.set(cacheKey, JSON.stringify(payload), 'EX', 60);
+        } catch {}
+        return payload;
+      }
+    }
     try {
       const cached = await this.redis.get(cacheKey);
       if (cached) {

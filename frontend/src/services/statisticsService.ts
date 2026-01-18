@@ -14,11 +14,7 @@ const statisticsService = {
       params, 
       headers: params?.silent ? { 'X-Silent-Loading': 'true' } : undefined 
     });
-    const result = response.data;
-    // 根据 Rule 5: 优先获取嵌套的 data 字段
-    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-      ? result.data 
-      : result;
+    return response.data;
   },
 
   /**
@@ -34,11 +30,7 @@ const statisticsService = {
       params, 
       headers: params?.silent ? { 'X-Silent-Loading': 'true' } : undefined 
     });
-    const result = response.data;
-    // 根据 Rule 5: 优先获取嵌套的 data 字段
-    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-      ? result.data 
-      : result;
+    return response.data;
   },
 
   /**
@@ -54,11 +46,7 @@ const statisticsService = {
       params, 
       headers: params?.silent ? { 'X-Silent-Loading': 'true' } : undefined 
     });
-    const result = response.data;
-    // 根据 Rule 5: 优先获取嵌套的 data 字段
-    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-      ? result.data 
-      : result;
+    return response.data;
   },
 
   /**
@@ -71,11 +59,7 @@ const statisticsService = {
       return {};
     }
     const response = await api.get<any>('/statistics/overview');
-    const result = response.data;
-    // 根据 Rule 5: 优先获取嵌套的 data 字段
-    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-      ? result.data 
-      : result;
+    return response.data;
   },
 
   /**
@@ -90,11 +74,7 @@ const statisticsService = {
     const response = await api.get<any>('/statistics/health', { 
       params: { period: params?.timeRange || 'month' } 
     });
-    const result = response.data;
-    // 根据 Rule 5: 优先获取嵌套的 data 字段
-    return (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-      ? result.data 
-      : result;
+    return response.data;
   },
 
   /**

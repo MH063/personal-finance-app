@@ -52,12 +52,8 @@ export const ledgerService = {
         console.log('[LedgerService] 在线获取账本列表（服务端优先）');
         const response = await api.get<any>('/ledgers', options?.silent ? { headers: { 'X-Silent-Loading': 'true', 'X-Silent-Error': 'true' } } : undefined);
         const result = response.data;
-        const data = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-          ? result.data 
-          : result;
-        
-        if (data) {
-          const ledgers = Array.isArray(data) ? data : (data.ledgers || []);
+        if (result) {
+          const ledgers = Array.isArray(result) ? result : (result.ledgers || result.data || []);
           await db.ledgers.clear();
           await db.ledgers.bulkPut(ledgers);
           return ledgers;
@@ -79,10 +75,7 @@ export const ledgerService = {
     if (offlineSyncService.isOnline() && token) {
       try {
         const response = await api.get<any>(`/ledgers/${id}`);
-        const result = response.data;
-        const data = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-          ? result.data 
-          : result;
+        const data = response.data;
         if (data) {
           await db.ledgers.put(data);
           return data;

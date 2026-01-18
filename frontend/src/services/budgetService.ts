@@ -12,24 +12,6 @@ const budgetService = {
    * 获取所有预算
    */
   async getAllBudgets() {
-    // 内部帮助函数：从响应中提取数组数据
-    const extractData = (result: any) => {
-      if (!result) return [];
-      const innerData = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-        ? result.data 
-        : result;
-      
-      if (innerData) {
-        if (Array.isArray(innerData)) return innerData;
-        if (typeof innerData === 'object') {
-          for (const key in innerData) {
-            if (Array.isArray(innerData[key])) return innerData[key];
-          }
-        }
-      }
-      return Array.isArray(result) ? result : [];
-    };
-
     // 1. 先从本地获取
     const localBudgets = await db.budgets.toArray();
 
@@ -38,7 +20,16 @@ const budgetService = {
       try {
         console.log('[BudgetService] 正在从服务器获取最新预算数据...');
         const response = await api.get('/budgets');
-        const data = extractData(response.data);
+        // 由于 api 拦截器已处理第一层 data 解构，此处 response.data 就是后端返回的 data 对象
+        const result = response.data;
+        let data: any[] = [];
+        
+        if (Array.isArray(result)) {
+          data = result;
+        } else if (result && typeof result === 'object') {
+          // 兼容分页结构 { data: [], total: 10 } 或直接包含数组的对象
+          data = Array.isArray(result.data) ? result.data : Object.values(result).find(val => Array.isArray(val)) as any[] || [];
+        }
         
         if (data && data.length > 0) {
           // 清除本地旧数据并更新
@@ -62,10 +53,8 @@ const budgetService = {
 
     if (offlineSyncService.isOnline()) {
       api.get(`/budgets/${id}`).then(response => {
-        const result = response.data;
-        const data = (result && typeof result === 'object' && 'success' in result && 'data' in result) 
-          ? result.data 
-          : result;
+        // 由于 api 拦截器已处理第一层 data 解构，此处 response.data 就是后端返回的 data 对象
+        const data = response.data;
         
         if (data) {
           db.budgets.put(data);
