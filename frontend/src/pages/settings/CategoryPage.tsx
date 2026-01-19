@@ -465,7 +465,7 @@ const CategoryPage: React.FC = () => {
         keyboard={false}
       >
         <Alert
-          message="存在关联数据"
+          title="存在关联数据"
           description={conflictData?.message || '该分类下存在关联交易，无法直接删除。'}
           type="warning"
           showIcon
@@ -478,13 +478,13 @@ const CategoryPage: React.FC = () => {
           style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
         >
           <Radio value="force">
-            <Space direction="vertical" size={0}>
+            <Space orientation="vertical" size={0}>
               <span style={{ fontWeight: 500 }}>强制删除</span>
               <Text type="secondary" style={{ fontSize: 12 }}>同时删除该分类下的所有交易记录（不可恢复）</Text>
             </Space>
           </Radio>
           <Radio value="migrate">
-            <Space direction="vertical" size={0}>
+            <Space orientation="vertical" size={0}>
               <span style={{ fontWeight: 500 }}>迁移数据</span>
               <Text type="secondary" style={{ fontSize: 12 }}>将关联交易迁移到其他分类</Text>
             </Space>

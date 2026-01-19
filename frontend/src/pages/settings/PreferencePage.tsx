@@ -172,7 +172,7 @@ const PreferencePage: React.FC = () => {
                 border: '1px solid rgba(255, 255, 255, 0.1)',
                 marginBottom: '16px'
               }}>
-                <Space direction="vertical" style={{ width: '100%' }}>
+                <Space orientation="vertical" style={{ width: '100%' }}>
                   <Space>
                     <Button 
                       icon={<UploadOutlined />} 

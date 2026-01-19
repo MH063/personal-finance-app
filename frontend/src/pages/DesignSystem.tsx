@@ -58,7 +58,7 @@ const DesignSystem: React.FC = () => {
                 <Card.Meta 
                   title={<span style={{ color: 'white' }}>{color.name}</span>} 
                   description={
-                    <Space direction="vertical" size={4}>
+                    <Space orientation="vertical" size={4}>
                       <Text strong style={{ color: 'rgba(255, 255, 255, 0.9)' }}>{color.hex}</Text>
                       <Text style={{ fontSize: 12, color: 'rgba(255, 255, 255, 0.6)' }}>{color.desc}</Text>
                       <Tag color="blue" style={{ marginTop: 8, borderRadius: '6px', border: 'none', background: 'rgba(99, 102, 241, 0.2)', color: '#818cf8' }}>{color.token}</Tag>

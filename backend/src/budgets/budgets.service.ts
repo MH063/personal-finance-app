@@ -284,4 +284,15 @@ export class BudgetsService {
     }
   }
 
+  private bumpNlqVersion(userId: string): void {
+    const key = `nlq:version:${userId}`;
+    this.redis
+      .incr(key)
+      .then((version) => {
+        this.logger.debug(`NLQ 版本已更新: userId=${userId}, version=${version}`);
+      })
+      .catch((e: any) => {
+        this.logger.warn(`NLQ 版本更新失败: userId=${userId}, err=${e?.message || e}`);
+      });
+  }
 }

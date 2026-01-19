@@ -482,7 +482,7 @@ const BackupPage: React.FC = () => {
         }
         
         return (
-          <Space direction="vertical" size={0}>
+          <Space orientation="vertical" size={0}>
             <Tag color={color} className="backup-type-tag">
               {label}
             </Tag>

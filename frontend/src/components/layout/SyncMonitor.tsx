@@ -674,7 +674,7 @@ function SyncMonitor({ visible, onClose }: SyncMonitorProps) {
                 <Progress percent={displayPercent} status={isSyncing ? 'active' : (displayPercent === 100 ? 'success' : 'normal')} />
               </Col>
               <Col span={6}>
-                <Space direction="vertical" size={2}>
+                <Space orientation="vertical" size={2}>
                   <Text type="secondary" style={{ fontSize: 12 }}>总量: {displayTotal}</Text>
                   <Text type="secondary" style={{ fontSize: 12 }}>剩余: {displayPending}</Text>
                   <Text type="secondary" style={{ fontSize: 12 }}>耗时: {displayElapsedText}</Text>
@@ -700,7 +700,7 @@ function SyncMonitor({ visible, onClose }: SyncMonitorProps) {
                    {syncInfo.errors.slice(-5).reverse().map((err, idx) => (
                     <Alert
                       key={idx}
-                      message={err}
+                      title={err}
                       type="error"
                       showIcon
                       style={{ marginBottom: 8 }}
@@ -744,7 +744,7 @@ function SyncMonitor({ visible, onClose }: SyncMonitorProps) {
                       {item.type === 'MANUAL_FORCE_SYNC' && <Tag color="purple">强制刷新</Tag>}
                     </div>
                     <div style={{ marginTop: 4 }}>
-                      <Space direction="vertical" size={0} style={{ width: '100%' }}>
+                      <Space orientation="vertical" size={0} style={{ width: '100%' }}>
                         <Text type="secondary" style={{ fontSize: 12 }}>时间: {item.timestamp}</Text>
                         {item.data && item.data.id && (
                           <Text type="secondary" style={{ fontSize: 11, display: 'block' }}>

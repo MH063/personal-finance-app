@@ -98,7 +98,7 @@ const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({ visible, onCanc
       destroyOnHidden
     >
       <Alert
-        message="危险操作警告"
+        title="危险操作警告"
         description="注销账号是不可恢复的操作。您的所有数据（包括交易记录、预算、债务、分类设置等）将被永久删除，且无法找回。请谨慎操作。"
         type="error"
         showIcon
@@ -121,7 +121,7 @@ const DeleteAccountModal: React.FC<DeleteAccountModalProps> = ({ visible, onCanc
 
       {error && (
         <Alert
-          message={error}
+          title={error}
           type="error"
           showIcon
           style={{ marginTop: 16 }}

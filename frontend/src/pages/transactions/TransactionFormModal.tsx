@@ -126,7 +126,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
       <Form form={form} layout="vertical">
         {isDebtLink && (
           <Alert
-            message="仅查看模式"
+            title="仅查看模式"
             description="此交易关联至债务记录，为保证数据一致性，请前往“债务管理”模块进行修改。"
             type="info"
             showIcon

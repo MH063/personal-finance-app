@@ -258,7 +258,7 @@ const BudgetPage: React.FC = () => {
           </div>
 
           <div style={{ marginTop: 16 }}>
-            <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Space orientation="vertical" size={4} style={{ width: '100%' }}>
               <Text type="secondary" style={{ fontSize: 12 }}>
                 <CalendarOutlined /> {dayjs(budget.startDate).format('MM/DD')} - {dayjs(budget.endDate).format('MM/DD')}
               </Text>

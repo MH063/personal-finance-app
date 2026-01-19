@@ -390,7 +390,7 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
           </div>
           
           <Alert 
-             message="温馨提示" 
+             title="温馨提示" 
              description="请检查解析结果，特别是分类是否准确。" 
              type="info" 
              showIcon 
