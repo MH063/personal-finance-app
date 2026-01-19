@@ -18,13 +18,12 @@ import {
 } from 'typeorm';
 import { Transaction, TransactionType, PaymentMethod } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
-import { Ledger, LedgerMember, LedgerType } from '../entities/ledger.entity';
+import { Ledger, LedgerMember } from '../entities/ledger.entity';
 import { TransactionLog, LogAction, EntityType } from '../entities/transaction-log.entity';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
 import Redis from 'ioredis';
 import { Inject } from '@nestjs/common';
 import { StatisticsService } from '../statistics/statistics.service';
-import { AiAlertService } from '../ai-alert/ai-alert.service';
 import {
   CreateTransactionDto,
   UpdateTransactionDto,
@@ -61,7 +60,6 @@ export class TransactionsService {
     private readonly statisticsService: StatisticsService,
     @Inject('REDIS_CLIENT')
     private readonly redis: Redis,
-    private readonly aiAlertService: AiAlertService,
   ) {}
 
   /**
@@ -88,10 +86,11 @@ export class TransactionsService {
   }
 
   /**
-   * 解析用于创建交易的账本ID
-   * 优先使用显式传入并校验权限；未传入时：
-   * - 若用户已有账本，使用最早创建的账本作为归属；
-   * - 若用户没有账本，自动创建一个私有账本并加入成员。
+   * 解析用于创建交易的账本ID（严格验证）
+   * 显式传入则校验成员权限；未传入时：
+   * - 若用户无任何账本成员关系，抛出错误提示“请先创建账本再添加记录”
+   * - 若用户存在多个账本成员关系，抛出选择提示错误，包含可选账本列表
+   * - 若仅有一个账本成员关系，返回该账本ID
    */
   private async resolveLedgerIdForCreate(userId: string, ledgerId?: string): Promise<string> {
     if (ledgerId) {
@@ -104,49 +103,39 @@ export class TransactionsService {
       return ledgerId;
     }
 
-    const ownedLedgers = await this.ledgerRepository.find({
-      where: { ownerId: userId },
-      order: { createdAt: 'ASC' },
-      take: 1,
+    const memberships = await this.ledgerMemberRepository.find({
+      where: { userId },
     });
-    const fallbackLedger = ownedLedgers[0];
+    const ledgerIds = memberships.map((m) => m.ledgerId);
 
-    if (fallbackLedger) {
-      const existingMember = await this.ledgerMemberRepository.findOne({
-        where: { ledgerId: fallbackLedger.id, userId },
+    if (ledgerIds.length === 0) {
+      this.logger.warn(`用户 ${userId} 无账本成员关系，拒绝创建交易`);
+      await this.logRepository.save({
+        action: LogAction.CREATE,
+        entityType: EntityType.TRANSACTION,
+        entityId: 'unknown',
+        newData: { reason: 'NO_LEDGER', message: '请先创建账本再添加记录' },
+        userId,
       });
-      if (!existingMember) {
-        await this.ledgerMemberRepository.save(
-          this.ledgerMemberRepository.create({
-            ledgerId: fallbackLedger.id,
-            userId,
-            role: 'owner',
-          }),
-        );
-      }
-
-      this.logger.warn(`用户 ${userId} 未指定账本，已使用最早创建的账本: ${fallbackLedger.id}`);
-      return fallbackLedger.id;
+      throw new BadRequestException('请先创建账本再添加记录');
     }
 
-    const createdLedger = await this.ledgerRepository.save(
-      this.ledgerRepository.create({
-        name: '我的私有账本',
-        ownerId: userId,
-        type: LedgerType.PRIVATE,
-      }),
-    );
+    if (ledgerIds.length > 1) {
+      const ledgers = await this.ledgerRepository.find({
+        where: { id: In(ledgerIds) },
+        order: { createdAt: 'ASC' },
+      });
+      const options = ledgers.map((l) => ({ id: l.id, name: l.name, type: l.type }));
+      this.logger.warn(`用户 ${userId} 关联多账本，需选择具体账本`);
+      const err: any = new BadRequestException({
+        message: '需要选择账本后再创建记录',
+        code: 'LEDGER_SELECTION_REQUIRED',
+        data: { ledgers: options },
+      });
+      throw err;
+    }
 
-    await this.ledgerMemberRepository.save(
-      this.ledgerMemberRepository.create({
-        ledgerId: createdLedger.id,
-        userId,
-        role: 'owner',
-      }),
-    );
-
-    this.logger.warn(`用户 ${userId} 无账本，已自动创建新账本: ${createdLedger.id}`);
-    return createdLedger.id;
+    return ledgerIds[0];
   }
 
   /**
@@ -155,45 +144,61 @@ export class TransactionsService {
   async create(userId: string, createDto: CreateTransactionDto): Promise<Transaction> {
     this.logger.log(`用户 ${userId} 创建交易记录: ${createDto.amount} ${createDto.type}`);
 
+    // 基础必填校验：金额、日期已由 DTO 校验，这里补充类型特定的校验
+    if (!createDto.paymentMethod) {
+      throw new BadRequestException('支付方式为必填项');
+    }
+    const hasSubject =
+      !!(createDto.merchant && createDto.merchant.trim().length > 0) ||
+      !!(createDto.description && createDto.description.trim().length > 0);
+    if (!hasSubject) {
+      if (createDto.type === TransactionType.INCOME) {
+        throw new BadRequestException('收入记录需填写收入来源（商户或备注其一）');
+      } else if (createDto.type === TransactionType.EXPENSE) {
+        throw new BadRequestException('支出记录需填写支出对象（商户或备注其一）');
+      }
+    }
+
     if (createDto.categoryId) {
       await this.validateCategory(userId, createDto.categoryId, createDto.type);
     }
 
     const ledgerId = await this.resolveLedgerIdForCreate(userId, createDto.ledgerId);
 
-    const transaction = this.transactionRepository.create({
-      ...createDto,
-      userId,
-      ledgerId,
-      categoryId: createDto.categoryId || undefined,
-      transactionDate: new Date(createDto.transactionDate),
-    });
+    const txRunner = this.transactionRepository.manager.connection.createQueryRunner();
+    await txRunner.connect();
+    await txRunner.startTransaction();
+    try {
+      const transaction = this.transactionRepository.create({
+        ...createDto,
+        userId,
+        ledgerId,
+        categoryId: createDto.categoryId || undefined,
+        transactionDate: new Date(createDto.transactionDate),
+      });
 
-    const result = await this.transactionRepository.save(transaction);
-    const savedTransaction = Array.isArray(result) ? result[0] : result;
+      const savedTransaction = await txRunner.manager.save(Transaction, transaction);
 
-    // 发送实时更新通知
-    this.ledgerGateway.notifyUpdate(ledgerId, 'TRANSACTION_CREATED', savedTransaction, userId);
+      await txRunner.manager.save(TransactionLog, {
+        action: LogAction.CREATE,
+        entityType: EntityType.TRANSACTION,
+        entityId: savedTransaction.id,
+        newData: this.sanitizeTransactionData(savedTransaction),
+        userId,
+      });
 
-    await this.logRepository.save({
-      action: LogAction.CREATE,
-      entityType: EntityType.TRANSACTION,
-      entityId: savedTransaction.id,
-      newData: this.sanitizeTransactionData(savedTransaction),
-      userId,
-    });
+      await txRunner.commitTransaction();
 
-    this.logger.log(`交易记录创建成功: ${savedTransaction.id}`);
-    // 失效统计缓存，确保概览实时更新
-    this.invalidateStatistics(userId);
-    this.bumpNlqVersion(userId);
-
-    // 触发 AI 消费异常检测（异步执行，不阻塞响应）
-    this.aiAlertService.checkAndAlert(userId, savedTransaction).catch((err) => {
-      this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
-    });
-
-    return this.findOne(userId, savedTransaction.id);
+      this.ledgerGateway.notifyUpdate(ledgerId, 'TRANSACTION_CREATED', savedTransaction, userId);
+      this.logger.log(`交易记录创建成功: ${savedTransaction.id}`);
+      this.invalidateStatistics(userId);
+      return this.findOne(userId, savedTransaction.id);
+    } catch (err) {
+      await txRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await txRunner.release();
+    }
   }
 
   /**
@@ -303,14 +308,6 @@ export class TransactionsService {
       });
       // 缓存与版本处理
       this.invalidateStatistics(userId);
-      this.bumpNlqVersion(userId);
-      // 异步触发 AI 检查
-      this.aiAlertService.checkAndAlert(userId, savedFrom).catch((err) => {
-        this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
-      });
-      this.aiAlertService.checkAndAlert(userId, savedTo).catch((err) => {
-        this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
-      });
       // 返回包含关联的完整记录
       const fullFrom = await this.findOne(userId, savedFrom.id);
       const fullTo = await this.findOne(userId, savedTo.id);
@@ -338,9 +335,14 @@ export class TransactionsService {
 
     const createdTransactions: Transaction[] = [];
 
-    // 预先解析 ledgerId，避免重复查询。如果交易指定了 ledgerId，则使用指定的；否则使用默认 fallback。
-    // 为了简化，这里先获取一个默认 fallback ledgerId，如果交易没指定就用这个。
-    const defaultLedgerId = await this.resolveLedgerIdForCreate(userId);
+    let defaultLedgerId: string | null = null;
+    try {
+      defaultLedgerId = await this.resolveLedgerIdForCreate(userId);
+    } catch (e: any) {
+      const msg = e?.message || '';
+      this.logger.warn(`批量创建校验账本失败: ${msg}`);
+      return { createdCount: 0 };
+    }
 
     for (const createDto of dto.transactions) {
       try {
@@ -352,10 +354,11 @@ export class TransactionsService {
         }
 
         const ledgerId = createDto.ledgerId
-          ? await this.resolveLedgerIdForCreate(userId, createDto.ledgerId).catch(
-              () => defaultLedgerId,
-            )
-          : defaultLedgerId;
+          ? await this.resolveLedgerIdForCreate(userId, createDto.ledgerId).catch(() => {
+              if (!defaultLedgerId) throw new BadRequestException('请先创建账本再添加记录');
+              return defaultLedgerId;
+            })
+          : defaultLedgerId!;
 
         const transaction = this.transactionRepository.create({
           ...createDto,
@@ -394,14 +397,6 @@ export class TransactionsService {
       });
 
       this.invalidateStatistics(userId);
-      this.bumpNlqVersion(userId);
-
-      // 异步触发 AI 检查（仅对前5条进行检查）
-      for (const tx of savedTransactions.slice(0, 5)) {
-        this.aiAlertService.checkAndAlert(userId, tx).catch((err) => {
-          this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
-        });
-      }
 
       return { createdCount: savedTransactions.length };
     }
@@ -640,12 +635,6 @@ export class TransactionsService {
 
     // 失效统计缓存，确保概览实时更新
     this.invalidateStatistics(userId);
-    this.bumpNlqVersion(userId);
-
-    // 触发 AI 消费异常检测（异步执行，不阻塞响应）
-    this.aiAlertService.checkAndAlert(userId, updatedTransaction).catch((err) => {
-      this.logger.error(`AI 预警检测失败: ${err.message}`, err.stack);
-    });
 
     return this.findOne(userId, id);
   }
@@ -689,7 +678,6 @@ export class TransactionsService {
     this.logger.log(`交易记录删除成功: ${id}`);
     // 失效统计缓存，确保概览实时更新
     this.invalidateStatistics(userId);
-    this.bumpNlqVersion(userId);
   }
 
   /**
@@ -875,7 +863,6 @@ export class TransactionsService {
     // 失效统计缓存，确保概览实时更新
     if (ids.length > 0) {
       this.invalidateStatistics(userId);
-      this.bumpNlqVersion(userId);
     }
     if (ids.length > 0) {
       this.logger.log(
@@ -957,7 +944,6 @@ export class TransactionsService {
     // 失效统计缓存，确保概览实时更新
     if (ids.length > 0) {
       this.invalidateStatistics(userId);
-      this.bumpNlqVersion(userId);
     }
     if (ids.length > 0) {
       this.logger.log(
@@ -1026,7 +1012,6 @@ export class TransactionsService {
       this.ledgerGateway.notifyUpdate(null, 'TRANSACTION_BATCH_DELETED', { ids }, userId);
       // 失效统计缓存，确保概览实时更新
       this.invalidateStatistics(userId);
-      this.bumpNlqVersion(userId);
     }
   }
 
@@ -1066,15 +1051,4 @@ export class TransactionsService {
     }
   }
 
-  /**
-   * 递增 NLQ 缓存版本，确保后续查询不命中旧缓存
-   */
-  private async bumpNlqVersion(userId: string): Promise<void> {
-    try {
-      await this.redis.incr(`ai:cache:nlq:version:${userId}`);
-      this.logger.log(`[NLQ] 版本号递增: userId=${userId}`);
-    } catch (e: any) {
-      this.logger.warn(`[NLQ] 版本号递增失败: userId=${userId}, err=${e?.message || e}`);
-    }
-  }
 }

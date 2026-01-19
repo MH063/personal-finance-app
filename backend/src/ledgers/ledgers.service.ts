@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, OptimisticLockVersionMismatchError } from 'typeorm';
 import { Ledger, LedgerMember } from '../entities/ledger.entity';
@@ -62,8 +68,34 @@ export class LedgersService {
    * 创建新账本
    */
   async create(createLedgerDto: CreateLedgerDto, userId: string): Promise<Ledger> {
+    // 校验初始金额与起始日期
+    const initialAmount = Number(createLedgerDto.initialAmount);
+    if (!Number.isFinite(initialAmount) || initialAmount < 0) {
+      throw new BadRequestException('初始金额必须为非负数');
+    }
+    const startDate = new Date(createLedgerDto.startDate);
+    if (Number.isNaN(startDate.getTime())) {
+      throw new BadRequestException('起始日期格式错误，需为 YYYY-MM-DD');
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const s0 = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    if (s0.getTime() > today.getTime()) {
+      throw new BadRequestException('起始日期不能晚于当前日期');
+    }
+    // 币种简单校验（长度与字符集）
+    const currency = (createLedgerDto.currency || '').trim().toUpperCase();
+    if (!/^[A-Z]{3,10}$/.test(currency)) {
+      throw new BadRequestException('币种需为有效的 ISO 代码（如 CNY、USD）');
+    }
+
     const ledger = this.ledgerRepository.create({
-      ...createLedgerDto,
+      name: createLedgerDto.name,
+      description: createLedgerDto.description,
+      type: createLedgerDto.type,
+      currency,
+      startDate,
+      initialAmount,
       ownerId: userId,
     });
 

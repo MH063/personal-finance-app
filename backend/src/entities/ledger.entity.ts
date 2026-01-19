@@ -28,6 +28,18 @@ export class Ledger {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  // 币种（ISO 代码，如 CNY、USD）
+  @Column({ name: 'currency', length: 10, nullable: true })
+  currency: string;
+
+  // 账本起始日期（用于预算统计与余额初始化参考）
+  @Column({ name: 'start_date', type: 'date', nullable: true })
+  startDate: Date;
+
+  // 初始金额（用于余额初始化与报表推算）
+  @Column({ name: 'initial_amount', type: 'decimal', precision: 18, scale: 2, nullable: true })
+  initialAmount: number;
+
   @Column({ name: 'owner_id' })
   ownerId: string;
 

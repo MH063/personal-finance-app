@@ -9,7 +9,6 @@ import { fetchTransactions, createTransaction, updateTransaction, deleteTransact
 import { fetchOverview } from '../../store/slices/statisticsSlice';
 import { fetchCategories } from '../../store/slices/categorySlice';
 import { fetchLedgers } from '../../store/slices/ledgerSlice';
-import { aiService } from '../../services/aiService';
 import { collaborativeService } from '../../services/collaborativeService';
 import type { Transaction } from '../../services/transactionService';
  import ImportTransactionsModal from './ImportTransactionsModal';
@@ -36,7 +35,6 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   const [modalVisible, setModalVisible] = useState(false);
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [predicting, setPredicting] = useState(false);
   const [filters, setFilters] = useState({ categoryId: '', ledgerId: '', startDate: '', endDate: '' });
   const [form] = Form.useForm();
   const navigate = useNavigate();
@@ -316,27 +314,7 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
   }, [editingTransaction, message, navigate]);
 
 
-  const handleDescriptionBlur = async (e: React.FocusEvent<HTMLTextAreaElement>) => {
-    const description = e.target.value;
-    if (!description || editingTransaction || form.getFieldValue('categoryId')) return;
 
-    setPredicting(true);
-    try {
-      const categoryId = await aiService.predictCategory(description);
-      if (categoryId) {
-        // 检查预测的分类是否在当前类型的分类列表中
-        const exists = filteredCategories.some(c => c.id === categoryId);
-        if (exists) {
-          form.setFieldsValue({ categoryId });
-          message.info('AI 已根据您的描述自动选择分类');
-        }
-      }
-    } catch (error) {
-      console.error('AI 预测失败:', error);
-    } finally {
-      setPredicting(false);
-    }
-  };
 
   const columns = useMemo(() => [
     { 
@@ -730,11 +708,10 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
           <Form.Item name="description" label="备注">
             <TextArea 
               rows={3} 
-              placeholder={predicting ? "AI 正在分析您的描述..." : "添加备注信息..."}
-              disabled={predicting || !!editingTransaction?.metadata?.isDebtLink}
+              placeholder="添加备注信息..."
+              disabled={!!editingTransaction?.metadata?.isDebtLink}
               showCount 
               maxLength={200} 
-              onBlur={handleDescriptionBlur}
             />
           </Form.Item>
         </Form>

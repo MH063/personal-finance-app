@@ -14,6 +14,21 @@ export class CreateLedgerDto {
   @IsEnum(LedgerType)
   @IsOptional()
   type?: LedgerType;
+
+  // 币种（ISO 代码，如 CNY、USD）
+  @IsString()
+  @IsNotEmpty()
+  currency: string;
+
+  // 起始日期（YYYY-MM-DD）
+  @IsString()
+  @IsNotEmpty()
+  startDate: string;
+
+  // 初始金额（≥0）
+  @IsNumber()
+  @IsNotEmpty()
+  initialAmount: number;
 }
 
 export class UpdateLedgerDto {
@@ -26,6 +41,21 @@ export class UpdateLedgerDto {
   @IsString()
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({ description: '币种（ISO 代码）' })
+  @IsString()
+  @IsOptional()
+  currency?: string;
+
+  @ApiPropertyOptional({ description: '起始日期（YYYY-MM-DD）' })
+  @IsString()
+  @IsOptional()
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: '初始金额' })
+  @IsNumber()
+  @IsOptional()
+  initialAmount?: number;
 
   @ApiPropertyOptional({ description: '版本号' })
   @IsNumber()

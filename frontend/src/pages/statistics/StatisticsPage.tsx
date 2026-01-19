@@ -7,10 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { RootState, AppDispatch } from '../../store';
 import { fetchOverview, fetchTrend, fetchFinancialHealth } from '../../store/slices/statisticsSlice';
-import { fetchAiHealthAnalysis, fetchAiForecast } from '../../store/slices/aiSlice';
 import { collaborativeService } from '../../services/collaborativeService';
 import statisticsService from '../../services/statisticsService';
-import { aiService } from '../../services/aiService';
 import { useSafeBackground } from '../../hooks/useSafeBackground';
 import './StatisticsPage.css';
 
@@ -21,8 +19,6 @@ const StatisticsPage: React.FC = () => {
   const [timeRange, setTimeRange] = useState('last6months');
   const [customRange, setCustomRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
-  const [aiData, setAiData] = useState<any>(null);
-  const [forecastData, setForecastData] = useState<any[]>([]);
 
   const [quickAddLoading, setQuickAddLoading] = useState<string | null>(null);
 
@@ -68,7 +64,6 @@ const StatisticsPage: React.FC = () => {
 
   const isLightBackground = brightness > 60;
   const textColor = isLightBackground ? 'rgba(0, 0, 0, 0.85)' : 'rgba(255, 255, 255, 0.95)';
-  const secondaryColor = isLightBackground ? 'rgba(0, 0, 0, 0.65)' : 'rgba(255, 255, 255, 0.7)';
   const textShadow = isLightBackground 
     ? '0 1px 1px rgba(255, 255, 255, 0.5)' 
     : '0 1px 2px rgba(0, 0, 0, 0.6), 0 0 1px rgba(0, 0, 0, 0.4)';
@@ -88,24 +83,6 @@ const StatisticsPage: React.FC = () => {
     dispatch(fetchOverview(query) as any);
     dispatch(fetchTrend(query) as any);
     dispatch(fetchFinancialHealth(timeRange === 'month' ? 'month' : timeRange === 'year' ? 'year' : 'quarter') as any);
-    
-    // 加载 AI 数据
-    dispatch(fetchAiHealthAnalysis() as any);
-    dispatch(fetchAiForecast() as any);
-    
-    // 同时同步本地状态
-    aiService.getForecast().then(res => {
-      // 确保 res 是数组，Rule 5 处理由 service 完成，此处做最终保险
-      const data = Array.isArray(res) ? res : [];
-      setForecastData(data);
-    }).catch(err => {
-      console.warn('[Statistics] 加载预测数据失败:', err);
-      setForecastData([]);
-    });
-    
-    aiService.getHealthAnalysis().then(res => {
-      if (res) setAiData(res);
-    });
   }, [customRange, dispatch, timeRange, isAuthenticated, user?.id]);
 
   useEffect(() => {
@@ -256,22 +233,7 @@ const StatisticsPage: React.FC = () => {
     }],
   };
 
-  const forecastChartOption = {
-    tooltip: { trigger: 'axis' as const },
-    xAxis: { 
-      type: 'category' as const, 
-      data: Array.isArray(forecastData) ? forecastData.map(d => d.month) : [],
-      axisLine: { lineStyle: { color: '#e2e8f0' } }
-    },
-    yAxis: { type: 'value' as const, splitLine: { lineStyle: { type: 'dashed' as const } } },
-    series: [{
-      data: Array.isArray(forecastData) ? forecastData.map(d => d.amount) : [],
-      type: 'line' as const,
-      smooth: true,
-      lineStyle: { type: 'dashed' as const, color: '#6366f1' },
-      areaStyle: { color: 'rgba(99, 102, 241, 0.1)' }
-    }]
-  };
+
 
   const handleExport = async (format: 'pdf' | 'excel' | 'csv') => {
     if (exportLoading) return;
@@ -430,34 +392,6 @@ const StatisticsPage: React.FC = () => {
             />
           </Card>
         </Col>
-        
-        {/* AI 智能预测卡片 */}
-        <Col span={24}>
-          <Card 
-            title={<span><AccountBookOutlined style={{ marginRight: 8, color: '#6366f1' }} />AI 支出趋势预测</span>} 
-            className="glass-card chart-card ai-forecast-card" 
-            variant="borderless"
-            extra={<Tag color="purple">智能预测</Tag>}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', height: '300px' }}>
-              <div style={{ flex: 1 }}>
-                <SafeChart 
-                  option={forecastChartOption} 
-                  style={{ height: '300px' }} 
-                />
-              </div>
-              <div style={{ width: '300px', padding: '0 24px' }}>
-                <Title level={5} className="high-readability-title" style={{ color: textColor, textShadow }}>预测说明</Title>
-                <Text className="high-readability-secondary" style={{ color: secondaryColor, textShadow }}>基于您过去几个月的消费习惯，AI 预测了未来 3 个月的支出走势。虚线部分代表预测值，仅供参考。</Text>
-                {forecastData.length === 0 && (
-                  <div style={{ marginTop: 16 }}>
-                    <Tag color="warning">数据不足，至少需要 2 个月的数据进行预测</Tag>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        </Col>
 
         <Col span={24}>
           <Card title="财务趋势演变" className="glass-card chart-card" variant="borderless">
@@ -472,7 +406,7 @@ const StatisticsPage: React.FC = () => {
       <Row gutter={[24, 24]} className="bottom-section">
         <Col xs={24} lg={14}>
           <Card 
-            title={<span><AccountBookOutlined style={{ marginRight: 8, color: '#10b981' }} />财务健康评估 & AI 洞察</span>} 
+            title={<span><AccountBookOutlined style={{ marginRight: 8, color: '#10b981' }} />财务健康评估</span>} 
             className="glass-card health-card" 
             variant="borderless"
           >
@@ -480,7 +414,7 @@ const StatisticsPage: React.FC = () => {
               <div className="health-main">
                 <Progress 
                   type="dashboard" 
-                  percent={aiData?.score || health?.healthScore || 0} 
+                  percent={health?.healthScore || 0} 
                   size={200}
                   strokeWidth={12}
                   strokeColor={{
@@ -499,30 +433,28 @@ const StatisticsPage: React.FC = () => {
                 <div className="metric-row">
                   <div className="metric-item">
                     <Text type="secondary">储蓄率</Text>
-                    <div className="metric-value">{aiData?.savingsRate || Math.abs(health?.savingsRate || 0)}%</div>
-                    <Progress percent={parseFloat(aiData?.savingsRate) || Math.abs(health?.savingsRate || 0)} size="small" showInfo={false} strokeColor="#6366f1" />
+                    <div className="metric-value">{Math.abs(health?.savingsRate || 0)}%</div>
+                    <Progress percent={Math.abs(health?.savingsRate || 0)} size="small" showInfo={false} strokeColor="#6366f1" />
                   </div>
                   <div className="metric-item">
                     <Text type="secondary">债务收入比</Text>
-                    <div className="metric-value">{aiData?.debtToIncomeRatio || 0}%</div>
-                    <Progress percent={parseFloat(aiData?.debtToIncomeRatio) || 0} size="small" showInfo={false} status={(parseFloat(aiData?.debtToIncomeRatio) || 0) > 40 ? 'exception' : 'normal'} />
+                    <div className="metric-value">0%</div>
+                    <Progress percent={0} size="small" showInfo={false} status={'normal'} />
                   </div>
                 </div>
                 <div className="health-recommendations">
                   <div className="recommendation-header">
-                    <Title level={5} className="high-readability-title" style={{ color: textColor, textShadow }}>AI 改善建议</Title>
+                    <Title level={5} className="high-readability-title" style={{ color: textColor, textShadow }}>改善建议</Title>
                   </div>
                   <div className="recommendation-list">
-                    {(Array.isArray(aiData?.insights) && aiData.insights.length > 0
-                      ? aiData.insights
-                      : (Array.isArray(health?.recommendations) ? health.recommendations : [])
-                    ).map((item: string, idx: number) => (
+                    {(Array.isArray(health?.recommendations) ? health.recommendations : [])
+                    .map((item: string, idx: number) => (
                       <div key={idx} className="recommendation-item" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <Tag color="purple" className="suggestion-tag">AI 建议</Tag>
+                        <Tag color="purple" className="suggestion-tag">建议</Tag>
                         <Text className="suggestion-text high-readability-text" style={{ color: textColor, textShadow }}>{item}</Text>
                       </div>
                     ))}
-                    {((Array.isArray(aiData?.insights) && aiData.insights.length > 0) || (Array.isArray(health?.recommendations) && health.recommendations.length > 0)) ? null : (
+                    {(Array.isArray(health?.recommendations) && health.recommendations.length > 0) ? null : (
                       <div style={{ padding: '8px 0' }}>
                         <Text type="secondary">暂无建议</Text>
                       </div>

@@ -300,7 +300,8 @@ const LedgerPage: React.FC = () => {
               total: displayLedgers.length,
               showSizeChanger: true,
               showTotal: (total) => `共 ${total} 个账本`,
-              position: ['bottomRight']
+              // @ts-expect-error: Antd v5.29 deprecation warning fix
+              placement: 'bottomRight'
             }}
             className="glass-table"
           />

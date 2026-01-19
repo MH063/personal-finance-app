@@ -1,8 +1,28 @@
-import { IsUUID, IsNumber, IsDateString, IsEnum, IsOptional, Min, Max } from 'class-validator';
+import {
+  IsUUID,
+  IsNumber,
+  IsDateString,
+  IsEnum,
+  IsOptional,
+  Min,
+  Max,
+  IsNotEmpty,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { BudgetStatus } from '../../entities/budget.entity';
 
+export enum BudgetPeriod {
+  MONTH = 'month',
+  QUARTER = 'quarter',
+  YEAR = 'year',
+}
+
 export class CreateBudgetDto {
+  @ApiProperty({ description: '预算周期', enum: BudgetPeriod })
+  @IsEnum(BudgetPeriod)
+  @IsNotEmpty()
+  period: BudgetPeriod;
+
   @ApiProperty({ description: '分类ID' })
   @IsUUID()
   categoryId: string;

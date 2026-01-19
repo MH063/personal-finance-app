@@ -88,7 +88,11 @@ const categorySlice = createSlice({
       })
       .addCase(fetchCategories.fulfilled, (state, action) => {
         state.loading = false;
-        state.categories = action.payload;
+        const existingMap = new Map(state.categories.map((c) => [c.id, c]));
+        action.payload.forEach((c) => {
+          existingMap.set(c.id, c);
+        });
+        state.categories = Array.from(existingMap.values());
       })
       .addCase(fetchCategories.rejected, (state, action) => {
         state.loading = false;

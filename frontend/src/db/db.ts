@@ -21,7 +21,7 @@ export interface AiSession {
 
 export interface AiClientLog {
   id?: number;
-  action: 'CREATE_SESSION' | 'APPEND_MESSAGE' | 'PAUSE' | 'RESUME' | 'DELETE_SESSION' | 'DELETE_BATCH';
+  action: 'CREATE_SESSION' | 'APPEND_MESSAGE' | 'PAUSE' | 'RESUME' | 'DELETE_SESSION' | 'DELETE_BATCH' | 'REPLACE_LAST_ASSISTANT';
   sessionId?: string;
   detail?: string;
   timestamp: number;

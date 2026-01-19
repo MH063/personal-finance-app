@@ -33,6 +33,9 @@ async function bootstrap() {
   // 启用响应压缩
   app.use(compression());
 
+  // 启用钩子以便于优雅关闭服务
+  app.enableShutdownHooks();
+
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT', 3000);
   const host = configService.get<string>('APP_HOST', '0.0.0.0');

@@ -30,9 +30,12 @@ const TransactionsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [tableSize, setTableSize] = useState<'small' | 'middle' | 'large'>('middle');
   const actionRef = useRef<any>();
+  const activeTabRef = useRef<'all' | 'pending' | 'reconciled'>('all');
+  const tabSwitchTimeoutRef = useRef<number | null>(null);
+  const [switchingTab, setSwitchingTab] = useState(false);
 
   // Selectors
-  const { transactions = [], total = 0 } = useSelector((state: RootState) => state.transactions || {});
+  const { transactions = [] } = useSelector((state: RootState) => state.transactions || {});
   const { categories = [] } = useSelector((state: RootState) => state.categories || {});
   const { ledgers = [] } = useSelector((state: RootState) => state.ledger || {});
 
@@ -50,17 +53,39 @@ const TransactionsPage: React.FC = () => {
     dispatch(fetchLedgers());
   }, [dispatch]);
 
-  // Handle data fetching
+  /**
+   * 在组件挂载时恢复用户保存的表格间距偏好
+   */
+  useEffect(() => {
+    try {
+      const savedSize = localStorage.getItem('audit_table_size');
+      if (savedSize === 'small' || savedSize === 'middle' || savedSize === 'large') {
+        setTableSize(savedSize);
+        console.log('[TransactionsPage] 恢复表格间距偏好:', savedSize);
+      }
+    } catch (error) {
+      console.warn('[TransactionsPage] 读取表格间距偏好失败:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (tabSwitchTimeoutRef.current !== null) {
+        window.clearTimeout(tabSwitchTimeoutRef.current);
+      }
+    };
+  }, []);
+
   /**
    * 请求并组装交易列表数据
    */
   const requestData = async (params: any) => {
-    // 映射 ProTable 的分页参数为后端接受的 page/limit，并移除 current/pageSize
     const page = params?.current || filters.page || 1;
     const limit = params?.pageSize || filters.limit || 20;
     const startDate = params.dateRange?.[0] ? dayjs(params.dateRange[0]).format('YYYY-MM-DD') : undefined;
     const endDate = params.dateRange?.[1] ? dayjs(params.dateRange[1]).format('YYYY-MM-DD') : undefined;
     const type = params.type !== 'all' ? params.type : undefined;
+    const currentTab = activeTabRef.current;
     const queryParams: Record<string, any> = {
       page,
       limit,
@@ -72,22 +97,68 @@ const TransactionsPage: React.FC = () => {
       categoryId: params.categoryId,
       ledgerId: params.ledgerId,
       tag: params.tag,
-      reconciled: activeTab === 'reconciled' ? true : (activeTab === 'pending' ? false : undefined),
+      reconciled: currentTab === 'reconciled' ? true : (currentTab === 'pending' ? false : undefined),
     };
-    // 清理空值
     Object.keys(queryParams).forEach((key) => {
       if (queryParams[key] === undefined || queryParams[key] === '') {
         delete queryParams[key];
       }
     });
 
-    await dispatch(fetchTransactions(queryParams));
-    
-    return {
-      data: transactions,
-      success: true,
-      total: total,
-    };
+    console.log('[TransactionsPage] 加载交易列表参数:', queryParams);
+
+    try {
+      const response: any = await dispatch(fetchTransactions(queryParams)).unwrap();
+      const payload = response || {};
+      const list: Transaction[] = payload.data || [];
+      const totalCount: number = payload.total || 0;
+      console.log('[TransactionsPage] 交易列表加载完成, 条数:', list.length);
+      return {
+        data: list,
+        success: true,
+        total: totalCount,
+      };
+    } catch (error) {
+      console.error('[TransactionsPage] 加载交易列表失败:', error);
+      return {
+        data: [],
+        success: false,
+        total: 0,
+      };
+    }
+  };
+
+  /**
+   * 切换顶部视图标签并触发表格重载
+   */
+  const handleTabChange = (tab: 'all' | 'pending' | 'reconciled') => {
+    console.log('[TransactionsPage] 切换视图标签:', tab);
+    activeTabRef.current = tab;
+    setActiveTab(tab);
+    setSwitchingTab(true);
+    if (actionRef.current) {
+      actionRef.current.reload();
+    }
+    if (tabSwitchTimeoutRef.current !== null) {
+      window.clearTimeout(tabSwitchTimeoutRef.current);
+    }
+    tabSwitchTimeoutRef.current = window.setTimeout(() => {
+      setSwitchingTab(false);
+    }, 300);
+  };
+
+  /**
+   * 切换表格间距模式并持久化用户偏好
+   */
+  const handleTableSizeChange = (value: string | number) => {
+    const size = value as 'small' | 'middle' | 'large';
+    console.log('[TransactionsPage] 切换表格间距模式:', size);
+    setTableSize(size);
+    try {
+      localStorage.setItem('audit_table_size', size);
+    } catch (error) {
+      console.warn('[TransactionsPage] 保存表格间距偏好失败:', error);
+    }
   };
 
   const handleBatchDelete = async () => {
@@ -273,20 +344,20 @@ const TransactionsPage: React.FC = () => {
           <div className="view-switcher">
             <span 
               className={`view-option ${activeTab === 'all' ? 'active' : ''}`}
-              onClick={() => setActiveTab('all')}
+              onClick={() => handleTabChange('all')}
             >
               全部流水
             </span>
             <span 
               className={`view-option ${activeTab === 'pending' ? 'active' : ''}`}
-              onClick={() => setActiveTab('pending')}
+              onClick={() => handleTabChange('pending')}
             >
               待核对
               <Badge count={transactions.filter(t => !t.reconciled).length} offset={[5, -5]} size="small" />
             </span>
             <span 
               className={`view-option ${activeTab === 'reconciled' ? 'active' : ''}`}
-              onClick={() => setActiveTab('reconciled')}
+              onClick={() => handleTabChange('reconciled')}
             >
               已归档
             </span>
@@ -296,7 +367,7 @@ const TransactionsPage: React.FC = () => {
           <Space>
             <Segmented
               value={tableSize}
-              onChange={(v) => setTableSize(v as 'small' | 'middle' | 'large')}
+              onChange={handleTableSizeChange}
               options={[
                 { label: '紧凑', value: 'small' },
                 { label: '默认', value: 'middle' },
@@ -362,7 +433,7 @@ const TransactionsPage: React.FC = () => {
               setting: true,
             }}
             size={tableSize}
-            className="audit-table glass-table"
+            className={`audit-table glass-table audit-table-size-${tableSize} ${switchingTab ? 'switching-tab' : ''}`}
           />
         </div>
       </div>

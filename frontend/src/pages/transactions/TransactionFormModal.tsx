@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, InputNumber, Select, DatePicker, message, Row, Col, Alert } from 'antd';
+import { Modal, Form, Input, InputNumber, Select, DatePicker, message, Row, Col, Alert, Radio } from 'antd';
 import { useDispatch, useSelector } from 'react-redux';
 import { AppDispatch, RootState } from '../../store';
 import { createTransaction, updateTransaction } from '../../store/slices/transactionSlice';
 import { fetchCategories } from '../../store/slices/categorySlice';
 import { fetchLedgers } from '../../store/slices/ledgerSlice';
 import { Transaction } from '../../services/transactionService';
-import { aiService } from '../../services/aiService';
 import dayjs from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 
@@ -71,24 +70,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
     form.setFieldsValue({ categoryId: undefined }); // Clear category when type changes
   };
 
-  const handleDescriptionBlur = async (e: React.FocusEvent<HTMLTextAreaElement>) => {
-    const description = e.target.value;
-    if (!description || editingTransaction || form.getFieldValue('categoryId')) return;
 
-    try {
-      const categoryId = await aiService.predictCategory(description);
-      if (categoryId) {
-        // Check if category exists in current type
-        const exists = categories.some(c => c.id === categoryId && c.type === type);
-        if (exists) {
-          form.setFieldsValue({ categoryId });
-          message.info('AI 已根据您的描述自动选择分类');
-        }
-      }
-    } catch (error) {
-      console.error('AI 预测失败:', error);
-    }
-  };
 
   const handleJumpToDebtEdit = () => {
     const debtId = (editingTransaction as any)?.metadata?.debtId;
@@ -157,7 +139,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         </Form.Item>
 
         <div style={{ marginBottom: 16, textAlign: 'center' }}>
-          <RadioGroup 
+          <Radio.Group 
             value={type} 
             onChange={e => handleTypeChange(e.target.value)} 
             disabled={!!editingTransaction}
@@ -165,7 +147,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
           >
             <Radio.Button value="expense">支出</Radio.Button>
             <Radio.Button value="income">收入</Radio.Button>
-          </RadioGroup>
+          </Radio.Group>
         </div>
 
         <Row gutter={16}>
@@ -254,8 +236,7 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         <Form.Item name="description" label="备注">
           <TextArea 
             rows={2} 
-            onBlur={handleDescriptionBlur} 
-            placeholder="请输入备注，AI 可自动识别分类" 
+            placeholder="请输入备注" 
             disabled={isDebtLink}
           />
         </Form.Item>
@@ -263,8 +244,5 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
     </Modal>
   );
 };
-
-import { Radio } from 'antd';
-const RadioGroup = Radio.Group;
 
 export default TransactionFormModal;

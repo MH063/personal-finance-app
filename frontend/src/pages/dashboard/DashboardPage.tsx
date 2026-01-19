@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Typography, Progress, Empty, Button, Tag } from 'antd';
+import { Row, Col, Card, Statistic, Typography, Progress, Button, Tag } from 'antd';
 import {
   ArrowUpOutlined,
   ArrowDownOutlined,
@@ -9,13 +9,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import SafeChart from '../../components/common/SafeChart';
-import * as echarts from 'echarts';
 import { RootState } from '../../store';
 import { fetchOverview, fetchTrend, fetchCategoryStats, fetchFinancialHealth, fetchDebtOverview } from '../../store/slices/statisticsSlice';
 import { fetchTransactions } from '../../store/slices/transactionSlice';
 import { fetchDebtStatistics } from '../../store/slices/debtSlice';
 import { fetchCategories } from '../../store/slices/categorySlice';
-import { fetchAiHealthAnalysis, fetchAiForecast } from '../../store/slices/aiSlice';
 import { collaborativeService } from '../../services/collaborativeService';
 import BudgetVisualizationCard from '../../components/business/BudgetVisualizationCard';
 import './DashboardPage.css';
@@ -28,10 +26,8 @@ const DashboardPage: React.FC = () => {
   const [navLoading, setNavLoading] = useState<string | null>(null);
   const [budgetRange, setBudgetRange] = useState('month');
   const { overview, chartData } = useSelector((state: RootState) => state.statistics);
-  const { transactions } = useSelector((state: RootState) => state.transactions);
   const { statistics: debtStats } = useSelector((state: RootState) => state.debts);
   const { categories } = useSelector((state: RootState) => state.categories);
-  const { healthAnalysis, forecast } = useSelector((state: RootState) => state.ai);
   const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
 
   const refreshData = React.useCallback((range: string = 'month') => {
@@ -49,8 +45,6 @@ const DashboardPage: React.FC = () => {
     dispatch(fetchTransactions({ limit: 5 }) as any);
     dispatch(fetchDebtStatistics() as any);
     dispatch(fetchCategories() as any);
-    dispatch(fetchAiHealthAnalysis() as any);
-    dispatch(fetchAiForecast() as any);
   }, [dispatch]);
 
   useEffect(() => {
@@ -144,77 +138,6 @@ const DashboardPage: React.FC = () => {
         },
       },
     ],
-  };
-
-  const pieChartOption = {
-    backgroundColor: 'transparent',
-    tooltip: { 
-      trigger: 'item' as const, 
-      formatter: '{b}: {c} ({d}%)',
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      borderColor: 'rgba(255, 255, 255, 0.2)',
-      textStyle: { color: '#fff' }
-    },
-    legend: { 
-      orient: 'vertical' as const, 
-      right: 10, 
-      top: 'center',
-      textStyle: { color: textColor }
-    },
-    series: [
-      {
-        type: 'pie' as const,
-        radius: ['50%', '80%'],
-        avoidLabelOverlap: false,
-        label: { show: false },
-        data: Array.isArray(chartData.pieChart) ? chartData.pieChart.map((item) => ({
-          value: item.value,
-          name: item.name,
-          itemStyle: { color: item.color || '#6366f1' },
-        })) : [],
-      },
-    ],
-  };
-
-  const forecastChartOption = {
-    backgroundColor: 'transparent',
-    tooltip: { 
-      trigger: 'axis' as const,
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      borderColor: 'rgba(255, 255, 255, 0.2)',
-      textStyle: { color: '#fff' }
-    },
-    grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
-    xAxis: {
-      type: 'category' as const,
-      axisLine: { lineStyle: { color: splitLineColor } },
-      axisLabel: { color: textColor },
-      data: Array.isArray(forecast) ? forecast.map(f => f.month) : [],
-    },
-    yAxis: { 
-      type: 'value' as const,
-      axisLabel: { color: textColor },
-      splitLine: { lineStyle: { type: 'dashed' as const, color: splitLineColor } }
-    },
-    series: [
-      {
-        name: '预测支出',
-        type: 'bar' as const,
-        data: Array.isArray(forecast) ? forecast.map(f => f.amount) : [],
-        itemStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: '#6366f1' },
-            { offset: 1, color: '#a855f7' }
-          ])
-        },
-        label: {
-          show: true,
-          position: 'outside' as const,
-          color: textColor,
-          formatter: (params: any) => `¥${params.value.toFixed(0)}`
-        }
-      }
-    ]
   };
 
   return (
@@ -342,115 +265,12 @@ const DashboardPage: React.FC = () => {
 
       <Row gutter={[24, 24]} className="chart-grid">
         {/* 图表区域 */}
-        <Col xs={24} lg={16}>
+        <Col xs={24} lg={24}>
           <Card title="收支趋势" className="chart-card" variant="borderless">
             <SafeChart option={lineChartOption} style={{ height: '350px' }} />
           </Card>
         </Col>
-        <Col xs={24} lg={8}>
-          <Card title="AI 财务健康分析" className="health-card" variant="borderless">
-            <div className="health-content">
-              <Progress
-                type="dashboard"
-                percent={healthAnalysis?.score || 0}
-                strokeColor={{
-                  '0%': '#ef4444',
-                  '50%': '#f59e0b',
-                  '100%': '#10b981',
-                }}
-                strokeWidth={10}
-                size={180}
-              />
-              <div className="health-info">
-                <Title level={4}>
-                  {healthAnalysis ? (healthAnalysis.score >= 80 ? '极佳' : healthAnalysis.score >= 60 ? '良好' : '需注意') : '分析中...'}
-                </Title>
-                <div className="health-metrics">
-                  <Text type="secondary">储蓄率: <Text strong style={{ color: Number(healthAnalysis?.savingsRate) > 0 ? '#10b981' : '#ef4444' }}>{healthAnalysis?.savingsRate || 0}%</Text></Text>
-                  <br />
-                  <Text type="secondary">债务收入比: <Text strong style={{ color: Number(healthAnalysis?.debtToIncomeRatio) < 40 ? '#10b981' : '#ef4444' }}>{healthAnalysis?.debtToIncomeRatio || 0}%</Text></Text>
-                </div>
-                {Array.isArray(healthAnalysis?.insights) && healthAnalysis.insights.length > 0 && (
-                  <div className="health-insights">
-                    <div className="insights-header">
-                      <Title level={5}>AI 改善建议</Title>
-                    </div>
-                    <ul className="insights-list">
-                      {healthAnalysis.insights.map((insight, idx) => (
-                        <li key={idx} className="insight-item">
-                          <Tag color="purple">建议</Tag>
-                          <Text>{insight}</Text>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={24}>
-          <Card title="AI 支出预测 (未来3个月)" className="forecast-card" variant="borderless">
-            {forecast && forecast.length > 0 ? (
-              <SafeChart option={forecastChartOption} style={{ height: '300px' }} />
-            ) : (
-              <Empty description="数据不足，无法生成预测。请保持至少2个月的记账记录。" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            )}
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={12}>
-          <Card 
-            title="支出分类" 
-            className="category-pie-card" 
-            variant="borderless"
-            extra={<Button type="link" onClick={() => navigate('/statistics')}>查看详情</Button>}
-          >
-            {chartData.pieChart.length > 0 ? (
-              <SafeChart option={pieChartOption} style={{ height: '300px' }} />
-            ) : (
-              <Empty description="暂无分类数据" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-            )}
-          </Card>
-        </Col>
-
-        <Col xs={24} lg={12}>
-          <Card
-            title="最近交易" 
-            className="recent-transactions-card" 
-            variant="borderless"
-            extra={<Button type="link" onClick={() => navigate('/expense')}>查看全部</Button>}
-          >
-            <div className="recent-transactions-list">
-              {transactions.slice(0, 5).map((item) => (
-                <div key={item.id} className="transaction-item" style={{ display: 'flex', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                  <div className={`transaction-icon-bg ${item.type}`}>
-                    {item.type === 'income' ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-                  </div>
-                  <div style={{ flex: 1, marginLeft: 8 }}>
-                    <Text strong className="transaction-desc">
-                      {item.description || (item.category as any)?.name || '未分类'}
-                    </Text>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
-                      {new Date(item.transactionDate).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <div className="transaction-amount">
-                    <Text strong className={`amount-text ${item.type}`}>
-                      {item.type === 'income' ? '+' : '-'}¥{item.amount.toLocaleString()}
-                    </Text>
-                  </div>
-                </div>
-              ))}
-              {transactions.slice(0, 5).length === 0 && (
-                <Empty description="暂无交易" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-              )}
-            </div>
-          </Card>
-        </Col>
       </Row>
-      
     </div>
   );
 };

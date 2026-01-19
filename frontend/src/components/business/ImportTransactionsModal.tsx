@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Modal, Upload, Button, Table, message, Select, Steps, Statistic, Tag, Progress, Alert, Space } from 'antd';
-import { InboxOutlined, CloudUploadOutlined, RobotOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { InboxOutlined, CloudUploadOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import Papa from 'papaparse';
 import dayjs from 'dayjs';
 import { useDispatch, useSelector } from 'react-redux';
 import { transactionService } from '../../services/transactionService';
 import { fetchTransactions } from '../../store/slices/transactionSlice';
 import { fetchOverview } from '../../store/slices/statisticsSlice';
-import api from '../../services/api';
 import { RootState } from '../../store';
 
 const { Dragger } = Upload;
@@ -46,7 +45,6 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
   const [currentStep, setCurrentStep] = useState(0);
   const [parsing, setParsing] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedTransaction[]>([]);
-  const [predicting, setPredicting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ total: number; success: number } | null>(null);
   
@@ -196,45 +194,6 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
     return result;
   };
 
-  const handlePredict = async () => {
-    if (parsedData.length === 0) return;
-    
-    setPredicting(true);
-    try {
-      // 提取描述列表
-      const descriptions = parsedData.map(item => `${item.merchant} ${item.description}`);
-      
-      // 调用批量预测接口
-      const response = await api.post('/ai/batch-predict-category', { descriptions }, { headers: { 'X-Silent-Loading': 'true' } });
-      const categoryIds = response?.data?.data?.categoryIds || [];
-
-      const newParsedData = parsedData.map((item, index) => {
-        const predictedId = categoryIds[index];
-        const category = categories.find(c => c.id === predictedId);
-        
-        // 只有当交易类型与预测分类类型一致时才应用预测结果
-        // 比如：支出交易不能预测为收入分类
-        if (category && category.type === item.type) {
-            return {
-                ...item,
-                categoryId: category.id,
-                categoryName: category.name,
-                status: 'predicted' as const
-            };
-        }
-        return item;
-      });
-
-      setParsedData(newParsedData);
-      message.success('AI 分类预测完成');
-    } catch (error) {
-      console.error(error);
-      message.error('AI 预测失败');
-    } finally {
-      setPredicting(false);
-    }
-  };
-
   const handleImport = async () => {
     const toImport = parsedData.filter(item => item.status !== 'success');
     if (toImport.length === 0) return;
@@ -356,13 +315,14 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
       )
     },
     {
-        title: '状态',
-        key: 'status',
-        width: 80,
-        render: (_: any, record: any) => {
-            if (record.status === 'predicted') return <Tag color="blue" icon={<RobotOutlined />}>AI预测</Tag>;
-            return null;
-        }
+      title: '状态',
+      key: 'status',
+      width: 80,
+      render: (_: any, record: any) => {
+        if (record.status === 'success') return <Tag color="green">已导入</Tag>;
+        if (record.status === 'failed') return <Tag color="red">导入失败</Tag>;
+        return <Tag>待导入</Tag>;
+      }
     }
   ];
 
@@ -383,7 +343,7 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
         className="mb-6"
         items={[
           { title: '上传文件', content: '支持支付宝/微信 CSV' },
-          { title: '预览与分类', content: 'AI 智能分类' },
+          { title: '预览与分类', content: '检查分类是否准确' },
           { title: '完成导入' },
         ]}
       />
@@ -417,14 +377,7 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
                 <Statistic title="总金额" value={parsedData.reduce((acc, cur) => acc + cur.amount, 0)} precision={2} prefix="¥" style={{marginLeft: 20}} />
             </Space>
             <Space>
-              <Button 
-                icon={<RobotOutlined />} 
-                onClick={handlePredict} 
-                loading={predicting}
-                type="default"
-              >
-                AI 智能分类
-              </Button>
+
               <Button 
                 type="primary" 
                 icon={<CloudUploadOutlined />} 
@@ -438,7 +391,7 @@ const ImportTransactionsModal: React.FC<ImportTransactionsModalProps> = ({ visib
           
           <Alert 
              message="温馨提示" 
-             description="请检查解析结果，特别是分类是否准确。AI 预测仅供参考。" 
+             description="请检查解析结果，特别是分类是否准确。" 
              type="info" 
              showIcon 
              closable 

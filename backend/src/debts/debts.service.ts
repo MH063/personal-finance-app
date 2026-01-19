@@ -663,6 +663,16 @@ export class DebtsService {
       throw new NotFoundException('债务记录不存在');
     }
 
+    // 状态确认：仅允许删除已还清或已关闭的债务
+    if (debt.status !== DebtStatus.PAID) {
+      const remain = Number(debt.remainingAmount || 0);
+      if (remain > 0) {
+        throw new BadRequestException(
+          '该债务尚未结清，无法删除。请先确认还款或将状态设置为已还清。',
+        );
+      }
+    }
+
     await this.debtRepository.remove(debt);
     this.logger.log(`债务删除成功: ${id}`);
 

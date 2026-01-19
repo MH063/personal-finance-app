@@ -446,6 +446,8 @@ export const offlineSyncService = {
           
           // 同时也允许 status，因为 cleanPayload 默认移除了它
           if (data.status !== undefined) updateData.status = data.status;
+        } else if (entity === 'LEDGER') {
+          delete updateData.type;
         }
 
         // 默认使用 PUT，BUDGET 使用 PATCH

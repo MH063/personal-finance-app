@@ -37,7 +37,6 @@ import { resetLoading } from '../../store/slices/appSlice';
 import { authService } from '../../services/authService';
 import WindowControls from './WindowControls';
 import SyncMonitor from './SyncMonitor';
-import AiAssistant from '../common/AiAssistant';
 import './MainLayout.css';
 
 const { Header, Sider, Content } = Layout;
@@ -736,7 +735,6 @@ const MainLayout = () => {
         onCancel={() => setDeleteAccountModalVisible(false)}
         onConfirm={handleDeleteAccount}
       />
-      <AiAssistant />
     </Layout>
   );
 };

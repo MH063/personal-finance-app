@@ -13,7 +13,6 @@ import { BackupModule } from './backup/backup.module';
 import { SettingsModule } from './settings/settings.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { NotificationsModule } from './notifications/notifications.module';
-import { AiModule } from './ai/ai.module';
 import { LedgersModule } from './ledgers/ledgers.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AppController } from './app.controller';
@@ -63,7 +62,6 @@ import { NetworkMonitorService } from './common/services/network-monitor.service
     SettingsModule,
     BudgetsModule,
     NotificationsModule,
-    AiModule,
     LedgersModule,
     RedisModule,
   ],

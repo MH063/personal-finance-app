@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Repository,
@@ -12,10 +12,11 @@ import { Budget } from '../entities/budget.entity';
 import { Transaction, TransactionType } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
 import { CreateBudgetDto, UpdateBudgetDto } from './dto/budget.dto';
+import { BudgetPeriod } from './dto/budget.dto';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
 import { StatisticsService } from '../statistics/statistics.service';
 import Redis from 'ioredis';
-import { Inject } from '@nestjs/common';
+import { TransactionLog, LogAction, EntityType } from '../entities/transaction-log.entity';
 
 @Injectable()
 export class BudgetsService {
@@ -28,6 +29,8 @@ export class BudgetsService {
     private readonly transactionRepository: Repository<Transaction>,
     @InjectRepository(Category)
     private readonly categoryRepository: TreeRepository<Category>,
+    @InjectRepository(TransactionLog)
+    private readonly logRepository: Repository<TransactionLog>,
     private readonly ledgerGateway: LedgerGateway,
     private readonly statisticsService: StatisticsService,
     @Inject('REDIS_CLIENT')
@@ -42,6 +45,10 @@ export class BudgetsService {
       this.logger.warn(`创建预算失败：开始日期 ${startDate} 晚于结束日期 ${endDate}`);
       throw new BadRequestException('开始日期不能晚于结束日期');
     }
+    // 校验周期边界
+    if (!this.validatePeriodBoundary(createBudgetDto.period, startDate, endDate)) {
+      throw new BadRequestException('预算周期与起止日期不匹配（需对齐月/季/年自然边界）');
+    }
 
     const budget = this.budgetRepository.create({
       ...createBudgetDto,
@@ -50,6 +57,13 @@ export class BudgetsService {
 
     const savedBudget = await this.budgetRepository.save(budget);
     this.logger.log(`预算创建成功: ${savedBudget.id}`);
+    await this.logRepository.save({
+      action: LogAction.CREATE,
+      entityType: EntityType.BUDGET,
+      entityId: savedBudget.id,
+      newData: savedBudget as any,
+      userId,
+    });
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'BUDGET_CREATED', savedBudget, userId);
@@ -58,6 +72,41 @@ export class BudgetsService {
     this.bumpNlqVersion(userId);
 
     return savedBudget;
+  }
+
+  /**
+   * 校验预算周期边界
+   */
+  private validatePeriodBoundary(
+    period: BudgetPeriod,
+    startDate: string,
+    endDate: string,
+  ): boolean {
+    try {
+      const s = new Date(startDate);
+      const e = new Date(endDate);
+      s.setHours(0, 0, 0, 0);
+      e.setHours(0, 0, 0, 0);
+      if (period === BudgetPeriod.MONTH) {
+        const monthStart = new Date(s.getFullYear(), s.getMonth(), 1);
+        const monthEnd = new Date(s.getFullYear(), s.getMonth() + 1, 0);
+        return s.getTime() === monthStart.getTime() && e.getTime() === monthEnd.getTime();
+      }
+      if (period === BudgetPeriod.QUARTER) {
+        const q = Math.floor(s.getMonth() / 3);
+        const quarterStart = new Date(s.getFullYear(), q * 3, 1);
+        const quarterEnd = new Date(s.getFullYear(), q * 3 + 3, 0);
+        return s.getTime() === quarterStart.getTime() && e.getTime() === quarterEnd.getTime();
+      }
+      if (period === BudgetPeriod.YEAR) {
+        const yearStart = new Date(s.getFullYear(), 0, 1);
+        const yearEnd = new Date(s.getFullYear(), 12, 0);
+        return s.getTime() === yearStart.getTime() && e.getTime() === yearEnd.getTime();
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }
 
   async findAll(userId: string): Promise<any[]> {
@@ -127,6 +176,15 @@ export class BudgetsService {
     Object.assign(budget, updateData);
     const updatedBudget = await this.budgetRepository.save(budget);
     this.logger.log(`预算 ${id} 更新成功`);
+    await this.logRepository.save({
+      action: LogAction.UPDATE,
+      entityType: EntityType.BUDGET,
+      entityId: id,
+      oldData: {} as any,
+      newData: updatedBudget as any,
+      changedFields: Object.keys(updateData),
+      userId,
+    });
 
     // 发送实时更新通知
     this.ledgerGateway.notifyUpdate(null, 'BUDGET_UPDATED', updatedBudget, userId);
@@ -138,16 +196,25 @@ export class BudgetsService {
   }
 
   async remove(userId: string, id: string): Promise<void> {
-    this.logger.log(`用户 ${userId} 正在删除预算 ${id}`);
+    this.logger.log(`用户 ${userId} 正在删除预算 ${id}（保留历史记录，置为无效）`);
     const budget = await this.findOne(userId, id);
-    await this.budgetRepository.remove(budget);
-    this.logger.log(`预算 ${id} 删除成功`);
+    // 逻辑删除：保留历史记录，仅将状态置为 INACTIVE
+    budget.status = 'inactive' as any;
+    const updated = await this.budgetRepository.save(budget);
+    this.logger.log(`预算 ${id} 已置为无效（历史保留）`);
+    await this.logRepository.save({
+      action: LogAction.DELETE,
+      entityType: EntityType.BUDGET,
+      entityId: id,
+      oldData: budget as any,
+      newData: updated as any,
+      userId,
+    });
 
     // 发送实时更新通知
-    this.ledgerGateway.notifyUpdate(null, 'BUDGET_DELETED', { id }, userId);
+    this.ledgerGateway.notifyUpdate(null, 'BUDGET_DELETED', { id, inactive: true }, userId);
     // 失效统计缓存，确保概览预算信息实时更新
     this.invalidateStatistics(userId);
-    this.bumpNlqVersion(userId);
   }
 
   /**
@@ -217,15 +284,4 @@ export class BudgetsService {
     }
   }
 
-  /**
-   * 递增 NLQ 缓存版本，确保后续查询不命中旧缓存
-   */
-  private async bumpNlqVersion(userId: string): Promise<void> {
-    try {
-      await this.redis.incr(`ai:cache:nlq:version:${userId}`);
-      this.logger.log(`[NLQ] 版本号递增: userId=${userId}`);
-    } catch (e: any) {
-      this.logger.warn(`[NLQ] 版本号递增失败: userId=${userId}, err=${e?.message || e}`);
-    }
-  }
 }
