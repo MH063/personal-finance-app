@@ -13,7 +13,10 @@
     "glob": "^10.5.0",
     "js-yaml": "^4.1.1",
     "qs": "^6.14.1",
-    "tmp": "^0.2.5"
+    "tmp": "^0.2.5",
+    "ws": "^7.5.10",
+    "tar": "^7.5.2",
+    "socket.io-parser": "^4.2.3"
   },
   "scripts": {
     "dev": "npm run start:dev",
@@ -70,7 +73,7 @@
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "socket.io": "^4.0.0",
+    "socket.io": "^4.8.1",
     "typeorm": "^0.3.20",
     "uuid": "^9.0.1"
   },
