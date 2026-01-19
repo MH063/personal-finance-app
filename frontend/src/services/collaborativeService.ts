@@ -100,6 +100,11 @@ class CollaborativeService {
       this.notifyListeners('ledgerUpdate', data);
     });
 
+    this.socket.on('notification', (data: any) => {
+      console.log('[Socket] 收到系统通知:', data);
+      this.notifyListeners('notification', data);
+    });
+
     this.socket.on('globalUpdate', (data: UpdatePayload) => {
       console.log('[Socket] 收到全局更新通知:', data);
       this.lastSyncTime = new Date();
@@ -120,6 +125,11 @@ class CollaborativeService {
     this.socket.on('userLeft', (data: UserRoomEvent) => {
       console.log('[Socket] 用户离开房间:', data);
       this.notifyListeners('userLeft', data);
+    });
+
+    this.socket.on('notification', (data: any) => {
+      console.log('[Socket] 收到通知:', data);
+      this.notifyListeners('notification', data);
     });
   }
 

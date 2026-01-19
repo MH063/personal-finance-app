@@ -700,6 +700,7 @@
 | 交易图标悬浮 | 无缩放 | `z-interactive-hover` |
 | 交易金额 | 无定位 | `z-interactive` |
 | 财务健康度 | 无定位 | `z-content` |
+| AI诊断区域 | 独立页面 | 整合至仪表盘 `z-bg-surface` |
 
 #### 4.2.5 收支管理页面优化
 

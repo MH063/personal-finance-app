@@ -2,6 +2,7 @@ import Dexie, { Table } from 'dexie';
 import type { Transaction } from '../services/transactionService';
 import type { Ledger } from '../services/ledgerService';
 import type { Category } from '../services/categoryService';
+import type { SavingGoal } from '../services/savingGoalService';
 
 export interface AiMessage {
   role: 'user' | 'assistant';
@@ -33,7 +34,7 @@ export interface AiClientLog {
 export interface SyncQueueItem {
   id?: number;
   action: 'CREATE' | 'UPDATE' | 'DELETE';
-  entity: 'TRANSACTION' | 'LEDGER' | 'CATEGORY' | 'DEBT' | 'BUDGET';
+  entity: 'TRANSACTION' | 'LEDGER' | 'CATEGORY' | 'DEBT' | 'BUDGET' | 'SAVING_GOAL';
   entityId: string;
   data: any;
   timestamp: number;
@@ -49,6 +50,7 @@ export class OfflineDB extends Dexie {
   categories!: Table<Category>;
   debts!: Table<any>;
   budgets!: Table<any>;
+  savingGoals!: Table<SavingGoal>;
   syncQueue!: Table<SyncQueueItem>;
   aiSessions!: Table<AiSession>;
   aiClientLogs!: Table<AiClientLog>;
@@ -68,6 +70,9 @@ export class OfflineDB extends Dexie {
     this.version(5).stores({
       aiSessions: 'id, createdAt, updatedAt, status, messageCount',
       aiClientLogs: '++id, action, sessionId, timestamp'
+    });
+    this.version(6).stores({
+      savingGoals: 'id, status, deadline'
     });
   }
 

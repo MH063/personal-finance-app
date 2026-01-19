@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   selectBackgroundFile: () => ipcRenderer.invoke('select-background-file'),
   getBackgroundConfig: () => ipcRenderer.invoke('get-background-config'),
   getApiBaseUrl: () => ipcRenderer.invoke('get-api-base-url'),
+  openMainWindow: () => ipcRenderer.invoke('open-main-window'),
   onWindowMaximized: (callback) => {
     const subscription = (event, value) => callback(value);
     ipcRenderer.on('window-maximized', subscription);

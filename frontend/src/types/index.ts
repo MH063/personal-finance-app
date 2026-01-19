@@ -15,6 +15,12 @@ export enum BudgetStatus {
   INACTIVE = 'inactive',
 }
 
+export enum BudgetPeriod {
+  MONTH = 'month',
+  QUARTER = 'quarter',
+  YEAR = 'year',
+}
+
 export interface Budget {
   id: string;
   categoryId: string;
@@ -36,6 +42,7 @@ export interface CreateBudgetDto {
   amount: number;
   startDate: string;
   endDate: string;
+  period: BudgetPeriod;
 }
 
 export interface UpdateBudgetDto {

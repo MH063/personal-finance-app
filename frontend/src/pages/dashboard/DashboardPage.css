@@ -215,6 +215,24 @@
   z-index: var(--z-bg-surface);
 }
 
+/* AI 区域卡片 - 使用同一玻璃风格 */
+.ai-diagnosis-card, .ai-advice-card {
+  border-radius: 24px !important;
+  background: var(--color-bg-glass) !important;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--color-glass-border) !important;
+  box-shadow: var(--shadow-glass) !important;
+  position: relative;
+  z-index: var(--z-bg-surface);
+}
+.ai-diagnosis-card:hover, .ai-advice-card:hover {
+  background: var(--color-bg-glass-heavy) !important;
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  z-index: var(--z-interactive-hover);
+}
+
 .ant-card-head {
   border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
   padding: 0 24px !important;
@@ -603,4 +621,38 @@
 .echarts-tooltip {
   position: relative;
   z-index: var(--z-tooltip);
+}
+
+/* ========================================
+ * AI 诊断区域 - 内容层
+ * ======================================== */
+
+.ai-section-row {
+  margin-top: 24px;
+  position: relative;
+  z-index: var(--z-content);
+}
+
+.ai-reload-btn.ant-btn-link {
+  color: var(--color-primary-300) !important;
+  transition: color var(--duration-fast) var(--ease-out), transform var(--duration-fast) var(--ease-out);
+}
+.ai-reload-btn.ant-btn-link:hover {
+  color: var(--color-primary-200) !important;
+  transform: translateY(-1px);
+}
+
+.ai-top-categories-list .ant-list-item {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  padding: 12px 0 !important;
+  transition: all var(--duration-fast) var(--ease-out) !important;
+}
+.ai-top-categories-list .ant-list-item:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+.ai-top-categories-list .ant-progress {
+  margin-top: 8px;
+}
+.ai-top-categories-list .ant-typography {
+  color: rgba(255, 255, 255, 0.85) !important;
 }

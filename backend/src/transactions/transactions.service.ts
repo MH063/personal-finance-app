@@ -18,12 +18,13 @@ import {
 } from 'typeorm';
 import { Transaction, TransactionType, PaymentMethod } from '../entities/transaction.entity';
 import { Category } from '../entities/category.entity';
-import { Ledger, LedgerMember } from '../entities/ledger.entity';
+import { Ledger, LedgerMember, LedgerRole } from '../entities/ledger.entity';
 import { TransactionLog, LogAction, EntityType } from '../entities/transaction-log.entity';
 import { LedgerGateway } from '../ledgers/ledger.gateway';
 import Redis from 'ioredis';
 import { Inject } from '@nestjs/common';
 import { StatisticsService } from '../statistics/statistics.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import {
   CreateTransactionDto,
   UpdateTransactionDto,
@@ -58,6 +59,7 @@ export class TransactionsService {
     private readonly logRepository: Repository<TransactionLog>,
     private readonly ledgerGateway: LedgerGateway,
     private readonly statisticsService: StatisticsService,
+    private readonly notificationsService: NotificationsService,
     @Inject('REDIS_CLIENT')
     private readonly redis: Redis,
   ) {}
@@ -192,6 +194,12 @@ export class TransactionsService {
       this.ledgerGateway.notifyUpdate(ledgerId, 'TRANSACTION_CREATED', savedTransaction, userId);
       this.logger.log(`交易记录创建成功: ${savedTransaction.id}`);
       this.invalidateStatistics(userId);
+
+      // 异步检查预算是否超支
+      this.notificationsService.checkBudgetExceeded(userId, ledgerId).catch((err) => {
+        this.logger.error(`Budget check failed for ledger ${ledgerId}`, err);
+      });
+
       return this.findOne(userId, savedTransaction.id);
     } catch (err) {
       await txRunner.rollbackTransaction();
@@ -430,7 +438,8 @@ export class TransactionsService {
       isTransfer,
     } = query;
 
-    const where: FindOptionsWhere<Transaction> = {};
+    // 权限控制逻辑
+    const roleConditions: FindOptionsWhere<Transaction>[] = [];
 
     // 如果指定了账本 ID，先验证权限
     if (ledgerId) {
@@ -440,67 +449,76 @@ export class TransactionsService {
       if (!membership) {
         throw new ForbiddenException('您没有权限查看该账本的交易');
       }
-      where.ledgerId = ledgerId;
+
+      const condition: FindOptionsWhere<Transaction> = { ledgerId };
+      // 如果是 CHILD 角色，只能查看自己的交易
+      if (membership.role === LedgerRole.CHILD) {
+        condition.userId = userId;
+      }
+      roleConditions.push(condition);
     } else {
       // 如果没指定账本，则返回用户作为成员的所有账本下的交易
       const memberships = await this.ledgerMemberRepository.find({
         where: { userId },
       });
-      const ledgerIds = memberships.map((m) => m.ledgerId);
-      if (ledgerIds.length > 0) {
-        where.ledgerId = In(ledgerIds);
+
+      if (memberships.length === 0) {
+        // 无账本，仅看自己（防御性）
+        roleConditions.push({ userId });
       } else {
-        // 如果没有加入任何账本，则只能看自己的交易且没有账本的（理论上不会发生，因为注册时有默认账本）
-        where.userId = userId;
+        const fullAccessLedgerIds = memberships
+          .filter((m) => m.role !== LedgerRole.CHILD)
+          .map((m) => m.ledgerId);
+
+        const childLedgerIds = memberships
+          .filter((m) => m.role === LedgerRole.CHILD)
+          .map((m) => m.ledgerId);
+
+        if (fullAccessLedgerIds.length > 0) {
+          roleConditions.push({ ledgerId: In(fullAccessLedgerIds) });
+        }
+        if (childLedgerIds.length > 0) {
+          roleConditions.push({ ledgerId: In(childLedgerIds), userId });
+        }
       }
     }
 
+    // 构造通用查询条件
+    const commonWhere: FindOptionsWhere<Transaction> = {};
+
     if (startDate && endDate) {
-      where.transactionDate = Between(new Date(startDate), new Date(endDate));
+      commonWhere.transactionDate = Between(new Date(startDate), new Date(endDate));
     } else if (startDate) {
-      where.transactionDate = Between(new Date(startDate), new Date('2099-12-31'));
+      commonWhere.transactionDate = Between(new Date(startDate), new Date('2099-12-31'));
     } else if (endDate) {
-      where.transactionDate = Between(new Date('1970-01-01'), new Date(endDate));
+      commonWhere.transactionDate = Between(new Date('1970-01-01'), new Date(endDate));
     }
 
-    if (type) {
-      where.type = type;
-    }
-
-    if (categoryId) {
-      where.categoryId = categoryId;
-    }
-
-    if (paymentMethod) {
-      where.paymentMethod = paymentMethod;
-    }
-
-    if (tag) {
-      where.tags = ArrayContains([tag]);
-    }
-
-    if (reconciled !== undefined) {
-      where.reconciled = reconciled;
-    }
-
-    if (isAdjustment !== undefined) {
-      where.isAdjustment = isAdjustment;
-    }
-
-    if (isTransfer !== undefined) {
-      where.isTransfer = isTransfer;
-    }
-
+    if (type) commonWhere.type = type;
+    if (categoryId) commonWhere.categoryId = categoryId;
+    if (paymentMethod) commonWhere.paymentMethod = paymentMethod;
+    if (tag) commonWhere.tags = ArrayContains([tag]);
+    if (reconciled !== undefined) commonWhere.reconciled = reconciled;
+    if (isAdjustment !== undefined) commonWhere.isAdjustment = isAdjustment;
+    if (isTransfer !== undefined) commonWhere.isTransfer = isTransfer;
     if (minAmount !== undefined && maxAmount !== undefined) {
-      where.amount = Between(minAmount, maxAmount);
+      commonWhere.amount = Between(minAmount, maxAmount);
     } else if (minAmount !== undefined) {
-      where.amount = Between(minAmount, 1000000000);
+      commonWhere.amount = Between(minAmount, 1000000000);
     } else if (maxAmount !== undefined) {
-      where.amount = Between(0, maxAmount);
+      commonWhere.amount = Between(0, maxAmount);
     }
+
+    // 合并权限条件和通用条件
+    // 如果 roleConditions 为空（比如没有账本且逻辑出错），至少保证 userId 限制
+    if (roleConditions.length === 0) {
+      roleConditions.push({ userId });
+    }
+
+    const finalWhere = roleConditions.map((cond) => ({ ...cond, ...commonWhere }));
 
     const [data, total] = await this.transactionRepository.findAndCount({
-      where,
+      where: finalWhere,
       relations: ['category', 'ledger'],
       order: { [sortBy]: sortOrder },
       skip: (page - 1) * limit,
@@ -557,6 +575,11 @@ export class TransactionsService {
     const isOwnerOrAdmin = membership && ['owner', 'admin'].includes(membership.role);
     if (transaction.userId !== userId && !isOwnerOrAdmin) {
       throw new ForbiddenException('您没有权限修改此交易记录');
+    }
+
+    // 权限检查：如果是 CHILD，只能更新自己的交易
+    if (membership?.role === LedgerRole.CHILD && transaction.userId !== userId) {
+      throw new ForbiddenException('您只能修改自己的交易记录');
     }
 
     // 检查是否为债务关联交易，如果是，则禁止通过常规接口修改
@@ -622,6 +645,11 @@ export class TransactionsService {
       updatedTransaction,
       userId,
     );
+
+    // 异步检查预算是否超支
+    this.notificationsService.checkBudgetExceeded(userId, transaction.ledgerId).catch((err) => {
+      this.logger.error(`预算检查失败: ${err.message}`, err.stack);
+    });
 
     await this.logRepository.save({
       action: LogAction.UPDATE,

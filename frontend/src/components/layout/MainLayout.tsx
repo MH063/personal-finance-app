@@ -15,6 +15,7 @@ import {
   LogoutOutlined,
   WalletOutlined,
   BookOutlined,
+  BankOutlined,
   TagsOutlined,
   CloudSyncOutlined,
   SyncOutlined,
@@ -223,11 +224,24 @@ const MainLayout = () => {
       }
     };
 
+    const handleNotification = (data: any) => {
+      console.log('Received notification:', data);
+      notification.info({
+        message: data.title,
+        description: data.message,
+        placement: 'topRight',
+        duration: 5,
+      });
+      // Refresh notifications list
+      dispatch(fetchNotifications({ limit: 5 }));
+    };
+
     collaborativeService.on('connect', handleConnect);
     collaborativeService.on('disconnect', handleDisconnect);
     collaborativeService.on('ledgerUpdate', handleUpdate);
     collaborativeService.on('globalUpdate', handleUpdate);
     collaborativeService.on('settingsUpdate', handleUpdate);
+    collaborativeService.on('notification', handleNotification);
     
     offlineSyncService.on(handleSyncEvent);
 
@@ -248,6 +262,7 @@ const MainLayout = () => {
       collaborativeService.off('ledgerUpdate', handleUpdate);
       collaborativeService.off('globalUpdate', handleUpdate);
       collaborativeService.off('settingsUpdate', handleUpdate);
+      collaborativeService.off('notification', handleNotification);
       offlineSyncService.off(handleSyncEvent);
     };
   }, [dispatch]);
@@ -486,6 +501,7 @@ const MainLayout = () => {
     { key: '/expense', icon: <FallOutlined />, label: '支出管理' },
     { key: '/debt', icon: <AccountBookOutlined />, label: '债务管理' },
     { key: '/budget', icon: <WalletOutlined />, label: '预算管理' },
+    { key: '/saving-goals', icon: <BankOutlined />, label: '理财目标' },
     { key: '/ledgers', icon: <BookOutlined />, label: '账本管理' },
   ];
 

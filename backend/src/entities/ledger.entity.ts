@@ -73,6 +73,14 @@ export class Ledger {
   transactions: Transaction[];
 }
 
+export enum LedgerRole {
+  OWNER = 'owner',
+  ADMIN = 'admin',
+  MEMBER = 'member',
+  VIEWER = 'viewer',
+  CHILD = 'child',
+}
+
 @Entity('ledger_members')
 export class LedgerMember {
   @PrimaryGeneratedColumn('uuid')
@@ -93,10 +101,11 @@ export class LedgerMember {
   user: User;
 
   @Column({
-    length: 20,
-    default: 'member',
+    type: 'enum',
+    enum: LedgerRole,
+    default: LedgerRole.MEMBER,
   })
-  role: string; // 'owner', 'admin', 'member', 'viewer'
+  role: LedgerRole;
 
   @CreateDateColumn({ name: 'joined_at' })
   joinedAt: Date;

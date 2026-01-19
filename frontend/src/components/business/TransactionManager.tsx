@@ -271,6 +271,10 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
         ...values,
         type, // 显式包含交易类型 (income 或 expense)
         transactionDate: values.transactionDate.format('YYYY-MM-DD'),
+        metadata: {
+          ...(editingTransaction?.metadata || {}),
+          warrantyEndDate: values.warrantyEndDate ? values.warrantyEndDate.format('YYYY-MM-DD') : undefined,
+        },
       };
 
       console.log(`[TransactionManager] 准备提交交易数据: type=${type}, action=${editingTransaction ? 'UPDATE' : 'CREATE'}`, data);
@@ -714,6 +718,11 @@ const TransactionManager = forwardRef<any, TransactionManagerProps>(({ type, tit
               maxLength={200} 
             />
           </Form.Item>
+          {type === 'expense' && (
+            <Form.Item name="warrantyEndDate" label="保修截止日期">
+              <DatePicker style={{ width: '100%' }} size="large" disabled={!!editingTransaction?.metadata?.isDebtLink} />
+            </Form.Item>
+          )}
         </Form>
       </Modal>
 

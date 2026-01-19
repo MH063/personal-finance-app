@@ -261,15 +261,6 @@ const StatisticsPage: React.FC = () => {
     }
   };
 
-  /**
-   * 重置筛选条件
-   */
-  const handleResetFilters = () => {
-    console.log('[StatisticsPage] 重置筛选条件');
-    setTimeRange('last6months');
-    setCustomRange(null);
-  };
-
   return (
     <div className="statistics-page">
       <div className="page-header-section">
@@ -355,22 +346,16 @@ const StatisticsPage: React.FC = () => {
                 className="custom-range-picker"
               />
             )}
-            <Button 
-              onClick={handleResetFilters}
-              size="large"
-              icon={<ReloadOutlined />}
-              title="重置筛选"
-              className="filter-reset-btn"
-            />
-            <Button 
-              icon={<DownloadOutlined />} 
-              size="large" 
-              onClick={() => handleExport('excel')} 
-              loading={exportLoading}
-              className="export-btn"
-            >
-              导出Excel
-            </Button>
+            <Space>
+              <Button 
+                icon={<DownloadOutlined />} 
+                onClick={() => handleExport('pdf')} 
+                loading={exportLoading}
+              >
+                导出报表
+              </Button>
+              <Button icon={<ReloadOutlined />} onClick={refreshData}>刷新</Button>
+            </Space>
           </Space>
         </div>
       </Card>

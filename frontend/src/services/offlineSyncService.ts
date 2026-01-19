@@ -268,6 +268,43 @@ export const offlineSyncService = {
             }
           }
 
+          if (item.entity === 'BUDGET' && item.action === 'CREATE') {
+            const budgetData = item.data || {};
+            const startDateStr = budgetData.startDate;
+            const endDateStr = budgetData.endDate;
+            if (startDateStr && endDateStr && !budgetData.period) {
+              const start = new Date(startDateStr);
+              const end = new Date(endDateStr);
+              const startY = start.getFullYear();
+              const endY = end.getFullYear();
+              const startM = start.getMonth();
+              const endM = end.getMonth();
+              const startD = start.getDate();
+              const endD = end.getDate();
+              const lastDayOfMonth = (y: number, m: number) => new Date(y, m + 1, 0).getDate();
+              const isYear =
+                startY === endY &&
+                startM === 0 &&
+                startD === 1 &&
+                endM === 11 &&
+                endD === 31;
+              const qm = [0, 3, 6, 9];
+              const isQuarter =
+                startY === endY &&
+                qm.includes(startM) &&
+                startD === 1 &&
+                endM === startM + 2 &&
+                endD === lastDayOfMonth(endY, endM);
+              const period = isYear ? 'year' : isQuarter ? 'quarter' : 'month';
+              const fixedData = { ...budgetData, period };
+              await db.syncQueue.update(item.id!, { data: fixedData });
+              continue;
+            }
+            console.error(`[OfflineSync] 无法自动修复的 400 错误，从队列移除以避免阻塞同步:`, errorMessage);
+            if (item.id) await db.syncQueue.delete(item.id);
+            continue;
+          }
+
           // 如果无法自动修复，为了不阻塞后续同步，将其标记为失败并移除（或者移动到错误日志表）
           console.error(`[OfflineSync] 无法自动修复的 400 错误，从队列移除以避免阻塞同步:`, errorMessage);
           if (item.id) await db.syncQueue.delete(item.id);
@@ -302,6 +339,7 @@ export const offlineSyncService = {
       case 'CATEGORY': return db.categories;
       case 'DEBT': return db.debts;
       case 'BUDGET': return db.budgets;
+      case 'SAVING_GOAL': return db.savingGoals;
       default: return null;
     }
   },
@@ -361,7 +399,8 @@ export const offlineSyncService = {
       'LEDGER': '/ledgers',
       'CATEGORY': '/categories',
       'DEBT': '/debts',
-      'BUDGET': '/budgets'
+      'BUDGET': '/budgets',
+      'SAVING_GOAL': '/saving-goals'
     };
     
     const endpoint = endpointMap[entity] || '/ledgers';

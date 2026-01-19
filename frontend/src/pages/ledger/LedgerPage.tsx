@@ -362,6 +362,7 @@ const LedgerPage: React.FC = () => {
                     {currentUserRole === 'owner' && <Option value="admin">管理员</Option>}
                     <Option value="member">成员</Option>
                     <Option value="viewer">观察者</Option>
+                    <Option value="child">子女</Option>
                   </Select>
                 </Form.Item>
                 <Form.Item>
@@ -404,7 +405,8 @@ const LedgerPage: React.FC = () => {
                       owner: { label: '所有者', color: 'gold' },
                       admin: { label: '管理员', color: 'blue' },
                       member: { label: '成员', color: 'green' },
-                      viewer: { label: '观察者', color: 'default' }
+                      viewer: { label: '观察者', color: 'default' },
+                      child: { label: '子女', color: 'cyan' }
                     };
                     const config = roles[role] || roles.member;
                     return <Tag color={config.color}>{config.label}</Tag>;

@@ -77,6 +77,17 @@ export class UserSetting {
   @Column({ name: 'data_reminder_time', length: 10, default: '20:00' })
   dataReminderTime: string;
 
+  @Column({ name: 'webauthn_credentials', type: 'jsonb', nullable: true })
+  webauthnCredentials: Array<{
+    id: string;
+    publicKeyJwk: any;
+    signCount?: number;
+    transports?: string[];
+    deviceName?: string;
+    userAgent?: string;
+    createdAt: string;
+  }>;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

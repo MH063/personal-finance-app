@@ -246,6 +246,22 @@ export class AuthService {
     return { message: '登出成功' };
   }
 
+  async issueTokensForUser(userId: string): Promise<AuthResponse> {
+    const user = await this.userRepository.findOne({
+      where: { id: userId, status: UserStatus.ACTIVE },
+    });
+    if (!user) {
+      throw new UnauthorizedException('用户不存在');
+    }
+    user.lastLogin = new Date();
+    await this.userRepository.save(user);
+    const tokens = await this.generateTokens(user);
+    return {
+      user: this.sanitizeUser(user),
+      tokens,
+    };
+  }
+
   /**
    * 删除账户
    */

@@ -1,6 +1,6 @@
 import { IsString, IsNotEmpty, IsOptional, IsEnum, IsUUID, IsNumber } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { LedgerType } from '../../entities/ledger.entity';
+import { LedgerType, LedgerRole } from '../../entities/ledger.entity';
 
 export class CreateLedgerDto {
   @IsString()
@@ -68,7 +68,7 @@ export class AddMemberDto {
   @IsNotEmpty()
   userId: string;
 
-  @IsString()
+  @IsEnum(LedgerRole)
   @IsOptional()
-  role?: string;
+  role?: LedgerRole;
 }

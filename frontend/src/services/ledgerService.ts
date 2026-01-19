@@ -25,7 +25,7 @@ export interface LedgerMember {
   id: string;
   ledgerId: string;
   userId: string;
-  role: 'owner' | 'admin' | 'member' | 'viewer';
+  role: 'owner' | 'admin' | 'member' | 'viewer' | 'child';
   joinedAt: string;
   user?: {
     id: string;

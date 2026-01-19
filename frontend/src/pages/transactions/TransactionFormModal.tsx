@@ -46,7 +46,10 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
         form.setFieldsValue({
           ...editingTransaction,
           transactionDate: dayjs(editingTransaction.transactionDate),
-          type: editingTransaction.type
+          type: editingTransaction.type,
+          warrantyEndDate: editingTransaction.metadata?.warrantyEndDate 
+            ? dayjs(editingTransaction.metadata.warrantyEndDate) 
+            : undefined,
         });
       } else {
         // Create mode
@@ -85,10 +88,19 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
       const values = await form.validateFields();
       setLoading(true);
 
+      const metadata = {
+        ...(editingTransaction?.metadata || {}),
+        warrantyEndDate: values.warrantyEndDate ? values.warrantyEndDate.format('YYYY-MM-DD') : undefined,
+      };
+
       const data = {
         ...values,
         transactionDate: values.transactionDate.format('YYYY-MM-DD HH:mm:ss'),
+        metadata,
       };
+      
+      // Clean up top-level warrantyEndDate as it's not in the DTO
+      delete data.warrantyEndDate;
 
       if (editingTransaction) {
         await dispatch(updateTransaction({ id: editingTransaction.id, data })).unwrap();
@@ -200,6 +212,13 @@ const TransactionFormModal: React.FC<TransactionFormModalProps> = ({
               />
             </Form.Item>
           </Col>
+          {type === 'expense' && (
+            <Col span={12}>
+              <Form.Item name="warrantyEndDate" label="保修到期日" tooltip="录入后系统将在到期前提醒">
+                <DatePicker style={{ width: '100%' }} placeholder="可选，针对电器等" />
+              </Form.Item>
+            </Col>
+          )}
         </Row>
 
         <Form.Item name="tags" label="标签">

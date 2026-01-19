@@ -113,11 +113,27 @@
   overflow-y: auto;
   overflow-x: hidden;
   flex: 1;
-  scrollbar-width: none; /* Firefox 隐藏滚动条 */
+  min-height: 0;
+  padding-bottom: 120px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .menu-wrapper::-webkit-scrollbar {
-  display: none; /* Chrome/Safari 隐藏滚动条 */
+  width: 6px;
+}
+
+.menu-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.menu-wrapper::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.menu-wrapper::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
 /* 侧边栏菜单分组标题 */

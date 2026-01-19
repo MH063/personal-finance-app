@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, OptimisticLockVersionMismatchError } from 'typeorm';
-import { Ledger, LedgerMember } from '../entities/ledger.entity';
+import { Ledger, LedgerMember, LedgerRole } from '../entities/ledger.entity';
 import { Transaction } from '../entities/transaction.entity';
 import { CreateLedgerDto, UpdateLedgerDto, AddMemberDto } from './dto/ledger.dto';
 import { User } from '../entities/user.entity';
@@ -104,7 +104,7 @@ export class LedgersService {
     const member = this.ledgerMemberRepository.create({
       ledgerId: savedLedger.id,
       userId: userId,
-      role: 'owner',
+      role: LedgerRole.OWNER,
     });
 
     await this.ledgerMemberRepository.save(member);
@@ -192,10 +192,15 @@ export class LedgersService {
       return existingMember;
     }
 
+    const role: LedgerRole = (Object.values(LedgerRole) as string[]).includes(
+      (addMemberDto.role || '') as any,
+    )
+      ? (addMemberDto.role as LedgerRole)
+      : LedgerRole.MEMBER;
     const member = this.ledgerMemberRepository.create({
       ledgerId,
       userId: addMemberDto.userId,
-      role: addMemberDto.role || 'member',
+      role: role,
     });
 
     const savedMember = await this.ledgerMemberRepository.save(member);

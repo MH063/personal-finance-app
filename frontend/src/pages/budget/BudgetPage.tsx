@@ -38,7 +38,7 @@ import {
 } from '../../store/slices/budgetSlice';
 import { fetchCategories } from '../../store/slices/categorySlice';
 import { collaborativeService } from '../../services/collaborativeService';
-import { Budget, BudgetStatus } from '../../types';
+import { Budget, BudgetStatus, BudgetPeriod } from '../../types';
 import './BudgetPage.css';
 
 const { Title, Text } = Typography;
@@ -166,6 +166,41 @@ const BudgetPage: React.FC = () => {
         startDate: values.dateRange[0].format('YYYY-MM-DD'),
         endDate: values.dateRange[1].format('YYYY-MM-DD')
       };
+      const start = values.dateRange[0];
+      const end = values.dateRange[1];
+      const isYear =
+        start.month() === 0 &&
+        start.date() === 1 &&
+        end.month() === 11 &&
+        end.date() === 31 &&
+        start.year() === end.year();
+      const isQuarter = (() => {
+        const sm = start.month();
+        const em = end.month();
+        const sd = start.date();
+        const ed = end.date();
+        const qm = [0, 3, 6, 9];
+        if (!qm.includes(sm)) return false;
+        if (sd !== 1) return false;
+        const quarterEndMonth = sm + 2;
+        if (em !== quarterEndMonth) return false;
+        const lastDay = end.daysInMonth();
+        return ed === lastDay && start.year() === end.year();
+      })();
+      const isMonth =
+        start.date() === 1 &&
+        end.date() === end.daysInMonth() &&
+        start.month() === end.month() &&
+        start.year() === end.year();
+      if (isYear) {
+        data.period = BudgetPeriod.YEAR;
+      } else if (isQuarter) {
+        data.period = BudgetPeriod.QUARTER;
+      } else if (isMonth) {
+        data.period = BudgetPeriod.MONTH;
+      } else {
+        data.period = BudgetPeriod.MONTH;
+      }
 
       if (editingBudget) {
         // 更新预算时，通常不允许修改分类，但允许修改状态

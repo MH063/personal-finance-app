@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Typography, Progress, Button, Tag } from 'antd';
+import { Row, Col, Card, Statistic, Typography, Progress, Button, Tag, Spin, Alert, List } from 'antd';
 import {
   ArrowUpOutlined,
   ArrowDownOutlined,
   ClockCircleOutlined,
   WarningOutlined,
+  ReloadOutlined,
+  BulbOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
@@ -16,6 +18,7 @@ import { fetchDebtStatistics } from '../../store/slices/debtSlice';
 import { fetchCategories } from '../../store/slices/categorySlice';
 import { collaborativeService } from '../../services/collaborativeService';
 import BudgetVisualizationCard from '../../components/business/BudgetVisualizationCard';
+import api from '../../services/api';
 import './DashboardPage.css';
 
 const { Title, Text } = Typography;
@@ -29,6 +32,9 @@ const DashboardPage: React.FC = () => {
   const { statistics: debtStats } = useSelector((state: RootState) => state.debts);
   const { categories } = useSelector((state: RootState) => state.categories);
   const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiAdvice, setAiAdvice] = useState<string>('');
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
 
   const refreshData = React.useCallback((range: string = 'month') => {
     const token = localStorage.getItem('accessToken');
@@ -47,13 +53,38 @@ const DashboardPage: React.FC = () => {
     dispatch(fetchCategories() as any);
   }, [dispatch]);
 
+  const fetchDiagnosis = React.useCallback(async () => {
+    const token = localStorage.getItem('accessToken');
+    if (!token) {
+      console.log('[Dashboard] 未认证，跳过AI诊断请求');
+      return;
+    }
+    setAiLoading(true);
+    console.log('[Dashboard] 正在获取AI财务诊断...');
+    try {
+      const response = await api.get('/ai-diagnosis');
+      if (response?.data) {
+        setAiAdvice(response.data.advice || '');
+        setAiAnalysis(response.data.analysis || null);
+        console.log('[Dashboard] AI诊断已获取', response.data);
+      }
+    } catch (error) {
+      console.error('[Dashboard] 获取AI诊断失败:', error);
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated || !user?.id) return;
     refreshData(budgetRange);
+    fetchDiagnosis();
  
     const handleUpdate = (data: any) => {
       console.log('[Dashboard] 监听到实时更新:', data);
       refreshData(budgetRange);
+      // AI诊断无需每次实时刷新，仅在主要数据刷新时重取
+      fetchDiagnosis();
     };
  
     collaborativeService.on('ledgerUpdate', handleUpdate);
@@ -67,7 +98,7 @@ const DashboardPage: React.FC = () => {
       collaborativeService.off('budgetUpdate', handleUpdate);
       collaborativeService.off('transactionUpdate', handleUpdate);
     };
-  }, [budgetRange, refreshData, isAuthenticated, user?.id]);
+  }, [budgetRange, refreshData, isAuthenticated, user?.id, fetchDiagnosis]);
 
   const handleNav = (path: string) => {
     if (navLoading) return;
@@ -268,6 +299,110 @@ const DashboardPage: React.FC = () => {
         <Col xs={24} lg={24}>
           <Card title="收支趋势" className="chart-card" variant="borderless">
             <SafeChart option={lineChartOption} style={{ height: '350px' }} />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[24, 24]} className="ai-section-row">
+        <Col xs={24} md={8}>
+          <Card 
+            title="AI诊断" 
+            extra={
+              <Button 
+                type="link" 
+                icon={<ReloadOutlined />} 
+                onClick={fetchDiagnosis}
+                loading={aiLoading}
+                className="ai-reload-btn"
+              >
+                重新分析
+              </Button>
+            }
+            variant="borderless"
+            className="ai-diagnosis-card"
+          >
+            {aiLoading ? (
+              <div style={{ textAlign: 'center', padding: '36px' }}>
+                <Spin size="large" tip="AI 正在分析您的财务状况..." />
+              </div>
+            ) : aiAnalysis ? (
+              <>
+                <Row gutter={16}>
+                  <Col span={12}>
+                    <Statistic 
+                      title="近30天总支出" 
+                      value={aiAnalysis.totalExpense || 0} 
+                      precision={2} 
+                      suffix="CNY" 
+                    />
+                  </Col>
+                  <Col span={12}>
+                    <Statistic
+                      title="支出环比"
+                      value={Math.abs(aiAnalysis.expenseGrowth || 0)}
+                      precision={1}
+                      valueStyle={{ color: (aiAnalysis.expenseGrowth || 0) > 0 ? '#cf1322' : '#3f8600' }}
+                      prefix={(aiAnalysis.expenseGrowth || 0) > 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
+                      suffix="%"
+                    />
+                  </Col>
+                </Row>
+                
+                <div style={{ marginTop: 24 }}>
+                  <Statistic 
+                    title="当前储蓄率" 
+                    value={aiAnalysis.savingsRate || 0} 
+                    precision={1} 
+                    suffix="%" 
+                    valueStyle={{ color: (aiAnalysis.savingsRate || 0) < 10 ? '#cf1322' : '#3f8600' }}
+                  />
+                  <Progress percent={Math.max(0, Math.min(100, aiAnalysis.savingsRate || 0))} status={(aiAnalysis.savingsRate || 0) < 10 ? 'exception' : 'active'} />
+                </div>
+
+                <List
+                  className="ai-top-categories-list"
+                  header={<div style={{ fontWeight: 'bold', marginTop: 12 }}>支出最高的类别</div>}
+                  dataSource={aiAnalysis.topCategories || []}
+                  renderItem={(item: any) => (
+                    <List.Item>
+                      <div style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <Text>{item.name}</Text>
+                          <Text>{Number(item.amount).toFixed(2)}</Text>
+                        </div>
+                        <Progress percent={Math.round(item.percent)} size="small" />
+                      </div>
+                    </List.Item>
+                  )}
+                />
+              </>
+            ) : (
+              <Text type="secondary">暂无数据</Text>
+            )}
+          </Card>
+        </Col>
+        <Col xs={24} md={16}>
+          <Card 
+            title={
+              <span>
+                <BulbOutlined style={{ color: '#faad14', marginRight: 8 }} />
+                AI 建议
+              </span>
+            } 
+            variant="borderless"
+            className="ai-advice-card"
+          >
+            {aiAdvice ? (
+              <div>
+                {aiAdvice.split('\n').map((line, index) => (
+                  <Typography.Paragraph key={index} style={{ fontSize: '16px', lineHeight: '1.8' }}>
+                    {line}
+                  </Typography.Paragraph>
+                ))}
+              </div>
+            ) : (
+              <Alert message="暂无建议，请先记录一些交易数据。" type="info" showIcon />
+            )}
           </Card>
         </Col>
       </Row>

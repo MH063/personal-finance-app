@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification, net, protocol, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, net, protocol, dialog, globalShortcut, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -22,6 +22,7 @@ const isDev = !app.isPackaged;
 
 let mainWindow;
 let splashWindow;
+let widgetWindow;
 
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
@@ -37,6 +38,46 @@ function createSplashWindow() {
   splashWindow.show();
 
   return splashWindow;
+}
+
+function createWidgetWindow() {
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  widgetWindow = new BrowserWindow({
+    width: 320,
+    height: 180,
+    x: width - 340,
+    y: height - 200,
+    frame: false,
+    transparent: true,
+    skipTaskbar: true,
+    resizable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+  });
+
+  if (isDev) {
+    const os = require('os');
+    const interfaces = os.networkInterfaces();
+    let localIp = 'localhost';
+    
+    for (const devName in interfaces) {
+      const iface = interfaces[devName];
+      for (let i = 0; i < iface.length; i++) {
+        const alias = iface[i];
+        if (alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal) {
+          localIp = alias.address;
+          break;
+        }
+      }
+      if (localIp !== 'localhost') break;
+    }
+    widgetWindow.loadURL(`http://${localIp}:8000/#/widget`);
+  } else {
+    widgetWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: 'widget' });
+  }
 }
 
 function createMainWindow() {
@@ -151,6 +192,16 @@ function registerIpcHandlers() {
   ipcMain.handle('show-notification', async (event, { title, body }) => {
     showNotification(title, body);
     return true;
+  });
+
+  ipcMain.handle('open-main-window', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    } else {
+      createMainWindow();
+    }
   });
 
   ipcMain.handle('minimize-window', () => {
@@ -345,6 +396,18 @@ app.whenReady().then(() => {
   registerIpcHandlers();
   createSplashWindow();
   setTimeout(createMainWindow, 100);
+  setTimeout(createWidgetWindow, 500);
+
+  // 注册全局快捷键 Ctrl+Shift+K 呼出主窗口
+  globalShortcut.register('CommandOrControl+Shift+K', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
+    } else {
+      createMainWindow();
+    }
+  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -360,6 +423,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  globalShortcut.unregisterAll();
   if (mainWindow) {
     mainWindow.removeAllListeners('closed');
     mainWindow.close();

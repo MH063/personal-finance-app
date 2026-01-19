@@ -9,6 +9,7 @@ import { TransactionLog } from '../entities/transaction-log.entity';
 import { Ledger, LedgerMember } from '../entities/ledger.entity';
 import { LedgersModule } from '../ledgers/ledgers.module';
 import { StatisticsModule } from '../statistics/statistics.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { StatisticsModule } from '../statistics/statistics.module';
     }),
     LedgersModule, // 导入 LedgersModule 以便使用 LedgerGateway
     StatisticsModule, // 导入统计模块以支持缓存失效
+    NotificationsModule,
   ],
   controllers: [TransactionsController],
   providers: [TransactionsService],

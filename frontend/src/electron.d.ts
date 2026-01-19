@@ -9,6 +9,7 @@ export interface IElectronAPI {
   selectBackgroundFile: () => Promise<{ success: boolean; path?: string; error?: string }>;
   getBackgroundConfig: () => Promise<{ currentBackground: string; lastUpdated: string; isCustom?: boolean } | null>;
   getApiBaseUrl: () => Promise<string>;
+  openMainWindow: () => Promise<void>;
   onWindowMaximized: (callback: (isMaximized: boolean) => void) => () => void;
 }
 

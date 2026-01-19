@@ -14,12 +14,16 @@ import { SettingsModule } from './settings/settings.module';
 import { BudgetsModule } from './budgets/budgets.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { LedgersModule } from './ledgers/ledgers.module';
+import { SavingGoalsModule } from './saving-goals/saving-goals.module';
+import { AiDiagnosisModule } from './ai-diagnosis/ai-diagnosis.module';
+import { ReportsModule } from './reports/reports.module';
 import { RedisModule } from './common/redis/redis.module';
 import { AppController } from './app.controller';
 import { dataSourceOptions } from './config/data-source';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { TransactionLog } from './entities/transaction-log.entity';
 import { NetworkMonitorService } from './common/services/network-monitor.service';
+import { WebAuthnModule } from './webauthn/webauthn.module';
 
 @Module({
   imports: [
@@ -63,7 +67,11 @@ import { NetworkMonitorService } from './common/services/network-monitor.service
     BudgetsModule,
     NotificationsModule,
     LedgersModule,
+    SavingGoalsModule,
+    AiDiagnosisModule,
+    ReportsModule,
     RedisModule,
+    WebAuthnModule,
   ],
   controllers: [AppController],
   providers: [
